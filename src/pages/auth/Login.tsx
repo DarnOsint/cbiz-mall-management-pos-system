@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { verifyPinServer, verifyPbkdf2 } from '../../lib/pinHash'
 import { cacheCredential, verifyOfflinePassword, verifyOfflinePin } from '../../lib/offlineAuth'
-import { Eye, EyeOff, Delete } from 'lucide-react'
+import { Eye, EyeOff, Delete, UtensilsCrossed } from 'lucide-react'
 import type { Profile, Role } from '../../types'
 
 const EMAIL_MAX = 5
@@ -410,7 +410,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 mb-4">
-            <span className="text-3xl">🍺</span>
+            <UtensilsCrossed size={40} className="text-gray-950" />
           </div>
           <h1 className="text-3xl font-bold text-amber-400">Cbiz</h1>
           <p className="text-gray-300 mt-1">Restaurant Operating System</p>
