@@ -68,10 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetTimer = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    if (profile?.role === 'executive') return
     if (localStorage.getItem('pin_session') || sessionStorage.getItem('auth_active')) {
       timeoutRef.current = setTimeout(() => doSignOut('timeout'), TIMEOUT_MS)
     }
-  }, [doSignOut])
+  }, [doSignOut, profile?.role])
 
   useEffect(() => {
     if (!user) return
