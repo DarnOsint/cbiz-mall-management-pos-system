@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatPrice } from '../../lib/currency'
+import { formatDualPrice } from '../../lib/currency'
 import { X, Printer, Download } from 'lucide-react'
 import type { Order, OrderItem, Table } from '../../types'
 
@@ -474,11 +474,13 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                         item.id}
                     </span>
                     <span style={{ width: '24px', textAlign: 'center' }}>{item.quantity}</span>
-                    <span style={{ width: '48px', textAlign: 'right' }}>
-                      {formatPrice(item.unit_price || 0)}
+                    <span style={{ width: '60px', textAlign: 'right', fontSize: '9px' }}>
+                      {formatDualPrice(item.unit_price || 0)}
                     </span>
-                    <span style={{ width: '64px', textAlign: 'right' }}>
-                      {formatPrice((item as unknown as { total_price?: number }).total_price || 0)}
+                    <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
+                      {formatDualPrice(
+                        (item as unknown as { total_price?: number }).total_price || 0
+                      )}
                     </span>
                   </div>
                 ))}
@@ -500,11 +502,13 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           item.id}{' '}
                         [RETURNED]
                       </span>
-                      <span style={{ width: '64px', textAlign: 'right' }}>{formatPrice(0)}</span>
+                      <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
+                        {formatDualPrice(0)}
+                      </span>
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatPrice(subtotal)]].map(([l, v]) => (
+                {[['Subtotal', formatDualPrice(subtotal)]].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -515,7 +519,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     }}
                   >
                     <span>{l}</span>
-                    <span>{v}</span>
+                    <span style={{ fontSize: '9px', textAlign: 'right' }}>{v}</span>
                   </div>
                 ))}
                 <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
@@ -529,7 +533,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   }}
                 >
                   <span>TOTAL</span>
-                  <span>{formatPrice(total)}</span>
+                  <span style={{ fontSize: '10px', textAlign: 'right' }}>
+                    {formatDualPrice(total)}
+                  </span>
                 </div>
                 {tipAmount > 0 && (
                   <>
@@ -543,8 +549,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>Amount Received</span>
-                      <span>
-                        {formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
+                        {formatDualPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
                       </span>
                     </div>
                     <div
@@ -558,7 +564,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>💚 Tip (Thank you!)</span>
-                      <span>{formatPrice(tipAmount)}</span>
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
+                        {formatDualPrice(tipAmount)}
+                      </span>
                     </div>
                   </>
                 )}
@@ -702,7 +710,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatPrice(subtotal)]].map(([l, v]) => (
+                {[['Subtotal', formatDualPrice(subtotal)]].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -713,7 +721,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     }}
                   >
                     <span>{l}</span>
-                    <span>{v}</span>
+                    <span style={{ fontSize: '9px', textAlign: 'right' }}>{v}</span>
                   </div>
                 ))}
                 <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
@@ -726,7 +734,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   }}
                 >
                   <span>TOTAL CHARGED</span>
-                  <span>{formatPrice(total)}</span>
+                  <span style={{ fontSize: '9px', textAlign: 'right' }}>
+                    {formatDualPrice(total)}
+                  </span>
                 </div>
                 {tipAmount > 0 && (
                   <>
@@ -740,8 +750,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>Amount Received</span>
-                      <span>
-                        {formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
+                        {formatDualPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
                       </span>
                     </div>
                     <div
@@ -754,7 +764,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>TIP RECEIVED</span>
-                      <span>{formatPrice(tipAmount)}</span>
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
+                        {formatDualPrice(tipAmount)}
+                      </span>
                     </div>
                   </>
                 )}

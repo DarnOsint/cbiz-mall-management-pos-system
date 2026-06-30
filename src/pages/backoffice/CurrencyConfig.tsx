@@ -1,11 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import {
-  setActiveCurrency,
-  setExchangeRate,
-  invalidateCurrencyCache,
-  getCachedCurrency,
-} from '../../lib/currency'
+import { setActiveCurrency, setExchangeRate, invalidateCurrencyCache } from '../../lib/currency'
 import { ArrowLeft, DollarSign } from 'lucide-react'
 
 interface Props {

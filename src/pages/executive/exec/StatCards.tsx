@@ -1,5 +1,6 @@
 import { TrendingUp, ShoppingBag, LayoutDashboard, Users, Package } from 'lucide-react'
 import { formatPrice } from '../../../lib/currency'
+import PriceDisplay from '../../../components/PriceDisplay'
 
 interface Stats {
   revenue: number
@@ -18,7 +19,9 @@ export default function StatCards({ stats }: Props) {
   const cards = [
     {
       label: "Today's Revenue",
-      value: formatPrice(stats.revenue),
+      value: (
+        <PriceDisplay amount={stats.revenue} className="text-white text-xl md:text-2xl font-bold" />
+      ),
       icon: TrendingUp,
       color: 'text-green-400',
       bg: 'bg-green-400/10',

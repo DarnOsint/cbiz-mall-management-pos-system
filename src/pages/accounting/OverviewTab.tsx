@@ -26,7 +26,14 @@ import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { audit } from '../../lib/audit'
 import type { AccountingSummary, TrendPoint, WaitronStat } from './types'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import {
+  formatPrice,
+  formatSSP,
+  formatDualPrice,
+  getCurrencySymbol,
+  getExchangeRate,
+} from '../../lib/currency'
+import PriceDisplay from '../../components/PriceDisplay'
 
 interface Props {
   summary: AccountingSummary
@@ -265,10 +272,12 @@ export default function OverviewTab({
   const saveRecon = async () => {
     if (!canSaveThisDay) return
     setSaving(true)
-    const payload: Reconciliation = {
+    const exchangeRate = getExchangeRate()
+    const payload: Reconciliation & { exchange_rate?: number } = {
       ...recon,
       outstanding: autoShortage,
       excess: autoExcess,
+      exchange_rate: exchangeRate,
     }
     await supabase.from('settings').upsert(
       {
@@ -287,6 +296,7 @@ export default function OverviewTab({
         totalCash: totalCashCollected,
         totalTransferReceipts: totalTransferReceipts,
         shortfall,
+        exchangeRate,
       },
       performer: profile as any,
     })
@@ -317,12 +327,17 @@ export default function OverviewTab({
   const shortfall = totalOutstanding > 0 ? totalOutstanding : revenueGap
 
   const printDailySummary = () => {
-    const W = 40
+    const W = 48
     const div = '-'.repeat(W)
     const sol = '='.repeat(W)
     const row = (l: string, r: string) => {
       const left = l.substring(0, W - r.length - 1)
       return left + ' '.repeat(Math.max(1, W - left.length - r.length)) + r
+    }
+    const row2 = (l: string, r1: string, r2: string) => {
+      const line1 = row(l, r1)
+      const indent = '  '
+      return line1 + '\n' + indent + r2
     }
     const ctr = (s: string) => ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
     const fmtDate = new Date(reconDate).toLocaleDateString('en-NG', {
@@ -330,30 +345,44 @@ export default function OverviewTab({
       month: 'short',
       year: 'numeric',
     })
+    const rate = getExchangeRate()
+    const fmtUSD = (v: number) =>
+      `$${(v / rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const fmtSSP = (v: number) =>
+      `SSP ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const fmtBoth = (v: number) => {
+      const usd = (v / rate).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+      const ssp = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      return `$${usd}  (SSP ${ssp})`
+    }
     const lines = [
       '',
       ctr('CELEBIZ'),
       ctr('DAILY RECONCILIATION'),
       div,
       row('Date:', fmtDate),
+      row('Rate:', `$1 = SSP ${rate.toLocaleString()}`),
       row('Printed:', new Date().toLocaleString('en-NG')),
       div,
       ctr('SALES SUMMARY'),
       div,
-      row('Gross Revenue:', `N${summary.total.toLocaleString()}`),
-      row('Net Revenue:', `N${netRevenue.toLocaleString()}`),
+      row('Gross Revenue:', fmtBoth(summary.total)),
+      row('Net Revenue:', fmtBoth(netRevenue)),
       row('Total Orders:', String(summary.orders)),
-      row('Avg Order Value:', `N${summary.avgOrder.toLocaleString()}`),
+      row('Avg Order Value:', fmtBoth(summary.avgOrder)),
       div,
       ctr('PAYMENT BREAKDOWN'),
       div,
       ...Object.entries(summary.byMethod || {})
         .filter(([, v]) => v > 0)
-        .map(([k, v]) => row(k + ':', `N${v.toLocaleString()}`)),
+        .map(([k, v]) => row(k + ':', fmtBoth(v))),
       div,
       ctr('STAFF SALES'),
       div,
-      ...waitronStats.map((w) => row(w.name, `N${w.revenue.toLocaleString()} (${w.orders})`)),
+      ...waitronStats.map((w) => row(w.name, `${fmtBoth(w.revenue)} (${w.orders})`)),
       div,
       ctr('WAITRON REMITTANCE'),
       div,
@@ -362,44 +391,44 @@ export default function OverviewTab({
         const transfer = recon.transferReceipts[w.name] || 0
         if (cash <= 0 && transfer <= 0) return []
         return [
-          row(`${w.name} Cash:`, `N${cash.toLocaleString()}`),
-          row(`${w.name} Transfer:`, `N${transfer.toLocaleString()}`),
+          row(`${w.name} Cash:`, fmtBoth(cash)),
+          row(`${w.name} Transfer:`, fmtBoth(transfer)),
         ]
       }),
-      row('TOTAL CASH:', `N${totalCashCollected.toLocaleString()}`),
-      row('TOTAL TRANSFER:', `N${totalTransferReceipts.toLocaleString()}`),
+      row('TOTAL CASH:', fmtBoth(totalCashCollected)),
+      row('TOTAL TRANSFER:', fmtBoth(totalTransferReceipts)),
       div,
       ctr('OUTSTANDING PER WAITRON'),
       div,
       ...Object.entries(mergedOutstanding)
         .filter(([, v]) => v > 0)
-        .map(([name, amt]) => row(name, `N${amt.toLocaleString()}`)),
-      row('TOTAL OUTSTANDING:', `N${totalOutstanding.toLocaleString()}`),
+        .map(([name, amt]) => row(name, fmtBoth(amt))),
+      row('TOTAL OUTSTANDING:', fmtBoth(totalOutstanding)),
       div,
       ctr('EXCESS PER WAITRON'),
       div,
       ...Object.entries(autoExcess)
         .filter(([, v]) => v > 0)
-        .map(([name, amt]) => row(name, `N${amt.toLocaleString()}`)),
-      row('TOTAL EXCESS:', `N${totalExcess.toLocaleString()}`),
+        .map(([name, amt]) => row(name, fmtBoth(amt))),
+      row('TOTAL EXCESS:', fmtBoth(totalExcess)),
       div,
       ctr('EXPENSES & PAYOUTS'),
       div,
-      row('Total Payouts:', `N${totalPayouts.toLocaleString()}`),
+      row('Total Payouts:', fmtBoth(totalPayouts)),
       div,
       sol,
       ctr('END OF DAY RECONCILIATION'),
       sol,
-      row('Total Sales (POS):', `N${expectedRevenue.toLocaleString()}`),
-      row('Total Received:', `N${totalReceived.toLocaleString()}`),
-      row('Payouts:', `N${totalPayouts.toLocaleString()}`),
-      row('Outstanding (Waitrons):', `N${totalOutstanding.toLocaleString()}`),
-      row('Excess (Waitrons):', `N${totalExcess.toLocaleString()}`),
-      row('Accounted For:', `N${totalReceived.toLocaleString()}`),
+      row('Total Sales (POS):', fmtBoth(expectedRevenue)),
+      row('Total Received:', fmtBoth(totalReceived)),
+      row('Payouts:', fmtBoth(totalPayouts)),
+      row('Outstanding (Waitrons):', fmtBoth(totalOutstanding)),
+      row('Excess (Waitrons):', fmtBoth(totalExcess)),
+      row('Accounted For:', fmtBoth(totalReceived)),
       sol,
       row(
         shortfall > 0 ? 'SHORTFALL:' : shortfall < 0 ? 'SURPLUS:' : 'BALANCED:',
-        `N${Math.abs(shortfall).toLocaleString()}`
+        fmtBoth(Math.abs(shortfall))
       ),
       sol,
       '',
@@ -425,42 +454,78 @@ export default function OverviewTab({
   const cards = [
     {
       label: 'Gross Revenue',
-      value: formatPrice(summary.total),
+      value: (
+        <PriceDisplay
+          amount={summary.total}
+          className="text-white font-bold text-lg leading-tight"
+          sspClassName="text-[9px] text-gray-500"
+        />
+      ),
       icon: TrendingUp,
       color: 'text-amber-400',
       bg: 'bg-amber-400/10',
     },
     {
       label: 'Net Revenue',
-      value: formatPrice(netRevenue),
+      value: (
+        <PriceDisplay
+          amount={netRevenue}
+          className="text-white font-bold text-lg leading-tight"
+          sspClassName="text-[9px] text-gray-500"
+        />
+      ),
       icon: DollarSign,
       color: 'text-green-400',
       bg: 'bg-green-400/10',
     },
     {
       label: 'Cash',
-      value: formatPrice(summary.byMethod?.['Cash'] || 0),
+      value: (
+        <PriceDisplay
+          amount={summary.byMethod?.['Cash'] || 0}
+          className="text-white font-bold text-lg leading-tight"
+          sspClassName="text-[9px] text-gray-500"
+        />
+      ),
       icon: Banknote,
       color: 'text-emerald-400',
       bg: 'bg-emerald-400/10',
     },
     {
       label: 'Bank POS',
-      value: formatPrice(summary.byMethod?.['Bank POS'] || 0),
+      value: (
+        <PriceDisplay
+          amount={summary.byMethod?.['Bank POS'] || 0}
+          className="text-white font-bold text-lg leading-tight"
+          sspClassName="text-[9px] text-gray-500"
+        />
+      ),
       icon: CreditCard,
       color: 'text-blue-400',
       bg: 'bg-blue-400/10',
     },
     {
       label: 'Transfer',
-      value: formatPrice(summary.byMethod?.['Transfer'] || 0),
+      value: (
+        <PriceDisplay
+          amount={summary.byMethod?.['Transfer'] || 0}
+          className="text-white font-bold text-lg leading-tight"
+          sspClassName="text-[9px] text-gray-500"
+        />
+      ),
       icon: Smartphone,
       color: 'text-purple-400',
       bg: 'bg-purple-400/10',
     },
     {
       label: 'Avg Order',
-      value: formatPrice(summary.avgOrder),
+      value: (
+        <PriceDisplay
+          amount={summary.avgOrder}
+          className="text-white font-bold text-lg leading-tight"
+          sspClassName="text-[9px] text-gray-500"
+        />
+      ),
       icon: Receipt,
       color: 'text-pink-400',
       bg: 'bg-pink-400/10',
@@ -512,7 +577,11 @@ export default function OverviewTab({
                   <span className="text-white text-sm font-medium">{w.name}</span>
                   <span className="text-gray-500 text-xs ml-2">{w.orders} orders</span>
                 </div>
-                <span className="text-amber-400 font-bold">{formatPrice(w.revenue)}</span>
+                <PriceDisplay
+                  amount={w.revenue}
+                  className="text-amber-400 font-bold"
+                  sspClassName="text-[9px] text-gray-500 text-right"
+                />
               </div>
             ))}
           </div>
@@ -528,8 +597,12 @@ export default function OverviewTab({
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-400">{item.label}</span>
                 <span className="text-white font-medium">
-                  {formatPrice(item.value)} (
-                  {summary.total ? Math.round((item.value / summary.total) * 100) : 0}%)
+                  <PriceDisplay
+                    amount={item.value}
+                    className="text-white font-medium"
+                    sspClassName="text-[9px] text-gray-500 text-right"
+                  />{' '}
+                  ({summary.total ? Math.round((item.value / summary.total) * 100) : 0}%)
                 </span>
               </div>
               <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -549,6 +622,9 @@ export default function OverviewTab({
           <h3 className="text-amber-400 font-bold flex items-center gap-2">
             <DollarSign size={16} />{' '}
             {isSingleDay ? 'Daily Reconciliation' : 'Reconciliation Summary'}
+            <span className="text-gray-500 text-[10px] font-normal ml-2">
+              Rate: $1 = SSP {getExchangeRate().toLocaleString()}
+            </span>
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-gray-400 text-xs">
@@ -629,8 +705,8 @@ export default function OverviewTab({
               {activeWaitrons.map((w) => (
                 <div key={w.name} className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
-                  <span className="text-gray-600 text-xs w-32">
-                    exp cash {formatPrice(w.cashExpected || 0)}
+                  <span className="text-gray-600 text-xs w-40">
+                    exp {formatDualPrice(w.cashExpected || 0)}
                   </span>
                   <input
                     type="number"
@@ -648,8 +724,8 @@ export default function OverviewTab({
                     disabled={!canEditThisDay}
                     className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500"
                   />
-                  <span className="text-gray-600 text-xs w-36">
-                    exp POS+transfer {formatPrice(w.transferExpected || 0)}
+                  <span className="text-gray-600 text-xs w-44">
+                    exp {formatDualPrice(w.transferExpected || 0)}
                   </span>
                   <input
                     type="number"
@@ -671,17 +747,21 @@ export default function OverviewTab({
               ))}
               <div className="flex justify-between pt-1 border-t border-gray-700">
                 <span className="text-gray-400 text-sm font-medium">Total Cash Collected</span>
-                <span className="text-emerald-400 font-bold">
-                  {formatPrice(totalCashCollected)}
-                </span>
+                <PriceDisplay
+                  amount={totalCashCollected}
+                  className="text-emerald-400 font-bold text-sm"
+                  sspClassName="text-[9px] text-gray-500 text-right"
+                />
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400 text-sm font-medium">
                   Total POS and Transfer Receipts
                 </span>
-                <span className="text-purple-400 font-bold">
-                  {formatPrice(totalTransferReceipts)}
-                </span>
+                <PriceDisplay
+                  amount={totalTransferReceipts}
+                  className="text-purple-400 font-bold text-sm"
+                  sspClassName="text-[9px] text-gray-500 text-right"
+                />
               </div>
             </div>
           </div>
@@ -706,24 +786,24 @@ export default function OverviewTab({
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
                   <span className="text-gray-500 text-xs shrink-0">
                     remitted{' '}
-                    {formatPrice(
+                    {formatDualPrice(
                       (recon.cashCollected[w.name] || 0) + (recon.transferReceipts[w.name] || 0)
                     )}
                   </span>
                   <span className="text-gray-500 text-xs shrink-0">
-                    expected {formatPrice((w.cashExpected || 0) + (w.transferExpected || 0))}
+                    expected {formatDualPrice((w.cashExpected || 0) + (w.transferExpected || 0))}
                   </span>
                   <span className="text-red-400 text-xs shrink-0">
-                    shortage: {formatPrice(shortage)}
+                    shortage: {formatDualPrice(shortage)}
                   </span>
                   {isSingleDay && excess > 0 && (
                     <span className="text-green-400 text-xs shrink-0">
-                      excess: {formatPrice(excess)}
+                      excess: {formatDualPrice(excess)}
                     </span>
                   )}
                   {credit > 0 && (
                     <span className="text-amber-400 text-xs shrink-0">
-                      Credit: {formatPrice(credit)}
+                      Credit: {formatDualPrice(credit)}
                     </span>
                   )}
                 </div>
@@ -761,7 +841,11 @@ export default function OverviewTab({
                       </p>
                       {d.items && <p className="text-gray-400 text-[10px] mt-0.5">{d.items}</p>}
                     </div>
-                    <span className="text-red-400 text-xs font-bold">{formatPrice(d.amount)}</span>
+                    <PriceDisplay
+                      amount={d.amount}
+                      className="text-red-400 text-xs font-bold"
+                      sspClassName="text-[8px] text-gray-500 text-right"
+                    />
                   </div>
                 ))}
               </div>
@@ -769,7 +853,11 @@ export default function OverviewTab({
           )}
           <div className="text-right text-sm text-gray-300 mt-2">
             Total Outstanding:{' '}
-            <span className="text-red-400 font-semibold">{formatPrice(totalOutstanding)}</span>
+            <PriceDisplay
+              amount={totalOutstanding}
+              className="text-red-400 font-semibold text-sm"
+              sspClassName="text-[9px] text-gray-500 text-right"
+            />
           </div>
         </div>
 
@@ -778,28 +866,52 @@ export default function OverviewTab({
           <h4 className="text-white font-bold text-sm mb-3">End of Day Summary</h4>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Total Sales (POS)</span>
-            <span className="text-white font-bold">{formatPrice(expectedRevenue)}</span>
+            <PriceDisplay
+              amount={expectedRevenue}
+              className="text-white font-bold text-sm"
+              sspClassName="text-[9px] text-gray-500 text-right"
+            />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Cash Collected</span>
-            <span className="text-emerald-400">{formatPrice(totalCashCollected)}</span>
+            <PriceDisplay
+              amount={totalCashCollected}
+              className="text-emerald-400 text-sm"
+              sspClassName="text-[9px] text-gray-500 text-right"
+            />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">POS and Transfer Receipts</span>
-            <span className="text-purple-400">{formatPrice(totalTransferReceipts)}</span>
+            <PriceDisplay
+              amount={totalTransferReceipts}
+              className="text-purple-400 text-sm"
+              sspClassName="text-[9px] text-gray-500 text-right"
+            />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Expenses/Payouts</span>
-            <span className="text-red-400">{formatPrice(totalPayouts)}</span>
+            <PriceDisplay
+              amount={totalPayouts}
+              className="text-red-400 text-sm"
+              sspClassName="text-[9px] text-gray-500 text-right"
+            />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Outstanding / Shortage (Waitrons)</span>
-            <span className="text-red-400">{formatPrice(totalOutstanding)}</span>
+            <PriceDisplay
+              amount={totalOutstanding}
+              className="text-red-400 text-sm"
+              sspClassName="text-[9px] text-gray-500 text-right"
+            />
           </div>
           <div className="border-t-2 border-gray-700 pt-2 mt-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Total Accounted For</span>
-              <span className="text-white font-bold">{formatPrice(totalReceived)}</span>
+              <PriceDisplay
+                amount={totalReceived}
+                className="text-white font-bold text-sm"
+                sspClassName="text-[9px] text-gray-500 text-right"
+              />
             </div>
           </div>
           <div className="border-t-2 border-gray-600 pt-2">
@@ -818,11 +930,11 @@ export default function OverviewTab({
                     className={shortfall > 0 ? 'text-red-400' : 'text-green-400'}
                   />
                 )}
-                <span
-                  className={`text-xl font-bold ${shortfall > 0 ? 'text-red-400' : shortfall < 0 ? 'text-green-400' : 'text-green-400'}`}
-                >
-                  {formatPrice(Math.abs(shortfall))}
-                </span>
+                <PriceDisplay
+                  amount={Math.abs(shortfall)}
+                  className="text-xl font-bold"
+                  sspClassName="text-[10px] text-gray-500 text-right"
+                />
               </div>
             </div>
           </div>
@@ -848,7 +960,7 @@ export default function OverviewTab({
                   borderRadius: '8px',
                 }}
                 labelStyle={{ color: '#fff' }}
-                formatter={(v: number) => [formatPrice(v), 'Revenue']}
+                formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
               />
               <Line
                 type="monotone"
@@ -867,11 +979,19 @@ export default function OverviewTab({
         <h3 className="text-white font-semibold mb-4">Expenses & Payouts</h3>
         <div className="flex items-center justify-between">
           <span className="text-gray-400">Total expenses this period</span>
-          <span className="text-red-400 font-bold text-xl">{formatPrice(totalPayouts)}</span>
+          <PriceDisplay
+            amount={totalPayouts}
+            className="text-red-400 font-bold text-xl"
+            sspClassName="text-[10px] text-gray-500 text-right"
+          />
         </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-gray-400">Net after expenses</span>
-          <span className="text-green-400 font-bold text-xl">{formatPrice(netRevenue)}</span>
+          <PriceDisplay
+            amount={netRevenue}
+            className="text-green-400 font-bold text-xl"
+            sspClassName="text-[10px] text-gray-500 text-right"
+          />
         </div>
       </div>
     </div>

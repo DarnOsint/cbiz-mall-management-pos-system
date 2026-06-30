@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
 import { createPDF, addTable, savePDF } from '../../lib/pdfExport'
 import { supabase } from '../../lib/supabase'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice, formatDualPrice, getCurrencySymbol } from '../../lib/currency'
+import PriceDisplay from '../../components/PriceDisplay'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { useAuth } from '../../context/AuthContext'
 import {
@@ -794,9 +795,11 @@ export default function Reports() {
                   <p className="text-gray-500 text-xs mt-1">Generated: {report.generatedAt}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-white font-bold text-3xl">
-                    {formatPrice(report.totalRevenue)}
-                  </p>
+                  <PriceDisplay
+                    amount={report.totalRevenue}
+                    className="text-white font-bold text-3xl"
+                    sspClassName="text-[10px] text-gray-500 text-right"
+                  />
                   <p className="text-gray-400 text-sm">Total Revenue</p>
                   <button
                     onClick={() => exportReportPDF(report)}
@@ -819,19 +822,37 @@ export default function Reports() {
                 [
                   {
                     label: 'Gross Revenue',
-                    value: formatPrice(report.grossRevenue),
+                    value: (
+                      <PriceDisplay
+                        amount={report.grossRevenue}
+                        className="text-white font-bold text-lg"
+                        sspClassName="text-[9px] text-gray-500"
+                      />
+                    ),
                     color: 'text-amber-400',
                     icon: TrendingUp,
                   },
                   {
                     label: 'Total Expenses',
-                    value: formatPrice(report.totalExpenses),
+                    value: (
+                      <PriceDisplay
+                        amount={report.totalExpenses}
+                        className="text-white font-bold text-lg"
+                        sspClassName="text-[9px] text-gray-500"
+                      />
+                    ),
                     color: 'text-red-400',
                     icon: Banknote,
                   },
                   {
                     label: 'Net Revenue',
-                    value: formatPrice(report.netRevenue),
+                    value: (
+                      <PriceDisplay
+                        amount={report.netRevenue}
+                        className="text-white font-bold text-lg"
+                        sspClassName="text-[9px] text-gray-500"
+                      />
+                    ),
                     color: 'text-green-400',
                     icon: TrendingUp,
                   },
@@ -855,13 +876,19 @@ export default function Reports() {
                   },
                   {
                     label: 'Returned Items',
-                    value: `${report.returnedItems} (${formatPrice(report.returnedValue)})`,
+                    value: `${report.returnedItems} (${formatDualPrice(report.returnedValue)})`,
                     color: 'text-orange-400',
                     icon: ShoppingBag,
                   },
                   {
                     label: 'Avg Order Value',
-                    value: formatPrice(report.avgOrderValue),
+                    value: (
+                      <PriceDisplay
+                        amount={report.avgOrderValue}
+                        className="text-white font-bold text-lg"
+                        sspClassName="text-[9px] text-gray-500"
+                      />
+                    ),
                     color: 'text-purple-400',
                     icon: BarChart2,
                   },
@@ -874,9 +901,15 @@ export default function Reports() {
                   {
                     label: 'Revenue / Cover',
                     value:
-                      report.revenuePerCover > 0
-                        ? formatPrice(Math.round(report.revenuePerCover))
-                        : '—',
+                      report.revenuePerCover > 0 ? (
+                        <PriceDisplay
+                          amount={Math.round(report.revenuePerCover)}
+                          className="text-white font-bold text-lg"
+                          sspClassName="text-[9px] text-gray-500"
+                        />
+                      ) : (
+                        '—'
+                      ),
                     color: 'text-amber-400',
                     icon: Users,
                   },
@@ -1010,7 +1043,7 @@ export default function Reports() {
                         border: '1px solid #374151',
                         borderRadius: '8px',
                       }}
-                      formatter={(v: number) => [formatPrice(v), 'Revenue']}
+                      formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
                     />
                     <Bar dataKey="revenue" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -1040,7 +1073,7 @@ export default function Reports() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(v: number) => [formatPrice(v), 'Revenue']}
+                        formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
                         contentStyle={{
                           background: '#111827',
                           border: '1px solid #374151',

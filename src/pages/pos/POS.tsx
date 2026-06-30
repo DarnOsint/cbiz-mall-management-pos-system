@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { formatPrice } from '../../lib/currency'
+import { formatDualPrice } from '../../lib/currency'
+import PriceDisplay from '../../components/PriceDisplay'
 import type { ItemDestination } from '../../types'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { audit } from '../../lib/audit'
@@ -232,7 +233,9 @@ function DesktopMenuBrowser({
                   <p className="text-white text-sm font-medium leading-tight truncate">
                     {item.name}
                   </p>
-                  <p className="text-amber-400 text-sm font-bold mt-1">{formatPrice(item.price)}</p>
+                  <p className="text-amber-400 text-sm font-bold mt-1">
+                    {formatDualPrice(item.price)}
+                  </p>
                 </div>
               </button>
             )
@@ -1666,9 +1669,11 @@ export default function POS() {
                   <p className="text-amber-400/70 text-[10px] uppercase tracking-widest mb-1">
                     Total Sales
                   </p>
-                  <p className="text-amber-400 text-4xl font-bold tracking-tight">
-                    {formatPrice(shiftStats.totalSales)}
-                  </p>
+                  <PriceDisplay
+                    amount={shiftStats.totalSales}
+                    className="text-amber-400 text-4xl font-bold tracking-tight"
+                    sspClassName="text-[12px] text-amber-400/50"
+                  />
                 </div>
 
                 {/* Performance stats */}
@@ -1732,7 +1737,7 @@ export default function POS() {
                                 {order.tables?.name || 'Cash Sale'}
                               </p>
                               <p className="text-amber-400 font-bold text-sm">
-                                {formatPrice(order.netTotal || 0)}
+                                {formatDualPrice(order.netTotal || 0)}
                               </p>
                             </div>
                             <div className="flex items-center justify-between">
@@ -1853,7 +1858,11 @@ export default function POS() {
                             </div>
                           </div>
                           <div className="text-right flex items-center gap-3">
-                            <p className="text-amber-400 font-bold">{formatPrice(displayTotal)}</p>
+                            <PriceDisplay
+                              amount={displayTotal}
+                              className="text-amber-400 font-bold"
+                              sspClassName="text-[10px] text-amber-400/50"
+                            />
                             <button
                               onClick={() => setReprintOrder(order)}
                               className="flex items-center gap-1 text-gray-500 hover:text-white text-xs px-2 py-1 bg-gray-800 rounded-lg transition-colors"
@@ -1880,7 +1889,7 @@ export default function POS() {
                                         'Item'}
                                     </td>
                                     <td className="text-gray-400 py-0.5 text-right pl-2">
-                                      {formatPrice(item.total_price || 0)}
+                                      {formatDualPrice(item.total_price || 0)}
                                     </td>
                                   </tr>
                                 ))}

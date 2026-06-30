@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 type CurrencyCode = 'SSP' | 'USD'
 
-let _code: CurrencyCode = 'SSP'
+let _code: CurrencyCode = 'USD'
 let _rate = 2200
 let _loaded = false
 
@@ -55,11 +55,21 @@ export function invalidateCurrencyCache() {
 }
 
 export function formatPrice(amount: number): string {
-  const formatted = Number(amount || 0).toLocaleString('en-US', {
+  const usdAmount = _code === 'SSP' ? (amount || 0) / _rate : amount || 0
+  const formatted = Number(usdAmount).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-  return `${SYMBOLS[_code]}${formatted}`
+  return `$${formatted}`
+}
+
+export function formatSSP(amount: number): string {
+  const sspAmount = _code === 'USD' ? (amount || 0) * _rate : amount || 0
+  const formatted = Number(sspAmount).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  return `SSP ${formatted}`
 }
 
 export async function setActiveCurrency(code: CurrencyCode): Promise<void> {
@@ -84,4 +94,18 @@ export async function setExchangeRate(rate: number): Promise<void> {
     { onConflict: 'id' }
   )
   _rate = rate
+}
+
+export function convertToUSD(amount: number): number {
+  return _code === 'SSP' ? (amount || 0) / _rate : amount || 0
+}
+
+export function convertToSSP(amount: number): number {
+  return _code === 'USD' ? (amount || 0) * _rate : amount || 0
+}
+
+export function formatDualPrice(amount: number): string {
+  const usd = formatPrice(amount)
+  const ssp = formatSSP(amount)
+  return `${usd} (${ssp})`
 }

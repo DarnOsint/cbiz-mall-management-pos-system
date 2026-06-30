@@ -1,5 +1,5 @@
-import { formatPrice } from '../../../lib/currency'
 import { ShoppingBag } from 'lucide-react'
+import PriceDisplay from '../../../components/PriceDisplay'
 
 interface Order {
   id: string
@@ -52,7 +52,11 @@ export default function RecentOrders({ orders: rawOrders }: Props) {
                 </p>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-white text-sm font-bold">{formatPrice(order.total_amount)}</p>
+                <PriceDisplay
+                  amount={order.total_amount}
+                  className="text-white text-sm font-bold"
+                  sspClassName="text-[9px] text-gray-500"
+                />
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full ${
                     order.status === 'open'
