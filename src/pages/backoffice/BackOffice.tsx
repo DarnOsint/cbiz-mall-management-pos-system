@@ -11,7 +11,6 @@ import {
   Map,
   ShoppingBag,
   Beer,
-  DollarSign,
 } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import StaffManagement from './StaffManagement'
@@ -23,7 +22,7 @@ import KitchenStock from './KitchenStock'
 import FloorPlan from './FloorPlan'
 import TakeawayPacks from './TakeawayPacks'
 import BarChillerStock from './BarChillerStock'
-import CurrencyConfig from './CurrencyConfig'
+
 import { useNavigate } from 'react-router-dom'
 import type { Role } from '../../types'
 
@@ -119,14 +118,7 @@ export default function BackOffice() {
       color: 'bg-rose-500',
       roles: ['owner', 'manager'],
     },
-    {
-      id: 'currency',
-      label: 'Currency Settings',
-      desc: 'Set active currency (SSP/Dollar) and exchange rate',
-      icon: DollarSign,
-      color: 'bg-green-600',
-      roles: ['owner', 'manager'],
-    },
+
     {
       id: 'changepassword',
       label: 'Change Password',
@@ -163,7 +155,7 @@ export default function BackOffice() {
   if (activeSection === 'inventory') return <Inventory onBack={() => setActiveSection(null)} />
   if (activeSection === 'barchiller')
     return <BarChillerStock onBack={() => setActiveSection(null)} />
-  if (activeSection === 'currency') return <CurrencyConfig onBack={() => setActiveSection(null)} />
+
   if (activeSection === 'takeawaypacks')
     return <TakeawayPacks onBack={() => setActiveSection(null)} />
 
