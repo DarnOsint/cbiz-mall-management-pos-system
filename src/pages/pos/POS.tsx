@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 import { sendPushToStaff, usePushNotifications } from '../../hooks/usePushNotifications'
 import {
   LogOut,
-  Beer,
+  UtensilsCrossed,
   RefreshCw,
   ShoppingBag,
   Phone,
@@ -1242,7 +1242,7 @@ export default function POS() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-              <Beer size={15} className="text-black" />
+              <UtensilsCrossed size={15} className="text-black" />
             </div>
             <div className="hidden sm:block">
               <h1 className="text-white font-bold text-sm">Cbiz</h1>
@@ -1371,9 +1371,9 @@ export default function POS() {
 
       <div className="flex border-b border-gray-800 bg-gray-900 px-4">
         {(isWaitron
-          ? ([['tables', Beer, 'Tables']] as const)
+          ? ([['tables', UtensilsCrossed, 'Tables']] as const)
           : ([
-              ['tables', Beer, 'Tables'],
+              ['tables', UtensilsCrossed, 'Tables'],
               ['history', History, 'My Orders'],
               ['shift', TrendingUp, 'My Shift'],
             ] as const)

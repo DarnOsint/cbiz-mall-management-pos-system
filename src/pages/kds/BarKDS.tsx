@@ -6,7 +6,7 @@ import { HelpTooltip } from '../../components/HelpTooltip'
 import { useAuth } from '../../context/AuthContext'
 import ErrorBoundary from '../../components/ErrorBoundary'
 import {
-  Beer,
+  UtensilsCrossed,
   Clock,
   LogOut,
   RefreshCw,
@@ -635,7 +635,7 @@ function BarKDSInner() {
       <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center">
-            <Beer size={18} className="text-black" />
+            <UtensilsCrossed size={18} className="text-black" />
           </div>
           <div>
             <h1 className="text-white font-bold">Bar Display</h1>
@@ -662,7 +662,7 @@ function BarKDSInner() {
           onClick={() => setActiveTab('orders')}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'orders' ? 'border-amber-500 text-amber-500' : 'border-transparent text-gray-400 hover:text-white'}`}
         >
-          <Beer size={14} /> Orders
+          <UtensilsCrossed size={14} /> Orders
           {orders.length > 0 && (
             <span className="bg-amber-500 text-black text-xs font-bold px-1.5 py-0.5 rounded-full">
               {orders.length}
@@ -1047,7 +1047,7 @@ function BarKDSInner() {
       {activeTab === 'summary' && (
         <DailySummaryTab
           destination="bar"
-          icon={<Beer size={24} className="text-amber-400" />}
+          icon={<UtensilsCrossed size={24} className="text-amber-400" />}
           color="text-amber-400"
         />
       )}
@@ -1116,7 +1116,7 @@ function BarKDSInner() {
           {orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                <Beer size={32} className="text-gray-600" />
+                <UtensilsCrossed size={32} className="text-gray-600" />
               </div>
               <p className="text-gray-400 text-lg font-medium">No pending bar orders</p>
               <p className="text-gray-600 text-sm mt-1">

@@ -10,7 +10,7 @@ import {
   Package,
   Settings,
   LogOut,
-  Beer,
+  UtensilsCrossed,
   BellOff,
   Bell,
   CalendarDays,
@@ -55,7 +55,7 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Month End', icon: CalendarDays, path: '/month-end' },
   ],
   supervisor: [{ label: 'Supervisor', icon: LayoutDashboard, path: '/supervisor' }],
-  mixologist: [{ label: 'Mixologist', icon: Beer, path: '/kds/mixologist' }],
+  mixologist: [{ label: 'Mixologist', icon: UtensilsCrossed, path: '/kds/mixologist' }],
 }
 
 const BARE_ROLES = ['kitchen', 'bar', 'griller', 'waitron', 'games_master', 'shisha_attendant']
@@ -221,7 +221,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="app-shell-sidebar hidden lg:flex flex-col w-56 xl:w-64 bg-gray-900 border-r border-gray-800 flex-shrink-0">
           <div className="px-4 py-4 border-b border-gray-800 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-              <Beer size={16} className="text-black" />
+              <UtensilsCrossed size={16} className="text-black" />
             </div>
             <div className="min-w-0">
               <p className="text-white font-bold text-sm truncate">Cbiz</p>
@@ -274,7 +274,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Tablet icon sidebar */}
         <aside className="app-shell-sidebar hidden md:flex lg:hidden flex-col w-16 bg-gray-900 border-r border-gray-800 flex-shrink-0 items-center py-4 gap-2">
           <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center mb-2">
-            <Beer size={16} className="text-black" />
+            <UtensilsCrossed size={16} className="text-black" />
           </div>
           {navItems.map((item) => {
             const Icon = item.icon
@@ -305,7 +305,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="app-shell-topbar md:hidden flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800 sticky top-0 z-30">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center">
-                <Beer size={13} className="text-black" />
+                <UtensilsCrossed size={13} className="text-black" />
               </div>
               <span className="text-white font-bold text-sm">Cbiz</span>
             </div>

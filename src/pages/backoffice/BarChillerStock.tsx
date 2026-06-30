@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ArrowLeft,
-  Beer,
+  UtensilsCrossed,
   RefreshCw,
   Save,
   Minus,
@@ -675,7 +675,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
           <div className="text-center py-16 text-amber-500">Loading drinks...</div>
         ) : drinks.length === 0 ? (
           <div className="text-center py-16">
-            <Beer size={32} className="text-gray-700 mx-auto mb-3" />
+            <UtensilsCrossed size={32} className="text-gray-700 mx-auto mb-3" />
             <p className="text-gray-500">No bar drinks found in menu</p>
           </div>
         ) : (

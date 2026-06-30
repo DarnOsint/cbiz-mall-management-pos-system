@@ -10,7 +10,6 @@ import {
   ChefHat,
   Map,
   ShoppingBag,
-  Beer,
 } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import StaffManagement from './StaffManagement'
@@ -90,7 +89,7 @@ export default function BackOffice() {
       id: 'barchiller',
       label: 'Bar Chiller Stock',
       desc: 'Daily bar chiller register — what was received, sold, and remaining',
-      icon: Beer,
+      icon: UtensilsCrossed,
       color: 'bg-cyan-600',
       roles: ['owner', 'manager', 'bar'],
     },

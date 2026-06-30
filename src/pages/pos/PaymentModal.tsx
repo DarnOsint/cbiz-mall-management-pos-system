@@ -13,7 +13,7 @@ import {
   Smartphone,
   CheckCircle,
   Clock,
-  Beer,
+  UtensilsCrossed,
   Printer,
 } from 'lucide-react'
 import ReceiptModal from './ReceiptModal'
@@ -956,7 +956,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     { id: 'card', label: 'Bank POS', icon: CreditCard, color: 'text-blue-400' },
     { id: 'transfer', label: 'Bank Transfer', icon: Smartphone, color: 'text-amber-400' },
     { id: 'credit', label: 'Pay Later (Debt)', icon: Clock, color: 'text-red-400' },
-    { id: 'run_tab', label: 'Run Tab', icon: Beer, color: 'text-amber-400' },
+    { id: 'run_tab', label: 'Run Tab', icon: UtensilsCrossed, color: 'text-amber-400' },
     { id: 'cash+transfer', label: 'Cash + Transfer', icon: Smartphone, color: 'text-amber-400' },
     { id: 'cash+card', label: 'Cash + POS', icon: CreditCard, color: 'text-blue-400' },
   ]

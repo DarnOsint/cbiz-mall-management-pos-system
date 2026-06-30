@@ -6,7 +6,6 @@ import PriceDisplay from '../../components/PriceDisplay'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { useAuth } from '../../context/AuthContext'
 import {
-  Beer as _Beer,
   LogOut as _LogOut,
   ArrowLeft as _ArrowLeft,
   Download as _Download,

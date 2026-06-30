@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Beer, ChefHat, Printer, RefreshCw, Search } from 'lucide-react'
+import { UtensilsCrossed, ChefHat, Printer, RefreshCw, Search } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/currency'
 
@@ -43,7 +43,7 @@ export default function StockSummaryTab({ type }: Props) {
   const tableName = type === 'bar' ? 'bar_chiller_stock' : 'kitchen_stock'
   const destination = type === 'bar' ? 'bar' : 'kitchen'
   const label = type === 'bar' ? 'Bar Chiller' : 'Kitchen'
-  const Icon = type === 'bar' ? Beer : ChefHat
+  const Icon = type === 'bar' ? UtensilsCrossed : ChefHat
 
   const fetchData = useCallback(
     async (d: string) => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Beer, RefreshCw, Printer, Search, Save, Plus, X } from 'lucide-react'
+import { UtensilsCrossed, RefreshCw, Printer, Search, Save, Plus, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../context/AuthContext'
 import { useToast } from '../../../context/ToastContext'
@@ -547,7 +547,7 @@ export default function ChillerTab() {
         <div className="text-center py-12 text-amber-500">Loading...</div>
       ) : rows.length === 0 ? (
         <div className="text-center py-12">
-          <Beer size={32} className="text-gray-700 mx-auto mb-3" />
+          <UtensilsCrossed size={32} className="text-gray-700 mx-auto mb-3" />
           <p className="text-gray-500">No chiller data for {date}</p>
         </div>
       ) : (
