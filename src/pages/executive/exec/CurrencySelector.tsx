@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { setExchangeRate, invalidateCurrencyCache, getExchangeRate } from '../../../lib/currency'
+import { setExchangeRate, getExchangeRate } from '../../../lib/currency'
 import { Save } from 'lucide-react'
 
 export default function CurrencySelector() {
@@ -29,10 +29,26 @@ export default function CurrencySelector() {
       return
     }
     setSaving(true)
-    await setExchangeRate(parsed)
-    invalidateCurrencyCache()
-    setSaving(false)
-    setMessage(`Rate set: $1 = SSP ${parsed.toLocaleString()}`)
+    setMessage('')
+    try {
+      await setExchangeRate(parsed)
+      const { data } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('id', 'exchange_rate')
+        .maybeSingle()
+      const saved = data?.value ? parseFloat(String(data.value).replace(/"/g, '')) : null
+      if (saved !== parsed) {
+        setMessage('Save failed — check permissions')
+        return
+      }
+      setRate(String(saved))
+      setMessage(`Rate set: $1 = SSP ${saved.toLocaleString()}`)
+    } catch {
+      setMessage('Save failed — try again')
+    } finally {
+      setSaving(false)
+    }
     setTimeout(() => setMessage(''), 3000)
   }
 
