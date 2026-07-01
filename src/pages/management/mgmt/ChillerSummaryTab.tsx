@@ -301,7 +301,7 @@ export default function ChillerSummaryTab() {
     const ctr = (s: string) => ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
     const lines = [
       '',
-      ctr('CELEBIZ'),
+      ctr('Cbiz African Food'),
       ctr('BAR CHILLER REPORT'),
       div,
       row('Date:', date),

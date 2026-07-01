@@ -413,7 +413,7 @@ export default function PayrollTab() {
     const ctr = (s: string) => ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
     const lines = [
       '',
-      ctr('CELEBIZ'),
+      ctr('Cbiz African Food'),
       ctr('MONTHLY PAYROLL'),
       div,
       r('Month:', monthLabel(month)),

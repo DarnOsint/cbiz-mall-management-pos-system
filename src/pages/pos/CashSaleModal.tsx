@@ -450,8 +450,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
 
     const lines = [
       '',
-      centre('CELEBIZ'),
-      centre('Lounge & Restaurant'),
+      centre('Cbiz African Food'),
       divider,
       fmtRow('Ref:', orderRef),
       fmtRow('Customer:', isTakeaway ? (o.customerName || 'Walk-in').substring(0, 20) : 'Counter'),
@@ -482,8 +481,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
       '',
       centre('** PAYMENT CONFIRMED **'),
       '',
-      centre('Thank you for visiting'),
-      centre('Cbiz!'),
+      centre('Thank you for visiting Cbiz African Food!'),
       '',
     ].join('\n')
 
@@ -970,8 +968,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       })
                       const lines = [
                         '',
-                        ctr('CELEBIZ'),
-                        ctr('Lounge & Restaurant'),
+                        ctr('Cbiz African Food'),
                         ctr(isTakeaway ? '** TAKEAWAY BILL **' : '** CASH SALE BILL **'),
                         div,
                         row(

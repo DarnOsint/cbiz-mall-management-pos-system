@@ -497,7 +497,7 @@ export default function Reports() {
   const exportCSV = () => {
     if (!report) return
     const rows = [
-      ['CELEBIZ - ' + report.period.toUpperCase() + ' REPORT'],
+      ['CBIZ AFRICAN FOOD - ' + report.period.toUpperCase() + ' REPORT'],
       ['Generated:', report.generatedAt],
       [],
       ['REVENUE SUMMARY'],
@@ -544,7 +544,7 @@ export default function Reports() {
     if (!report) return
     const sheets: Record<string, any[][]> = {
       Summary: [
-        ['CELEBIZ', report.period],
+        ['Cbiz African Food', report.period],
         ['Generated', report.generatedAt],
         [],
         ['Metric', 'Value'],
@@ -1390,8 +1390,7 @@ export default function Reports() {
                             ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
                           const z = [
                             '',
-                            ctr('CELEBIZ'),
-                            ctr('Lounge & Restaurant'),
+                            ctr('Cbiz African Food'),
                             ctr('Z-REPORT — END OF DAY'),
                             div,
                             row('Period:', getPeriodLabel()),
@@ -1484,8 +1483,7 @@ export default function Reports() {
                       style={{ fontFamily: 'monospace', fontSize: '13px' }}
                     >
                       <div className="text-center mb-4">
-                        <div className="text-xl font-bold tracking-widest">CELEBIZ</div>
-                        <div className="text-sm">Lounge & Restaurant</div>
+                        <div className="text-xl font-bold tracking-widest">Cbiz African Food</div>
                         <div className="text-xs text-gray-500 mt-1">Z-REPORT — END OF DAY</div>
                         <div className="text-xs text-gray-500">{getPeriodLabel()}</div>
                         <div className="text-xs text-gray-400">

@@ -1535,7 +1535,7 @@ export default function POS() {
 
                       const lines: string[] = [
                         '',
-                        ctr('CELEBIZ'),
+                        ctr('Cbiz African Food'),
                         ctr('SHIFT SUMMARY'),
                         div,
                         row('Waitron:', profile?.full_name || 'Staff'),

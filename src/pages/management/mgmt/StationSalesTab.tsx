@@ -158,7 +158,7 @@ export default function StationSalesTab({ destination, label }: Props) {
     const ctr = (s: string) => ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
     const lines = [
       '',
-      ctr('CELEBIZ'),
+      ctr('Cbiz African Food'),
       ctr(`${label.toUpperCase()} SALES`),
       div,
       r(

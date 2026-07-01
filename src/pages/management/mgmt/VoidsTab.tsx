@@ -148,7 +148,7 @@ export default function VoidsTab() {
     const ctr = (s: string) => ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
     const lines = [
       '',
-      ctr('CELEBIZ'),
+      ctr('Cbiz African Food'),
       ctr('VOID REPORT'),
       div,
       row('Date:', date),

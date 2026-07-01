@@ -369,7 +369,7 @@ export default function ChillerTab() {
     })
     const lines = [
       '',
-      ctr('CELEBIZ'),
+      ctr('Cbiz African Food'),
       ctr('BAR CHILLER REPORT'),
       div,
       r('Date:', fmtDate),

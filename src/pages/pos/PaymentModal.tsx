@@ -566,8 +566,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
 
     const receipt = [
       '',
-      centre('CELEBIZ'),
-      centre('Lounge & Restaurant'),
+      centre('Cbiz African Food'),
       divider,
       fmtRow('Ref:', orderRef),
       fmtRow('Table:', table.name),
@@ -591,7 +590,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
       ...bankLines,
       '',
       centre('Thank you for visiting'),
-      centre('Cbiz'),
+      centre('Cbiz African Food!'),
       '',
     ].join('\n')
 

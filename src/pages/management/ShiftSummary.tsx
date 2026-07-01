@@ -242,7 +242,7 @@ export default function ShiftSummary({ shift, onClose, onConfirmClockOut }: Prop
 
     const lines = [
       '',
-      ctr('CELEBIZ'),
+      ctr('Cbiz African Food'),
       ctr('SHIFT SUMMARY'),
       div,
       row('Staff:', data.staffName),
