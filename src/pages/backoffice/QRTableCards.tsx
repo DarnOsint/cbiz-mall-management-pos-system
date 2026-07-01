@@ -50,7 +50,15 @@ export default function QRTableCards() {
       .select('id, name, table_categories(id, name)')
       .order('name')
       .then(({ data }) => {
-        setTables((data || []) as TableRow[])
+        setTables(
+          (
+            (data || []) as { id: any; name: any; table_categories: { id: any; name: any }[] }[]
+          ).map((t) => ({
+            id: t.id,
+            name: t.name,
+            table_categories: t.table_categories?.[0],
+          })) as unknown as TableRow[]
+        )
         setLoading(false)
       })
   }, [])

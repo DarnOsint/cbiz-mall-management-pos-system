@@ -104,6 +104,13 @@ export default function Executive() {
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
   const [trendData, setTrendData] = useState<TrendDay[]>([])
   const [loading, setLoading] = useState(true)
+  const [cvData, setCvData] = useState({
+    occupancy: 0,
+    todayAlerts: [] as Record<string, unknown>[],
+    zoneHeatmaps: [] as Record<string, unknown>[],
+    tillEvents: [] as Record<string, unknown>[],
+    shelfAlerts: [] as Record<string, unknown>[],
+  })
 
   const statsRefreshTimer = useRef<number | null>(null)
   const statsRefreshInFlight = useRef(false)

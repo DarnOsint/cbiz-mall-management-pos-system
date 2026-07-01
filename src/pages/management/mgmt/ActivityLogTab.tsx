@@ -16,6 +16,8 @@ interface LogEntry {
   device?: string | null
 }
 
+const ACTION_GROUPS: Record<string, string[]> = {}
+
 const ACTION_COLOR: Record<string, string> = {
   LOGIN_EMAIL: 'text-green-400 bg-green-500/10',
   LOGIN_PIN: 'text-green-400 bg-green-500/10',
@@ -75,6 +77,7 @@ export default function ActivityLogTab({ dateRange }: Props) {
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState('All')
   const [actions, setActions] = useState<string[]>(['All'])
+  const [group, setGroup] = useState('all')
   const [page, setPage] = useState(0)
   const [newCount, setNewCount] = useState(0)
   const PAGE_SIZE = 50

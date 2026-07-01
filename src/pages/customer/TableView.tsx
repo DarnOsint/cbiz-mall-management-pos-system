@@ -27,7 +27,18 @@ export default function TableView() {
         .eq('id', tableId)
         .single()
       if (fetchError) throw fetchError
-      const table = data as TableRow
+      const raw = data as unknown as {
+        id: string
+        name: string
+        category_id?: string | null
+        table_categories?: Array<{ id: string; name: string }>
+      }
+      const table: TableRow = {
+        id: raw.id,
+        name: raw.name,
+        category_id: raw.category_id,
+        table_categories: raw.table_categories?.[0] || null,
+      }
       const zoneId = table.table_categories?.id || table.category_id
       if (!zoneId) {
         setError('This table has no zone configured. Please ask your waiter.')

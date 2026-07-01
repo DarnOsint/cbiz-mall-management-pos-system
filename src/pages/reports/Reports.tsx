@@ -1366,6 +1366,10 @@ export default function Reports() {
                 const vat = report.grossRevenue * 0.075
                 const totalWithVat = report.grossRevenue + vat
                 const totalReturnsValue = report.returnedValue || 0
+                const totalVoids = (report.voids || []).reduce(
+                  (s, v) => s + (v.total_value || 0),
+                  0
+                )
                 const cashTotal = report.paidOrders
                   .filter((o) => o.payment_method === 'cash')
                   .reduce((s, o) => s + (o.total_amount || 0), 0)

@@ -250,8 +250,10 @@ function BarKDSInner() {
 
   const approveMixoRequest = async (id: string) => {
     const updated = mixoRequests.map((r) =>
-      r.id === id ? { ...r, status: 'approved', resolved_by: profile?.full_name || null } : r
-    )
+      r.id === id
+        ? { ...r, status: 'approved' as const, resolved_by: profile?.full_name || null }
+        : r
+    ) as MixoRequest[]
     await updateMixoRequests(updated)
     const today = new Date().toISOString().slice(0, 10)
     const req = updated.find((r) => r.id === id)
@@ -289,8 +291,10 @@ function BarKDSInner() {
 
   const rejectMixoRequest = async (id: string) => {
     const updated = mixoRequests.map((r) =>
-      r.id === id ? { ...r, status: 'rejected', resolved_by: profile?.full_name || null } : r
-    )
+      r.id === id
+        ? { ...r, status: 'rejected' as const, resolved_by: profile?.full_name || null }
+        : r
+    ) as MixoRequest[]
     await updateMixoRequests(updated)
     toast.success('Rejected', 'Request declined')
   }
@@ -463,17 +467,18 @@ function BarKDSInner() {
     // Bar acceptance removes the item from the bill immediately (waitron totals),
     // while stock/sales move on manager approval.
     const resolvedAt = new Date().toISOString()
-    const { error, count } = await supabase
-      .from('returns_log')
-      .update({
-        status: 'bar_accepted',
-        barman_id: profile?.id ?? null,
-        barman_name: profile?.full_name ?? null,
-        resolved_at: resolvedAt,
-      })
-      .eq('order_item_id', itemId)
-      .eq('status', 'pending')
-      .select('id', { count: 'exact', head: true })
+    const { error, count } = await (
+      supabase
+        .from('returns_log')
+        .update({
+          status: 'bar_accepted',
+          barman_id: profile?.id ?? null,
+          barman_name: profile?.full_name ?? null,
+          resolved_at: resolvedAt,
+        })
+        .eq('order_item_id', itemId)
+        .eq('status', 'pending') as any
+    ).select('id', { count: 'exact', head: true })
     if (error) {
       toast.error('Error', 'Failed to accept return: ' + error.message)
       return

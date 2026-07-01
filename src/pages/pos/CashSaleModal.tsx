@@ -319,10 +319,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
     setProcessing(true)
     try {
       const hasBarItems = orderItems.some((i) => {
-        const dest = normalizeDestination(
-          i.menu_categories?.destination || 'bar',
-          i.menu_items?.name
-        )
+        const dest = normalizeDestination(i.menu_categories?.destination || 'bar', i.name)
         if (dest === 'shisha') return false
         return dest === 'bar'
       })
@@ -350,11 +347,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         unit_price: item.price,
         total_price: item.total,
         status: 'pending',
-        destination: normalizeDestination(
-          item.menu_categories?.destination || 'bar',
-          item.name,
-          item.menu_categories?.name
-        ),
+        destination: normalizeDestination(item.menu_categories?.destination || 'bar', item.name),
         created_at: new Date().toISOString(),
       }))
       // Add takeaway pack fees as line items

@@ -458,7 +458,10 @@ function GrillerKDSInner() {
       return
     }
 
-    const grillerItems = (data || []) as (GrillerItem & {
+    const grillerItems = ((data || []) as any[]).map((item: any) => ({
+      ...item,
+      menu_items: Array.isArray(item.menu_items) ? item.menu_items[0] : item.menu_items,
+    })) as (GrillerItem & {
       return_requested?: boolean
       return_accepted?: boolean
       return_reason?: string | null

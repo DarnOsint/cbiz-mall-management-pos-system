@@ -75,7 +75,11 @@ export default function OrdersByWaitronTab({
 
       const map: Record<string, Row> = {}
       const itemsMap: Record<string, Item[]> = {}
-      ;(data || []).forEach(
+      const mapped = (data || []).map((oi: any) => ({
+        ...oi,
+        orders: Array.isArray(oi.orders) ? oi.orders[0] : oi.orders,
+      }))
+      mapped.forEach(
         (oi: {
           quantity?: number
           total_price?: number
