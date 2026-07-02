@@ -6,15 +6,12 @@ import {
   LayoutDashboard,
   ShoppingBag,
   Clock,
-  DollarSign,
-  Settings,
   AlertTriangle,
   UtensilsCrossed,
   Shield,
   RotateCcw,
   Package,
   Trophy,
-  ThumbsUp,
 } from 'lucide-react'
 import ShiftManager from './ShiftManager'
 import TableAssignment from './TableAssignment'
@@ -23,19 +20,16 @@ import KitchenStock from '../backoffice/KitchenStock'
 import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
 import ChillerTab from './mgmt/ChillerTab'
 import StaffPerformanceTab from './mgmt/StaffPerformanceTab'
-import PayrollTab from './mgmt/PayrollTab'
 import StationSalesTab from './mgmt/StationSalesTab'
 import { useLateOrders } from '../../hooks/useLateOrders'
 import { HelpTooltip } from '../../components/HelpTooltip'
 
 import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
-import SettingsTab from './mgmt/SettingsTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
 import MainStoreSummaryTab from './mgmt/MainStoreSummaryTab'
 import OrdersByWaitronTab from './mgmt/OrdersByWaitronTab'
 import VoidsTab from './mgmt/VoidsTab'
-import ServiceRatingsTab from './mgmt/ServiceRatingsTab'
 
 const sessionWindow = () => {
   const now = new Date()
@@ -67,15 +61,13 @@ const TABS = [
   { id: 'tables', label: 'Zone Assignment', icon: Users },
   { id: 'orders', label: 'Orders', icon: ShoppingBag },
   { id: 'performance', label: 'Staff Performance', icon: Trophy },
-  { id: 'payroll', label: 'Payroll', icon: DollarSign },
   { id: 'barsales', label: 'Bar Sales', icon: UtensilsCrossed },
   { id: 'kitchen', label: 'Kitchen Sales', icon: UtensilsCrossed },
   { id: 'chiller', label: 'Chiller', icon: UtensilsCrossed },
   { id: 'mainstore', label: 'Main Store', icon: Package },
   { id: 'returns', label: 'Returns', icon: RotateCcw },
   { id: 'voids', label: 'Voids', icon: AlertTriangle },
-  { id: 'ratings', label: 'Ratings', icon: ThumbsUp },
-  { id: 'settings', label: 'Alert Threshold', icon: Settings },
+
   { id: 'activity', label: 'Activity Log', icon: Shield },
 ] as const
 
@@ -90,7 +82,7 @@ interface Stats {
 export default function Management() {
   useAuth()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
-  const { lateOrders, threshold, setThreshold, markDelivered } = useLateOrders()
+  const { lateOrders, threshold, markDelivered } = useLateOrders()
 
   const [activityDate, setActivityDate] = useState(() => new Date().toISOString().slice(0, 10))
   const activityRange = useMemo(() => {
@@ -194,7 +186,7 @@ export default function Management() {
       id: 'mgmt-overview',
       title: 'Overview',
       description:
-        "Live dashboard: open orders, occupied tables, staff on shift, and today's revenue — all updating in real time. The late orders banner turns red when any order exceeds the configured alert threshold (set under Settings). Figures are deduplicated so one waitron always counts as one.",
+        "Live dashboard: open orders, occupied tables, staff on shift, and today's revenue — all updating in real time. The late orders banner turns red when any order exceeds the alert threshold. Figures are deduplicated so one waitron always counts as one.",
     },
     {
       id: 'mgmt-shifts',
@@ -226,12 +218,7 @@ export default function Management() {
       description:
         'Complete audit trail of everything that has happened: logins (email and PIN, with device type), clock-ins and outs, orders placed and paid, voids, supplier actions, and settings changes. Filter by group (Login, Sales, Voids, Shifts, BackOffice) or search by staff name or action. Exportable to CSV.',
     },
-    {
-      id: 'mgmt-settings',
-      title: 'Alert Threshold',
-      description:
-        'Configure the late order alert threshold — how many minutes before an unfulfilled order triggers a warning banner for management and the Supervisor.',
-    },
+
   ]
 
   return (
@@ -326,12 +313,10 @@ export default function Management() {
         {activeTab === 'barsales' && <StationSalesTab destination="bar" label="Bar" />}
         {activeTab === 'kitchen' && <StationSalesTab destination="kitchen" label="Kitchen" />}
         {activeTab === 'performance' && <StaffPerformanceTab />}
-        {activeTab === 'payroll' && <PayrollTab />}
         {activeTab === 'chiller' && <ChillerTab />}
         {activeTab === 'mainstore' && <MainStoreSummaryTab />}
         {activeTab === 'returns' && <ReturnedDrinksTab />}
         {activeTab === 'voids' && <VoidsTab />}
-        {activeTab === 'ratings' && <ServiceRatingsTab />}
         {activeTab === 'activity' && (
           <div>
             <div className="flex items-center gap-3 mb-4">
@@ -365,9 +350,6 @@ export default function Management() {
             </div>
             <ActivityLogTab dateRange={activityRange} />
           </div>
-        )}
-        {activeTab === 'settings' && (
-          <SettingsTab threshold={threshold} setThreshold={setThreshold} />
         )}
       </div>
     </div>
