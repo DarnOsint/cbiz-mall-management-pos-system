@@ -137,7 +137,7 @@ export default function MenuManagement({ onBack }: Props) {
       toast.success('Uploaded', 'Menu item image updated')
       await fetchAll()
     } catch (err) {
-      toast.error('Upload error', err instanceof Error ? err.message : String(err))
+      toast.error('Upload error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setSaving(false)
     }
@@ -203,7 +203,7 @@ export default function MenuManagement({ onBack }: Props) {
       await fetchAll()
       setShowItemModal(false)
     } catch (err) {
-      toast.error('Error', err instanceof Error ? err.message : String(err))
+      toast.error('Error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setSaving(false)
     }
@@ -214,7 +214,7 @@ export default function MenuManagement({ onBack }: Props) {
       .update({ is_available: !item.is_available })
       .eq('id', item.id)
     if (error) {
-      toast.error('Error', error instanceof Error ? error.message : String(error))
+      toast.error('Toggle failed', (error as { message?: string }).message || JSON.stringify(error))
       return
     }
     audit({
@@ -252,7 +252,7 @@ export default function MenuManagement({ onBack }: Props) {
       await fetchAll()
       setShowCatModal(false)
     } catch (err) {
-      toast.error('Error', err instanceof Error ? err.message : String(err))
+      toast.error('Error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setSaving(false)
     }
