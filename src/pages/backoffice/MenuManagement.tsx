@@ -143,13 +143,13 @@ export default function MenuManagement({ onBack }: Props) {
     }
   }
   const saveItem = async () => {
-    if (!itemForm.name || !itemForm.price || !itemForm.category_id)
-      return toast.warning('Required', 'Name, category and price are required')
+    if (!itemForm.name || !itemForm.category_id)
+      return toast.warning('Required', 'Name and category are required')
     setSaving(true)
     const payload = {
       name: itemForm.name,
       category_id: itemForm.category_id,
-      price: parseFloat(itemForm.price),
+      price: parseFloat(itemForm.price || '0'),
       description: itemForm.description,
       image_url: itemForm.image_url || null,
       is_available: itemForm.is_available,
@@ -270,11 +270,6 @@ export default function MenuManagement({ onBack }: Props) {
     const colors: Record<string, string> = {
       Food: 'bg-green-500/20 text-green-400',
       Drinks: 'bg-blue-500/20 text-blue-400',
-      Cocktails: 'bg-pink-500/20 text-pink-400',
-      Wine: 'bg-purple-500/20 text-purple-400',
-      Spirits: 'bg-amber-500/20 text-amber-400',
-      'Soft Drinks': 'bg-cyan-500/20 text-cyan-400',
-      Grills: 'bg-orange-500/20 text-orange-400',
     }
     return name ? colors[name] || 'bg-gray-700 text-gray-400' : 'bg-gray-700 text-gray-400'
   }
@@ -497,14 +492,14 @@ export default function MenuManagement({ onBack }: Props) {
                 </div>
                 <div>
                   <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                    Base Price (SSP) *
+                    Base Price (SSP) — optional, set later
                   </label>
                   <input
                     type="number"
                     value={itemForm.price}
                     onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500"
-                    placeholder="0"
+                    placeholder="Leave empty to set price later"
                   />
                 </div>
                 <div>
