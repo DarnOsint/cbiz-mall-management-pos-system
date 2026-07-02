@@ -22,7 +22,7 @@ DECLARE
 BEGIN
   SELECT id INTO food_id FROM menu_categories WHERE name = 'Food';
 
-  INSERT INTO menu_items (name, category_id, price, description, is_active, sort_order) VALUES
+  INSERT INTO menu_items (name, category_id, price, description, is_available, sort_order) VALUES
     -- Monday
     ('Rice and Vegetable Sauce',     food_id, 0, 'Monday Morning', true, 1),
     ('Egusi Soup and Semo',          food_id, 0, 'Monday Afternoon', true, 2),
