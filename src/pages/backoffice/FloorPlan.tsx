@@ -54,10 +54,8 @@ function snapToGrid(v: number): number {
 
 // Default zone boundary positions (quadrants)
 const DEFAULT_ZONE_BOUNDS: Record<string, ZoneBounds> = {
-  Outdoor: { x: 20, y: 20, w: 560, h: 370 },
-  Indoor: { x: 620, y: 20, w: 560, h: 370 },
-  'VIP Lounge': { x: 20, y: 410, w: 560, h: 370 },
-  'The Nook': { x: 620, y: 410, w: 560, h: 370 },
+  Inside: { x: 20, y: 20, w: 560, h: 780 },
+  Outside: { x: 620, y: 20, w: 560, h: 780 },
 }
 
 type DragTarget = { type: 'table'; id: string } | { type: 'zone'; name: string; idx: number } | null

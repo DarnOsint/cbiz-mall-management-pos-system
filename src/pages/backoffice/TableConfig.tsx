@@ -31,10 +31,8 @@ interface Props {
 }
 
 const zoneColorMap: Record<string, string> = {
-  Outdoor: 'bg-green-500/20 text-green-400',
-  Indoor: 'bg-blue-500/20 text-blue-400',
-  'VIP Lounge': 'bg-purple-500/20 text-purple-400',
-  'The Nook': 'bg-amber-500/20 text-amber-400',
+  Inside: 'bg-blue-500/20 text-blue-400',
+  Outside: 'bg-green-500/20 text-green-400',
 }
 
 export default function TableConfig({ onBack }: Props) {
@@ -126,7 +124,7 @@ export default function TableConfig({ onBack }: Props) {
       setEditing(null)
       setShowAdd(false)
     } catch (err) {
-      toast.error('Error', err instanceof Error ? err.message : String(err))
+      toast.error('Error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setSaving(false)
     }
@@ -162,7 +160,7 @@ export default function TableConfig({ onBack }: Props) {
       setShowAddZone(false)
       fetchAll()
     } catch (err) {
-      toast.error('Error', err instanceof Error ? err.message : String(err))
+      toast.error('Error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setZoneSaving(false)
     }
@@ -189,7 +187,7 @@ export default function TableConfig({ onBack }: Props) {
       setEditingZone(null)
       fetchAll()
     } catch (err) {
-      toast.error('Error', err instanceof Error ? err.message : String(err))
+      toast.error('Error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setZoneSaving(false)
     }
@@ -249,7 +247,7 @@ export default function TableConfig({ onBack }: Props) {
       toast.success('Added', `${count} tables added to ${zoneName}`)
       fetchAll()
     } catch (err) {
-      toast.error('Error', err instanceof Error ? err.message : String(err))
+      toast.error('Error', (err as { message?: string }).message || JSON.stringify(err))
     } finally {
       setBulkAdding(false)
     }
@@ -419,7 +417,7 @@ export default function TableConfig({ onBack }: Props) {
                 min="0"
                 value={newZoneHireFee}
                 onChange={(e) => setNewZoneHireFee(e.target.value)}
-                placeholder="Hire fee (SSP) — leave blank if none"
+                placeholder="Hire fee (USD) — leave blank if none"
                 className={inp}
               />
               <div className="flex gap-2">
@@ -572,7 +570,7 @@ export default function TableConfig({ onBack }: Props) {
               </div>
               <div>
                 <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                  Hire Fee (SSP) — leave blank if none
+                  Hire Fee (USD) — leave blank if none
                 </label>
                 <input
                   type="number"

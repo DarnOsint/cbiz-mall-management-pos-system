@@ -206,7 +206,7 @@ export default function Management() {
       id: 'mgmt-tables',
       title: 'Zone Assignment',
       description:
-        'Assign waitrons to zones (Outdoor, Indoor, VIP Lounge, The Nook) or to specific individual tables. A waitron only sees and serves tables in their assigned area. You can reassign mid-shift if needed.',
+        'Assign waitrons to zones (Inside, Outside) or to specific individual tables. A waitron only sees and serves tables in their assigned area. You can reassign mid-shift if needed.',
     },
     {
       id: 'mgmt-orders',
