@@ -492,7 +492,7 @@ export default function MenuManagement({ onBack }: Props) {
                 </div>
                 <div>
                   <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                    Base Price (SSP) — optional, set later
+                    Base Price (USD) — optional, set later
                   </label>
                   <input
                     type="number"
