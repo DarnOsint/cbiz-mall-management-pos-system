@@ -59,7 +59,7 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
 }
 
 const BARE_ROLES = ['kitchen', 'bar', 'griller', 'waitron', 'games_master', 'shisha_attendant']
-const ZONES = ['Outdoor', 'Indoor', 'VIP Lounge', 'The Nook']
+const ZONES = ['Inside', 'Outside']
 
 interface TableRow {
   id: string

@@ -185,7 +185,7 @@ export default function BackOffice() {
                 id: 'bo-tables',
                 title: 'Table Configuration',
                 description:
-                  'Edit table names and assign zones. The Zone Settings section below the table grid lets you set a hire fee per zone — useful for The Nook which is bookable as a private space. The hire fee is shown as a reminder banner in the POS when that zone is selected.',
+                  'Edit table names and assign zones. The Zone Settings section below the table grid lets you set a hire fee per zone — useful for bookable spaces. The hire fee is shown as a reminder banner in the POS when that zone is selected.',
               },
               {
                 id: 'bo-floorplan',

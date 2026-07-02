@@ -45,7 +45,7 @@ interface TableGridProps {
 
 const BYPASS_ROLES = ['owner', 'manager', 'accountant', 'supervisor']
 
-const ALL_CATEGORIES = ['All', 'Outdoor', 'Indoor', 'VIP Lounge', 'The Nook'] as const
+const ALL_CATEGORIES = ['All', 'Inside', 'Outside'] as const
 
 export default function TableGrid({
   tables,
@@ -391,36 +391,22 @@ export default function TableGrid({
   // Fallback: original grid view (no floor plan saved yet)
   const categoryColors: Record<string, { bg: string; border: string; text: string; dot: string }> =
     {
-      Outdoor: {
-        bg: 'bg-green-500/10',
-        border: 'border-green-500/30',
-        text: 'text-green-400',
-        dot: 'bg-green-500',
-      },
-      Indoor: {
+      Inside: {
         bg: 'bg-blue-500/10',
         border: 'border-blue-500/30',
         text: 'text-blue-400',
         dot: 'bg-blue-500',
       },
-      'VIP Lounge': {
-        bg: 'bg-amber-500/10',
-        border: 'border-amber-500/30',
-        text: 'text-amber-400',
-        dot: 'bg-amber-500',
-      },
-      'The Nook': {
-        bg: 'bg-purple-500/10',
-        border: 'border-purple-500/30',
-        text: 'text-purple-400',
-        dot: 'bg-purple-500',
+      Outside: {
+        bg: 'bg-green-500/10',
+        border: 'border-green-500/30',
+        text: 'text-green-400',
+        dot: 'bg-green-500',
       },
     }
   const occupiedColors: Record<string, string> = {
-    Outdoor: 'bg-green-500',
-    Indoor: 'bg-blue-500',
-    'VIP Lounge': 'bg-amber-500',
-    'The Nook': 'bg-purple-500',
+    Inside: 'bg-blue-500',
+    Outside: 'bg-green-500',
   }
   const fallbackZones = visibleCategories.filter((c) => c !== 'All')
   const grouped = fallbackZones.reduce<Record<string, Table[]>>((acc, cat) => {

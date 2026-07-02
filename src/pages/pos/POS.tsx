@@ -1120,7 +1120,7 @@ export default function POS() {
                 total_price: hireFee,
                 status: 'delivered', // hire fee is charged immediately, not a kitchen item
                 destination: 'bar',
-                modifier_notes: `Zone hire fee — ${table.table_categories?.name || 'The Nook'}`,
+                modifier_notes: `Zone hire fee — ${table.table_categories?.name || 'Inside'}`,
                 extra_charge: 0,
                 created_at: new Date().toISOString(),
                 is_hire_fee: true,

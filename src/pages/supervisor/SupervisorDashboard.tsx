@@ -91,7 +91,7 @@ const SUPERVISOR_TIPS = [
     id: 'sup-floor',
     title: 'Floor Tab',
     description:
-      'Live view of every open order on the floor. Cards turn amber at 10 minutes and red at 20 minutes — escalate red cards immediately to the kitchen or bar. Use the zone filter (Outdoor, Indoor, VIP Lounge, The Nook) to focus on a specific area. This is a read-only view — use the Management page to take action.',
+      'Live view of every open order on the floor. Cards turn amber at 10 minutes and red at 20 minutes — escalate red cards immediately to the kitchen or bar. Use the zone filter (Inside, Outside) to focus on a specific area. This is a read-only view — use the Management page to take action.',
   },
   {
     id: 'sup-staff',
@@ -327,7 +327,7 @@ function SupervisorDashboardInner() {
         {tab === 'floor' && (
           <>
             <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {['All', 'Outdoor', 'Indoor', 'VIP Lounge', 'The Nook'].map((z) => (
+              {['All', 'Inside', 'Outside'].map((z) => (
                 <button
                   key={z}
                   onClick={() => setZoneFilter(z)}

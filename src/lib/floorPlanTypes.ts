@@ -22,17 +22,13 @@ export interface FloorPlanData {
 }
 
 export const ZONE_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
-  Outdoor: { fill: 'rgba(34,197,94,0.08)', stroke: '#22c55e', text: '#4ade80' },
-  Indoor: { fill: 'rgba(59,130,246,0.08)', stroke: '#3b82f6', text: '#60a5fa' },
-  'VIP Lounge': { fill: 'rgba(245,158,11,0.08)', stroke: '#f59e0b', text: '#fbbf24' },
-  'The Nook': { fill: 'rgba(168,85,247,0.08)', stroke: '#a855f7', text: '#c084fc' },
+  Inside: { fill: 'rgba(59,130,246,0.08)', stroke: '#3b82f6', text: '#60a5fa' },
+  Outside: { fill: 'rgba(34,197,94,0.08)', stroke: '#22c55e', text: '#4ade80' },
 }
 
 export const ZONE_FILL_OCCUPIED: Record<string, string> = {
-  Outdoor: '#22c55e',
-  Indoor: '#3b82f6',
-  'VIP Lounge': '#f59e0b',
-  'The Nook': '#a855f7',
+  Inside: '#3b82f6',
+  Outside: '#22c55e',
 }
 
 export const DEFAULT_ZONE_COLOR = {

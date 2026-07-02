@@ -12,25 +12,15 @@ interface CategoryColors {
 }
 
 const categoryColors: Record<string, CategoryColors> = {
-  Outdoor: {
-    card: 'bg-green-500/10 border-green-500/20',
-    text: 'text-green-400',
-    badge: 'bg-green-500/20 text-green-300',
-  },
-  Indoor: {
+  Inside: {
     card: 'bg-blue-500/10 border-blue-500/20',
     text: 'text-blue-400',
     badge: 'bg-blue-500/20 text-blue-300',
   },
-  'VIP Lounge': {
-    card: 'bg-amber-500/10 border-amber-500/20',
-    text: 'text-amber-400',
-    badge: 'bg-amber-500/20 text-amber-300',
-  },
-  'The Nook': {
-    card: 'bg-purple-500/10 border-purple-500/20',
-    text: 'text-purple-400',
-    badge: 'bg-purple-500/20 text-purple-300',
+  Outside: {
+    card: 'bg-green-500/10 border-green-500/20',
+    text: 'text-green-400',
+    badge: 'bg-green-500/20 text-green-300',
   },
 }
 
