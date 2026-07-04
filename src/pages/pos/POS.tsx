@@ -169,9 +169,11 @@ interface BarIssueLogRow {
 function DesktopMenuBrowser({
   menuItems,
   onAddItem,
+  menuError,
 }: {
   menuItems: MenuItem[]
   onAddItem: (item: MenuItem) => void
+  menuError?: string | null
 }) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
@@ -227,11 +229,17 @@ function DesktopMenuBrowser({
               <span className="text-2xl">🍽</span>
             </div>
             <p className="text-gray-400 font-semibold mb-1">No menu items found</p>
-            <p className="text-gray-600 text-xs max-w-xs">
-              {menuItems.length === 0
-                ? 'Run the seed SQL in Supabase dashboard → SQL Editor to populate the menu.'
-                : 'Try a different search or category filter.'}
-            </p>
+            {menuError ? (
+              <div className="text-red-400 text-xs max-w-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                {menuError}
+              </div>
+            ) : (
+              <p className="text-gray-600 text-xs max-w-xs">
+                {menuItems.length === 0
+                  ? 'Run the seed SQL in Supabase dashboard → SQL Editor to populate the menu.'
+                  : 'Try a different search or category filter.'}
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
@@ -268,6 +276,7 @@ export default function POS() {
 
   const [tables, setTables] = useState<Table[]>([])
   const [menuItems, setMenuItems] = useState<MenuItemWithZone[]>([])
+  const [menuError, setMenuError] = useState<string | null>(null)
   const [selectedTable, setSelectedTable] = useState<Table | null>(null)
   const [pendingTable, setPendingTable] = useState<Table | null>(null)
   const [pendingCovers, setPendingCovers] = useState<number | null>(null)
@@ -832,10 +841,15 @@ export default function POS() {
         .eq('date', prevBusinessDate)
         .order('item_name'),
     ])
-    if (!menuRes.error) {
-      if (menuRes.data) {
-        void localBulkPut('menu_items', menuRes.data as Array<{ id: string }>)
-      }
+    if (menuRes.error) {
+      const err = menuRes.error as Record<string, unknown>
+      console.error('[POS] menu_items fetch error:', JSON.stringify(err, null, 2))
+      setMenuError(err?.message ? String(err.message) : `Error ${err?.code || '?'}: ${err?.details || JSON.stringify(err)}`)
+      return
+    }
+    if (menuRes.data) {
+      void localBulkPut('menu_items', menuRes.data as Array<{ id: string }>)
+    }
       const invMap: Record<string, number> = {}
       const invByName: Record<string, number> = {}
       if (invRes.data)

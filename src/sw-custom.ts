@@ -24,9 +24,10 @@ registerRoute(
   })
 )
 
-self.skipWaiting()
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-;(self as any).clients?.claim()
+self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', (event) => {
+  event.waitUntil((self as any).clients.claim())
+})
 
 // ── Push notifications ─────────────────────────────────────────────────────
 self.addEventListener('push', (event: PushEvent) => {
