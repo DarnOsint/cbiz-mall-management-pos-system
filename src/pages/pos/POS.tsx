@@ -221,26 +221,40 @@ function DesktopMenuBrowser({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {filtered.map((item) => {
-            return (
-              <button
-                key={item.id}
-                onClick={() => onAddItem(item)}
-                className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50"
-              >
-                <div className="p-3">
-                  <p className="text-white text-sm font-medium leading-tight truncate">
-                    {item.name}
-                  </p>
-                  <p className="text-amber-400 text-sm font-bold mt-1">
-                    {formatDualPrice(item.price)}
-                  </p>
-                </div>
-              </button>
-            )
-          })}
-        </div>
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-16">
+            <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mb-4">
+              <span className="text-2xl">🍽</span>
+            </div>
+            <p className="text-gray-400 font-semibold mb-1">No menu items found</p>
+            <p className="text-gray-600 text-xs max-w-xs">
+              {menuItems.length === 0
+                ? 'Run the seed SQL in Supabase dashboard → SQL Editor to populate the menu.'
+                : 'Try a different search or category filter.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            {filtered.map((item) => {
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onAddItem(item)}
+                  className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50"
+                >
+                  <div className="p-3">
+                    <p className="text-white text-sm font-medium leading-tight truncate">
+                      {item.name}
+                    </p>
+                    <p className="text-amber-400 text-sm font-bold mt-1">
+                      {formatDualPrice(item.price)}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
