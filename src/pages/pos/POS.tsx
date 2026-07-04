@@ -844,70 +844,73 @@ export default function POS() {
     if (menuRes.error) {
       const err = menuRes.error as Record<string, unknown>
       console.error('[POS] menu_items fetch error:', JSON.stringify(err, null, 2))
-      setMenuError(err?.message ? String(err.message) : `Error ${err?.code || '?'}: ${err?.details || JSON.stringify(err)}`)
+      setMenuError(
+        err?.message
+          ? String(err.message)
+          : `Error ${err?.code || '?'}: ${err?.details || JSON.stringify(err)}`
+      )
       return
     }
     if (menuRes.data) {
       void localBulkPut('menu_items', menuRes.data as Array<{ id: string }>)
     }
-      const invMap: Record<string, number> = {}
-      const invByName: Record<string, number> = {}
-      if (invRes.data)
-        invRes.data.forEach(
-          (i: { menu_item_id: string | null; item_name: string; current_stock: number }) => {
-            if (i.menu_item_id) invMap[i.menu_item_id] = i.current_stock
-            invByName[i.item_name] = i.current_stock
-          }
-        )
-      const chillerTodayMap: Record<string, number> = {}
-      if (chillerRes.data) {
-        chillerRes.data.forEach((row: { item_name: string; closing_qty: number | null }) => {
-          chillerTodayMap[row.item_name] = row.closing_qty ?? 0
-        })
-      }
-      const chillerCarryMap: Record<string, number> = {}
-      const seen = new Set<string>()
-      if (chillerPrevRes.data) {
-        chillerPrevRes.data.forEach(
-          (row: {
-            item_name: string
-            opening_qty: number | null
-            received_qty: number | null
-            sold_qty: number | null
-            void_qty: number | null
-            closing_qty: number | null
-          }) => {
-            if (seen.has(row.item_name)) return
-            seen.add(row.item_name)
-            const fallbackClosing = Math.max(
-              0,
-              (row.opening_qty || 0) +
-                (row.received_qty || 0) -
-                (row.sold_qty || 0) -
-                (row.void_qty || 0)
-            )
-            chillerCarryMap[row.item_name] = row.closing_qty ?? fallbackClosing
-          }
-        )
-      }
-      setMenuItems(
-        (menuRes.data || []).map((item: any) => ({
-          ...item,
-          current_stock:
-            normalizeDestination(
-              item.menu_categories?.destination,
-              item.name,
-              item.menu_categories?.name
-            ) === 'bar'
-              ? (chillerTodayMap[item.name] ??
-                chillerCarryMap[item.name] ??
-                invByName[item.name] ??
-                invMap[item.id] ??
-                null)
-              : (invMap[item.id] ?? null),
-        }))
+    const invMap: Record<string, number> = {}
+    const invByName: Record<string, number> = {}
+    if (invRes.data)
+      invRes.data.forEach(
+        (i: { menu_item_id: string | null; item_name: string; current_stock: number }) => {
+          if (i.menu_item_id) invMap[i.menu_item_id] = i.current_stock
+          invByName[i.item_name] = i.current_stock
+        }
+      )
+    const chillerTodayMap: Record<string, number> = {}
+    if (chillerRes.data) {
+      chillerRes.data.forEach((row: { item_name: string; closing_qty: number | null }) => {
+        chillerTodayMap[row.item_name] = row.closing_qty ?? 0
+      })
+    }
+    const chillerCarryMap: Record<string, number> = {}
+    const seen = new Set<string>()
+    if (chillerPrevRes.data) {
+      chillerPrevRes.data.forEach(
+        (row: {
+          item_name: string
+          opening_qty: number | null
+          received_qty: number | null
+          sold_qty: number | null
+          void_qty: number | null
+          closing_qty: number | null
+        }) => {
+          if (seen.has(row.item_name)) return
+          seen.add(row.item_name)
+          const fallbackClosing = Math.max(
+            0,
+            (row.opening_qty || 0) +
+              (row.received_qty || 0) -
+              (row.sold_qty || 0) -
+              (row.void_qty || 0)
+          )
+          chillerCarryMap[row.item_name] = row.closing_qty ?? fallbackClosing
+        }
       )
     }
+    setMenuItems(
+      (menuRes.data || []).map((item: any) => ({
+        ...item,
+        current_stock:
+          normalizeDestination(
+            item.menu_categories?.destination,
+            item.name,
+            item.menu_categories?.name
+          ) === 'bar'
+            ? (chillerTodayMap[item.name] ??
+              chillerCarryMap[item.name] ??
+              invByName[item.name] ??
+              invMap[item.id] ??
+              null)
+            : (invMap[item.id] ?? null),
+      }))
+    )
     if (!navigator.onLine) {
       const cached = await localGetAll<any>('menu_items')
       if (cached.length > 0) {
