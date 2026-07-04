@@ -535,7 +535,7 @@ export default function Reports() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = .c.biz-' + report.period.toLowerCase().replace(/ /g, '-') + '.csv'
+    a.download = 'c.biz-' + report.period.toLowerCase().replace(/ /g, '-') + '.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
