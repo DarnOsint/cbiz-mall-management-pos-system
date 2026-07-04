@@ -464,23 +464,7 @@ export default function PayrollTab() {
       }, 200)
   }
 
-  const roles = [
-    'waitron',
-    'kitchen',
-    'bar',
-    'griller',
-    'mixologist',
-    'manager',
-    'supervisor',
-    'accountant',
-    'auditor',
-    'floor_staff',
-    'dj',
-    'hypeman',
-    'games_master',
-    'shisha_attendant',
-    'social_media_manager',
-  ]
+  const roles = ['waitron', 'kitchen', 'bar', 'manager']
 
   return (
     <div className="space-y-4">

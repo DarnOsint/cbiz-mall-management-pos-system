@@ -124,7 +124,7 @@ export default function BackOffice() {
       desc: 'Update your account login password',
       icon: Lock,
       color: 'bg-gray-600',
-      roles: ['owner', 'manager', 'accountant', 'auditor', 'kitchen', 'bar', 'griller'],
+      roles: ['owner', 'manager', 'kitchen', 'bar'],
     },
   ]
 

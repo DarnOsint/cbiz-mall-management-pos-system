@@ -91,18 +91,10 @@ function RoleRoute() {
     )
   if (!profile) return <Navigate to="/login" />
   if (profile.role === 'owner') return <Navigate to="/executive" />
-  if (profile.role === 'executive') return <Navigate to="/executive" />
   if (profile.role === 'manager') return <Navigate to="/management" />
-  if (profile.role === 'accountant') return <Navigate to="/accounting" />
   if (profile.role === 'waitron') return <Navigate to="/pos" />
   if (profile.role === 'kitchen') return <Navigate to="/kds/kitchen" />
   if (profile.role === 'bar') return <Navigate to="/kds/bar" />
-  if (profile.role === 'griller') return <Navigate to="/kds/griller" />
-  if (profile.role === 'mixologist') return <Navigate to="/kds/mixologist" />
-  if (profile.role === 'auditor') return <Navigate to="/accounting" />
-  if (profile.role === 'games_master') return <Navigate to="/games" />
-  if (profile.role === 'shisha_attendant') return <Navigate to="/shisha" />
-  if (profile.role === 'supervisor') return <Navigate to="/supervisor" />
   return <Navigate to="/login" />
 }
 

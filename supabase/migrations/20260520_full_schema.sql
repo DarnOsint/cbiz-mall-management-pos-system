@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   email           text,
   full_name       text,
   phone           text,
-  role            text NOT NULL DEFAULT 'waitron' CHECK (role IN ('owner','manager','supervisor','waitron','kitchen','bar','griller','accountant','admin')),
+  role            text NOT NULL DEFAULT 'waitron' CHECK (role IN ('owner','manager','waitron','kitchen','bar')),
   pin             text,
   avatar_url      text,
   is_active       boolean DEFAULT true,

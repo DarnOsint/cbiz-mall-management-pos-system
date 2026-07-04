@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetTimer = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    if (profile?.role === 'executive') return
+    if (profile?.role === 'owner') return
     if (localStorage.getItem('pin_session') || sessionStorage.getItem('auth_active')) {
       timeoutRef.current = setTimeout(() => doSignOut('timeout'), TIMEOUT_MS)
     }

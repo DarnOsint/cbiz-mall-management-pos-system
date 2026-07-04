@@ -1,23 +1,6 @@
 // ─── Core domain types ────────────────────────────────────────────────────
 
-export type Role =
-  | 'owner'
-  | 'executive'
-  | 'manager'
-  | 'accountant'
-  | 'auditor'
-  | 'waitron'
-  | 'kitchen'
-  | 'bar'
-  | 'griller'
-  | 'mixologist'
-  | 'games_master'
-  | 'shisha_attendant'
-  | 'supervisor'
-  | 'floor_staff'
-  | 'social_media_manager'
-  | 'dj'
-  | 'hypeman'
+export type Role = 'owner' | 'manager' | 'waitron' | 'kitchen' | 'bar'
 
 export type OrderStatus = 'open' | 'paid' | 'voided' | 'pending'
 export type OrderType = 'table' | 'cash_sale' | 'takeaway'
@@ -29,7 +12,7 @@ export type PaymentMethod =
   | 'card'
   | 'transfer'
   | 'split'
-export type ItemDestination = 'kitchen' | 'bar' | 'griller' | 'shisha' | 'games' | 'mixologist'
+export type ItemDestination = 'kitchen' | 'bar'
 export type ItemStatus = 'pending' | 'preparing' | 'ready' | 'delivered'
 export type TableStatus = 'available' | 'occupied' | 'reserved'
 // ─── Database row types ────────────────────────────────────────────────────

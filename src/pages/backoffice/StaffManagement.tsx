@@ -24,37 +24,8 @@ import {
 import type { Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
-const DEFAULT_ROLES = [
-  'waitron',
-  'kitchen',
-  'bar',
-  'mixologist',
-  'griller',
-  'floor_staff',
-  'games_master',
-  'shisha_attendant',
-  'dj',
-  'hypeman',
-  'supervisor',
-  'social_media_manager',
-  'manager',
-  'accountant',
-  'auditor',
-  'owner',
-] as const
-const DEFAULT_FLOOR_ROLES = [
-  'waitron',
-  'kitchen',
-  'bar',
-  'mixologist',
-  'griller',
-  'floor_staff',
-  'games_master',
-  'shisha_attendant',
-  'dj',
-  'hypeman',
-  'social_media_manager',
-]
+const DEFAULT_ROLES = ['waitron', 'kitchen', 'bar', 'manager', 'owner'] as const
+const DEFAULT_FLOOR_ROLES = ['waitron', 'kitchen', 'bar']
 type AccessMode = 'floor' | 'office'
 interface CustomRoleConfig {
   role: string
@@ -63,20 +34,9 @@ interface CustomRoleConfig {
 const roleColors: Record<string, string> = {
   owner: 'bg-amber-500/20 text-amber-400',
   manager: 'bg-purple-500/20 text-purple-400',
-  accountant: 'bg-blue-500/20 text-blue-400',
-  auditor: 'bg-indigo-500/20 text-indigo-400',
   waitron: 'bg-green-500/20 text-green-400',
   kitchen: 'bg-red-500/20 text-red-400',
   bar: 'bg-cyan-500/20 text-cyan-400',
-  mixologist: 'bg-emerald-500/20 text-emerald-400',
-  griller: 'bg-orange-500/20 text-orange-400',
-  floor_staff: 'bg-lime-500/20 text-lime-400',
-  games_master: 'bg-emerald-500/20 text-emerald-400',
-  shisha_attendant: 'bg-rose-500/20 text-rose-400',
-  dj: 'bg-fuchsia-500/20 text-fuchsia-400',
-  hypeman: 'bg-pink-500/20 text-pink-400',
-  supervisor: 'bg-teal-500/20 text-teal-400',
-  social_media_manager: 'bg-sky-500/20 text-sky-400',
 }
 interface StaffForm {
   full_name: string

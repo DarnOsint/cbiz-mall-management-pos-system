@@ -107,18 +107,19 @@ const normalizeDestination = (
     lowerCat.includes('grill') ||
     lowerName.includes('grill')
   )
-    return 'griller'
+    return 'kitchen'
   if (
     d === 'shisha' ||
     d === 'hookah' ||
+    d === 'games' ||
+    d === 'game' ||
+    d === 'games_master' ||
     lowerCat.includes('shisha') ||
+    lowerCat.includes('game') ||
     lowerName.includes('shisha')
   )
-    return 'shisha'
-  if (d === 'games' || d === 'game' || d === 'games_master' || lowerCat.includes('game'))
-    return 'games'
-  if (d === 'mixologist' || d === 'cocktail' || d === 'cocktails' || isMixologistItem)
-    return 'mixologist'
+    return 'bar'
+  if (d === 'mixologist' || d === 'cocktail' || d === 'cocktails' || isMixologistItem) return 'bar'
   return 'bar'
 }
 

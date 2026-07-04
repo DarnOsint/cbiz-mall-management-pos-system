@@ -316,15 +316,7 @@ export default function Login() {
     resetAttempts('rl_pin')
 
     // Operational roles must be clocked in before they can log in
-    const clockInRequired = [
-      'waitron',
-      'kitchen',
-      'bar',
-      'griller',
-      'mixologist',
-      'games_master',
-      'shisha_attendant',
-    ]
+    const clockInRequired = ['waitron', 'kitchen', 'bar']
     if (clockInRequired.includes(profile.role)) {
       const { data: activeShift } = await supabase
         .from('attendance')

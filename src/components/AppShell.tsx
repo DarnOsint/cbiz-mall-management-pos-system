@@ -42,23 +42,9 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Inventory', icon: Package, path: '/backoffice' },
     { label: 'Month End', icon: CalendarDays, path: '/month-end' },
   ],
-  accountant: [
-    { label: 'Accounting', icon: BookOpen, path: '/accounting' },
-    { label: 'Reports', icon: TrendingUp, path: '/reports' },
-    { label: 'Debtors', icon: Package, path: '/debtors' },
-    { label: 'Month End', icon: CalendarDays, path: '/month-end' },
-  ],
-  auditor: [
-    { label: 'Accounting', icon: BookOpen, path: '/accounting' },
-    { label: 'Reports', icon: TrendingUp, path: '/reports' },
-    { label: 'Debtors', icon: Package, path: '/debtors' },
-    { label: 'Month End', icon: CalendarDays, path: '/month-end' },
-  ],
-  supervisor: [{ label: 'Supervisor', icon: LayoutDashboard, path: '/supervisor' }],
-  mixologist: [{ label: 'Mixologist', icon: UtensilsCrossed, path: '/kds/mixologist' }],
 }
 
-const BARE_ROLES = ['kitchen', 'bar', 'griller', 'waitron', 'games_master', 'shisha_attendant']
+const BARE_ROLES = ['kitchen', 'bar', 'waitron']
 const ZONES = ['Inside', 'Outside']
 
 interface TableRow {

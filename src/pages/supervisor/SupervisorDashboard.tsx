@@ -82,7 +82,6 @@ function urgencyText(ts: string, hasPending: boolean) {
 const ROLE_ICON: Record<string, React.ReactNode> = {
   kitchen: <ChefHat size={13} className="text-orange-400" />,
   bar: <Wine size={13} className="text-blue-400" />,
-  griller: <Flame size={13} className="text-red-400" />,
   waitron: <Users size={13} className="text-amber-400" />,
 }
 
