@@ -907,7 +907,8 @@ export default function POS() {
               : (invMap[item.id] ?? null),
         }))
       )
-    } else if (!navigator.onLine) {
+    }
+    if (!navigator.onLine) {
       const cached = await localGetAll<any>('menu_items')
       if (cached.length > 0) {
         setMenuItems(
