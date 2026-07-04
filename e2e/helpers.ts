@@ -1,7 +1,7 @@
 import { Page, expect } from '@playwright/test'
 
 export const TEST_MANAGER = {
-  email: process.env.E2E_MANAGER_EMAIL || 'manager@cbiz.app',
+  email: process.env.E2E_MANAGER_EMAIL || 'manager@c.biz.app',
   password: process.env.E2E_MANAGER_PASSWORD || '',
 }
 export const TEST_WAITRON_PIN = process.env.E2E_WAITRON_PIN || '1234'

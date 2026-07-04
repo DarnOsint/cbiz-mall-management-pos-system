@@ -183,7 +183,7 @@ export default function ReceiptModal({
       // Waiter copy — plain monospace
       const lines = [
         '',
-        centre('Cbiz African Food'),
+        centre('C.Biz African Food'),
         centre('-- WAITER COPY --'),
         divider,
         fmtRow('Ref:', orderRef),
@@ -220,7 +220,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 
     const customerLines = [
       '',
-      centre('Cbiz African Food'),
+      centre('C.Biz African Food'),
       divider,
       fmtRow('Ref:', orderRef),
       fmtRow('Table:', table?.name ?? 'N/A'),
@@ -265,7 +265,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
     <img src="${qrUrl}" width="90" height="90" alt="QR" style="display:block;margin:0 auto;" onload="window._qrLoaded=true" />
     <div class="qr-label">Scan to view your order online</div>
   </div>
-  <div class="footer">Thank you for visiting Cbiz African Food!</div>
+  <div class="footer">Thank you for visiting C.Biz African Food!</div>
 </body>
 </html>`
   }
@@ -404,7 +404,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
               >
                 <div style={{ textAlign: 'center', marginBottom: '8px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
-                    Cbiz African Food
+                    C.Biz African Food
                   </div>
                   <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
                     — — — — — — — — — — — —
@@ -588,7 +588,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   <div>Thank you for visiting!</div>
                   <div style={{ color: '#666' }}>Please come again 🙏</div>
                   <div style={{ marginTop: '4px', fontSize: '9px', color: '#888' }}>
-                    Powered by CbizOS
+                    Powered by C.BizOS
                   </div>
                 </div>
                 <div style={{ marginTop: '16px' }} />

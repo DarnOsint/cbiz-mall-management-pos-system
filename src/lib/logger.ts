@@ -34,23 +34,23 @@ function sendToRemote(level: LogLevel, message: string, data?: unknown) {
 export const logger = {
   debug(message: string, data?: unknown) {
     if (!shouldLog('debug')) return
-    console.debug(`[CbizOS] ${message}`, data)
+    console.debug(`[C.BizOS] ${message}`, data)
   },
 
   info(message: string, data?: unknown) {
     if (!shouldLog('info')) return
-    console.info(`[CbizOS] ${message}`, data)
+    console.info(`[C.BizOS] ${message}`, data)
   },
 
   warn(message: string, data?: unknown) {
     if (!shouldLog('warn')) return
-    console.warn(`[CbizOS] ${message}`, data)
+    console.warn(`[C.BizOS] ${message}`, data)
     sendToRemote('warn', message, data)
   },
 
   error(message: string, data?: unknown) {
     if (!shouldLog('error')) return
-    console.error(`[CbizOS] ${message}`, data)
+    console.error(`[C.BizOS] ${message}`, data)
     sendToRemote('error', message, data)
   },
 }

@@ -29,7 +29,7 @@ BEGIN
     ('Spaghetti Jolly',              food_id, 0, 'Monday Evening', true, 3),
     -- Tuesday
     ('Special Fried Rice',           food_id, 0, 'Tuesday Morning', true, 4),
-    ('Cbiz Special Okro',            food_id, 0, 'Tuesday Afternoon', true, 5),
+    ('C.Biz Special Okro',            food_id, 0, 'Tuesday Afternoon', true, 5),
     ('Stir Fry Spaghetti',           food_id, 0, 'Tuesday Evening', true, 6),
     -- Wednesday
     ('Yam and Egg Sauce',            food_id, 0, 'Wednesday Morning', true, 7),
@@ -38,7 +38,7 @@ BEGIN
     -- Thursday
     ('Ofeakwu and Rice',             food_id, 0, 'Thursday Morning', true, 10),
     ('Bitterleaf Soup',              food_id, 0, 'Thursday Afternoon', true, 11),
-    ('Cbiz Coconut Rice',            food_id, 0, 'Thursday Evening', true, 12),
+    ('C.Biz Coconut Rice',            food_id, 0, 'Thursday Evening', true, 12),
     -- Friday
     ('Peppersoup and White Rice',    food_id, 0, 'Friday Morning', true, 13),
     ('Nsala Soup',                   food_id, 0, 'Friday Afternoon', true, 14),

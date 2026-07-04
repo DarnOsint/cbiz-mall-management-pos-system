@@ -182,7 +182,7 @@ export default async function handler(req, res) {
   <div class="wrapper">
     <div class="header">
       <p class="statement-label">Account Statement</p>
-      <h1>Cbiz Lounge</h1>
+      <h1>C.Biz Lounge</h1>
       <p>Statement Date: ${statementDate}</p>
     </div>
 
@@ -295,7 +295,7 @@ export default async function handler(req, res) {
     </div>
 
     <div class="footer">
-      <p><strong style="color:#374151">Cbiz Lounge</strong> · Ibadan, Nigeria</p>
+      <p><strong style="color:#374151">C.Biz Lounge</strong> · Ibadan, Nigeria</p>
       <p style="margin-top:4px">For queries about this statement, please contact us at <a href="mailto:info@celebiz.vercel.app">info@celebiz.vercel.app</a> or visit <a href="https://celebiz.vercel.app">celebiz.vercel.app</a></p>
       <p style="margin-top:8px">This is an automatically generated statement. Please do not reply to this email.</p>
     </div>

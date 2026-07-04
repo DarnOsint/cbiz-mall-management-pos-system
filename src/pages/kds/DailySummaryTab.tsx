@@ -270,7 +270,7 @@ export default function DailySummaryTab({
 
     const lines = [
       '',
-      ctr('Cbiz African Food'),
+      ctr('C.Biz African Food'),
       ctr(`${label} DAILY SUMMARY`),
       div,
       row('Date:', fmtDate),

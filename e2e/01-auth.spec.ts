@@ -9,7 +9,7 @@ test.describe('Authentication', () => {
     for (const d of ['1','2','3','4','5','6','7','8','9','0']) {
       await expect(page.getByRole('button', { name: d }).first()).toBeVisible()
     }
-    await expect(page.getByText(/Cbiz/i)).toBeVisible()
+    await expect(page.getByText(/C.Biz/i)).toBeVisible()
   })
 
   test('wrong PIN shows error and does not log in', async ({ page }) => {

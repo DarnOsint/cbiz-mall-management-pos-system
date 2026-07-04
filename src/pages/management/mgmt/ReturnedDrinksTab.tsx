@@ -355,7 +355,7 @@ export default function ReturnedDrinksTab() {
       new Date(d).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: true })
     const lines = [
       '',
-      ctr('Cbiz African Food'),
+      ctr('C.Biz African Food'),
       ctr('RETURNED DRINKS REPORT'),
       div,
       row('Date:', fmtDate),

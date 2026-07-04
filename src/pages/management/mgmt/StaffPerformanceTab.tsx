@@ -129,7 +129,7 @@ export default function StaffPerformanceTab() {
     const ctr = (s: string) => ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
     const lines = [
       '',
-      ctr('Cbiz African Food'),
+      ctr('C.Biz African Food'),
       ctr('STAFF PERFORMANCE'),
       div,
       r('Period:', label),

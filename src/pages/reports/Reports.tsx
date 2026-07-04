@@ -497,7 +497,7 @@ export default function Reports() {
   const exportCSV = () => {
     if (!report) return
     const rows = [
-      ['CBIZ AFRICAN FOOD - ' + report.period.toUpperCase() + ' REPORT'],
+      ['C.BIZ AFRICAN FOOD - ' + report.period.toUpperCase() + ' REPORT'],
       ['Generated:', report.generatedAt],
       [],
       ['REVENUE SUMMARY'],
@@ -535,7 +535,7 @@ export default function Reports() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'cbiz-' + report.period.toLowerCase().replace(/ /g, '-') + '.csv'
+    a.download = .c.biz-' + report.period.toLowerCase().replace(/ /g, '-') + '.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -544,7 +544,7 @@ export default function Reports() {
     if (!report) return
     const sheets: Record<string, any[][]> = {
       Summary: [
-        ['Cbiz African Food', report.period],
+        ['C.Biz African Food', report.period],
         ['Generated', report.generatedAt],
         [],
         ['Metric', 'Value'],
@@ -585,7 +585,7 @@ export default function Reports() {
       const ws = XLSX.utils.aoa_to_sheet(data)
       XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31))
     })
-    const fname = `cbiz_${report.period.replace(/\s+/g, '_')}.xlsx`
+    const fname = `c.biz_${report.period.replace(/\s+/g, '_')}.xlsx`
     XLSX.writeFile(wb, fname)
   }
 
@@ -1394,7 +1394,7 @@ export default function Reports() {
                             ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
                           const z = [
                             '',
-                            ctr('Cbiz African Food'),
+                            ctr('C.Biz African Food'),
                             ctr('Z-REPORT — END OF DAY'),
                             div,
                             row('Period:', getPeriodLabel()),
@@ -1487,7 +1487,7 @@ export default function Reports() {
                       style={{ fontFamily: 'monospace', fontSize: '13px' }}
                     >
                       <div className="text-center mb-4">
-                        <div className="text-xl font-bold tracking-widest">Cbiz African Food</div>
+                        <div className="text-xl font-bold tracking-widest">C.Biz African Food</div>
                         <div className="text-xs text-gray-500 mt-1">Z-REPORT — END OF DAY</div>
                         <div className="text-xs text-gray-500">{getPeriodLabel()}</div>
                         <div className="text-xs text-gray-400">
@@ -1604,9 +1604,9 @@ export default function Reports() {
 
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 text-center">
               <p className="text-gray-500 text-xs">
-                Cbiz · {report.period} Report · Generated {report.generatedAt}
+                C.Biz · {report.period} Report · Generated {report.generatedAt}
               </p>
-              <p className="text-gray-600 text-xs mt-1">Powered by CbizOS</p>
+              <p className="text-gray-600 text-xs mt-1">Powered by C.BizOS</p>
             </div>
           </div>
         )}

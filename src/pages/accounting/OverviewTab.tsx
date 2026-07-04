@@ -360,7 +360,7 @@ export default function OverviewTab({
     }
     const lines = [
       '',
-      ctr('Cbiz African Food'),
+      ctr('C.Biz African Food'),
       ctr('DAILY RECONCILIATION'),
       div,
       row('Date:', fmtDate),

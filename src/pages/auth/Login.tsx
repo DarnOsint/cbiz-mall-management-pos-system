@@ -412,7 +412,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 mb-4">
             <UtensilsCrossed size={40} className="text-gray-950" />
           </div>
-          <h1 className="text-3xl font-bold text-amber-400">Cbiz</h1>
+          <h1 className="text-3xl font-bold text-amber-400">C.Biz</h1>
           <p className="text-gray-300 mt-1">Restaurant Operating System</p>
         </div>
 
@@ -477,7 +477,7 @@ export default function Login() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@cbiz.app"
+                      placeholder="you@c.biz.app"
                       required
                       className="w-full bg-gray-700 border border-gray-500 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500"
                     />
@@ -579,7 +579,7 @@ export default function Login() {
             </>
           )}
         </div>
-        <p className="text-center text-gray-600 text-sm mt-6">CbizOS v1.0 — Cbiz Lounge</p>
+        <p className="text-center text-gray-600 text-sm mt-6">C.BizOS v1.0 — C.Biz Lounge</p>
       </div>
     </div>
   )

@@ -2,7 +2,7 @@
 // Thin typed layer over the browser IndexedDB API.
 // All page components interact with this instead of IDB directly.
 
-const DB_NAME = 'cbiz_os'
+const DB_NAME = .c.biz_os.
 // Bump version when adding new stores; existing data stays intact
 const DB_VERSION = 2
 

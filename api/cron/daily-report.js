@@ -248,7 +248,7 @@ export default async function handler(req, res) {
 <div style="max-width:640px;margin:0 auto;">
 
   <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border-radius:14px;padding:28px;margin-bottom:16px;">
-    <div style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">🍺 Cbiz Lounge</div>
+    <div style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">🍺 C.Biz Lounge</div>
     <div style="color:white;font-size:22px;font-weight:800;">Daily Z-Report</div>
     <div style="color:#94a3b8;font-size:13px;margin-top:4px;">${label}</div>
     <div style="margin-top:20px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:16px 20px;display:inline-block;">
@@ -361,7 +361,7 @@ export default async function handler(req, res) {
   `, '#7c3aed') : ''}
 
   <div style="text-align:center;padding:20px 0 10px;color:#94a3b8;font-size:11px;line-height:1.7;">
-    <div style="font-weight:700;color:#64748b;margin-bottom:4px;">CbizOS · Cbiz Lounge</div>
+    <div style="font-weight:700;color:#64748b;margin-bottom:4px;">C.BizOS · C.Biz Lounge</div>
     <div>Trading period: 8:00 AM – 8:00 AM WAT · ${short}</div>
     <div>Generated at 4:30 AM WAT · <a href="https://celebiz.vercel.app" style="color:#f59e0b;text-decoration:none;">celebiz.vercel.app</a></div>
   </div>
@@ -371,9 +371,9 @@ export default async function handler(req, res) {
 </html>`
 
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: 'CbizOS <reports@celebiz.vercel.app>',
+      from: 'C.BizOS <reports@celebiz.vercel.app>',
       to: [process.env.REPORT_EMAIL],
-      subject: `Z-Report ${short} · ${fmt(grandTotal)} · ${paid.length} orders — Cbiz`,
+      subject: `Z-Report ${short} · ${fmt(grandTotal)} · ${paid.length} orders — C.Biz`,
       html,
     })
 

@@ -388,7 +388,7 @@ export default function WaitronOrdersTab() {
 
     const lines = [
       '',
-      ctr('Cbiz African Food'),
+      ctr('C.Biz African Food'),
       ctr('WAITRON ORDER REPORT'),
       div,
       row('Waitron:', selectedShift.staff_name),

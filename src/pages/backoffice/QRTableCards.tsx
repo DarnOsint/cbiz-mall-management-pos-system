@@ -211,7 +211,7 @@ export default function QRTableCards() {
         doc.text('View zone menu', x + colW / 2, y + cardH - 12, { align: 'center' })
         doc.setTextColor(156, 163, 175)
         doc.setFontSize(6)
-        doc.text('Cbiz Lounge', x + colW / 2, y + cardH - 5, { align: 'center' })
+        doc.text('C.Biz Lounge', x + colW / 2, y + cardH - 5, { align: 'center' })
 
         // Link label (tiny)
         doc.setTextColor(180, 180, 180)
@@ -363,7 +363,7 @@ export default function QRTableCards() {
                       textTransform: 'uppercase',
                     }}
                   >
-                    Cbiz Lounge
+                    C.Biz Lounge
                   </p>
                 </div>
               </div>

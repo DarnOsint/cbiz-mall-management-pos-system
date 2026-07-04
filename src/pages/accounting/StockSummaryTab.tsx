@@ -162,7 +162,7 @@ export default function StockSummaryTab({ type }: Props) {
     })
     const lines = [
       '',
-      ctr('Cbiz African Food'),
+      ctr('C.Biz African Food'),
       ctr(`${label.toUpperCase()} STOCK REPORT`),
       div,
       row('Date:', fmtDate),

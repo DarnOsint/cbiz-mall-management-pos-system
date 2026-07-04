@@ -797,7 +797,7 @@ export default function StaffManagement({ onBack }: Props) {
                         onChange={(e) => f({ email: e.target.value })}
                         type="email"
                         className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl pl-9 pr-4 py-3 focus:outline-none focus:border-amber-500 text-sm"
-                        placeholder="staff@cbiz.app"
+                        placeholder="staff@c.biz.app"
                         disabled={!!editingStaff}
                       />
                     </div>

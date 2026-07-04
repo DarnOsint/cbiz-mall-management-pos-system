@@ -1,3 +1,3 @@
 -- This file is superseded by rls_fix_all_tables.sql
 -- Run that instead for a complete fix across ALL tables
--- https://github.com/DarnOsint/cbiz-restaurant-management-and-pos-system/blob/main/supabase/migrations/rls_fix_all_tables.sql
+-- https://github.com/DarnOsint/c.biz-restaurant-management-and-pos-system/blob/main/supabase/migrations/rls_fix_all_tables.sql

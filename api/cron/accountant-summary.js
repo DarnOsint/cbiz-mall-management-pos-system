@@ -183,7 +183,7 @@ export default async function handler(req, res) {
 <div style="max-width:640px;margin:0 auto;">
 
   <div style="background:linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%);border-radius:14px;padding:28px;margin-bottom:16px;">
-    <div style="color:#60a5fa;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">📊 Cbiz Lounge</div>
+    <div style="color:#60a5fa;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">📊 C.Biz Lounge</div>
     <div style="color:white;font-size:22px;font-weight:800;">Accountant Summary</div>
     <div style="color:#94a3b8;font-size:13px;margin-top:4px;">${label}</div>
     <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
@@ -309,7 +309,7 @@ export default async function handler(req, res) {
   `, '#ef4444')}
 
   <div style="text-align:center;padding:20px 0 10px;color:#94a3b8;font-size:11px;line-height:1.7;">
-    <div style="font-weight:700;color:#64748b;margin-bottom:4px;">CbizOS · Cbiz Lounge</div>
+    <div style="font-weight:700;color:#64748b;margin-bottom:4px;">C.BizOS · C.Biz Lounge</div>
     <div>Trading period: 8:00 AM – 8:00 AM WAT · ${short}</div>
     <div>Generated at ${new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos', hour:'2-digit', minute:'2-digit' })} WAT · <a href="https://celebiz.vercel.app" style="color:#60a5fa;text-decoration:none;">celebiz.vercel.app</a></div>
   </div>
@@ -319,9 +319,9 @@ export default async function handler(req, res) {
 </html>`
 
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: 'CbizOS <reports@celebiz.vercel.app>',
+      from: 'C.BizOS <reports@celebiz.vercel.app>',
       to: [process.env.REPORT_EMAIL],
-      subject: `Accountant Summary ${short} · ${fmt(totalRevenue)} · ${shortfall > 0 ? 'SHORTFALL ' + fmt(shortfall) : shortfall < 0 ? 'SURPLUS ' + fmt(Math.abs(shortfall)) : 'BALANCED'} — Cbiz`,
+      subject: `Accountant Summary ${short} · ${fmt(totalRevenue)} · ${shortfall > 0 ? 'SHORTFALL ' + fmt(shortfall) : shortfall < 0 ? 'SURPLUS ' + fmt(Math.abs(shortfall)) : 'BALANCED'} — C.Biz`,
       html,
     })
 
