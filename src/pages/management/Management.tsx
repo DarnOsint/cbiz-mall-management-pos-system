@@ -14,7 +14,7 @@ import {
   Trophy,
 } from 'lucide-react'
 import ShiftManager from './ShiftManager'
-import TableAssignment from './TableAssignment'
+
 import WaiterCalls from './WaiterCalls'
 import KitchenStock from '../backoffice/KitchenStock'
 import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
@@ -58,7 +58,7 @@ const activityWindow = (dateStr: string) => {
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'shifts', label: 'Shifts', icon: Clock },
-  { id: 'tables', label: 'Zone Assignment', icon: Users },
+
   { id: 'orders', label: 'Orders', icon: ShoppingBag },
   { id: 'performance', label: 'Staff Performance', icon: Trophy },
   { id: 'barsales', label: 'Bar Sales', icon: UtensilsCrossed },
@@ -308,7 +308,7 @@ export default function Management() {
           <OverviewTab stats={stats} onTabChange={(id) => setActiveTab(id as TabId)} />
         )}
         {activeTab === 'shifts' && <ShiftManager onRefreshStats={fetchStats} />}
-        {activeTab === 'tables' && <TableAssignment />}
+
         {activeTab === 'orders' && <OpenOrdersTab />}
         {activeTab === 'barsales' && <StationSalesTab destination="bar" label="Bar" />}
         {activeTab === 'kitchen' && <StationSalesTab destination="kitchen" label="Kitchen" />}

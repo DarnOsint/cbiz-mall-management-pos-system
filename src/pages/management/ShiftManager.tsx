@@ -276,11 +276,6 @@ export default function ShiftManager({ onClose, onRefreshStats }: Props) {
         .update({ assigned_staff: null })
         .eq('assigned_staff', shift.staff_id)
       if (tErr) console.error('Failed to unassign tables:', tErr.message)
-      const { error: zErr } = await supabase
-        .from('zone_assignments')
-        .delete()
-        .eq('staff_id', shift.staff_id)
-      if (zErr) console.error('Failed to clear zone assignments:', zErr.message)
     }
     // Update the summary shift with the actual clock_out time
     // so the summary reloads with the correct session window

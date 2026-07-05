@@ -6,7 +6,7 @@ import ErrorBoundary from '../../components/ErrorBoundary'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { useVisibilityInterval } from '../../hooks/useVisibilityInterval'
 import ShiftManager from '../management/ShiftManager'
-import TableAssignment from '../management/TableAssignment'
+
 import {
   Users,
   ShoppingBag,
@@ -21,7 +21,6 @@ import {
   Flame,
   Bell,
   UserCheck,
-  LayoutGrid,
   Package,
 } from 'lucide-react'
 import SupervisorMainStoreTab from './SupervisorMainStoreTab'
@@ -235,7 +234,6 @@ function SupervisorDashboardInner() {
       badgeRed: pendingStore > 0,
     },
     { id: 'shift' as const, label: 'Shift', icon: UserCheck, badge: 0, badgeRed: false },
-    { id: 'tables' as const, label: 'Tables', icon: LayoutGrid, badge: 0, badgeRed: false },
   ]
 
   if (loading)
@@ -506,8 +504,6 @@ function SupervisorDashboardInner() {
         {tab === 'store' && <SupervisorMainStoreTab />}
 
         {tab === 'shift' && <ShiftManager />}
-
-        {tab === 'tables' && <TableAssignment />}
       </div>
     </div>
   )

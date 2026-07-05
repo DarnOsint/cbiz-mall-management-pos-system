@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Users, Lock, Link2 } from 'lucide-react'
+import { Users, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import {
   type TableLayout,
@@ -38,9 +38,6 @@ interface TableGridProps {
   tableStaffMap?: Record<string, string>
   currentStaffId?: string | null
   currentRole?: string | null
-  joinMode?: boolean
-  joinSelectedIds?: string[]
-  activeJoins?: Record<string, string[]>
 }
 
 const BYPASS_ROLES = ['owner', 'manager']
@@ -57,9 +54,6 @@ export default function TableGrid({
   tableStaffMap = {},
   currentStaffId = null,
   currentRole = null,
-  joinMode = false,
-  joinSelectedIds = [],
-  activeJoins = {},
 }: TableGridProps & { defaultCategory?: string }) {
   // null = unrestricted (owner/manager), array = restricted to those zones only
   const visibleCategories: string[] =
@@ -187,12 +181,8 @@ export default function TableGrid({
               currentStaffId &&
               servingStaffId !== currentStaffId &&
               !canBypass
-            const isClickable = joinMode ? isAssigned : isAssigned && !isOtherWaitronTable
+            const isClickable = isAssigned && !isOtherWaitronTable
             const occupiedFill = ZONE_FILL_OCCUPIED[zoneName] || tc.stroke
-            const isJoinSelected = joinSelectedIds.includes(table.id)
-            const isJoinedSecondary = Object.values(activeJoins).some((ids) =>
-              ids.includes(table.id)
-            )
 
             // Position relative to zone bounding box
             const relX = (layout.x - bbox.x) * zoneScale
@@ -217,25 +207,17 @@ export default function TableGrid({
                   width: layout.w * zoneScale,
                   height: layout.h * zoneScale,
                   borderRadius: layout.shape === 'circle' ? '50%' : 10 * zoneScale,
-                  background: isJoinSelected
-                    ? 'rgba(245,158,11,0.35)'
-                    : isOccupied
-                      ? occupiedFill
-                      : tc.fill.replace('0.08', '0.2'),
+                  background: isOccupied
+                    ? occupiedFill
+                    : tc.fill.replace('0.08', '0.2'),
                   border: `${2 * zoneScale}px solid ${
-                    isJoinSelected
+                    isSelected
                       ? '#f59e0b'
-                      : isJoinedSecondary
-                        ? '#f59e0b80'
-                        : isSelected
-                          ? '#f59e0b'
-                          : tc.stroke
+                      : tc.stroke
                   }`,
-                  boxShadow: isJoinSelected
-                    ? `0 0 0 ${3 * zoneScale}px rgba(245,158,11,0.5)`
-                    : isSelected
-                      ? `0 0 0 ${3 * zoneScale}px rgba(245,158,11,0.4)`
-                      : 'none',
+                  boxShadow: isSelected
+                    ? `0 0 0 ${3 * zoneScale}px rgba(245,158,11,0.4)`
+                    : 'none',
                   zIndex: 1,
                   display: 'flex',
                   flexDirection: 'column',
@@ -293,17 +275,7 @@ export default function TableGrid({
                     }}
                   />
                 )}
-                {(isJoinedSecondary || activeJoins[table.id]) && (
-                  <Link2
-                    size={Math.max(8, 10 * zoneScale)}
-                    style={{
-                      position: 'absolute',
-                      bottom: 3 * zoneScale,
-                      right: 3 * zoneScale,
-                      color: '#f59e0b',
-                    }}
-                  />
-                )}
+
               </button>
             )
           })}
