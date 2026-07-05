@@ -315,7 +315,7 @@ export default function Login() {
     }
     resetAttempts('rl_pin')
 
-    // Operational roles must be clocked in before they can log in
+    // Auto clock-in for operational roles when they log in with PIN
     const clockInRequired = ['waitron', 'kitchen', 'bar']
     if (clockInRequired.includes(profile.role)) {
       const { data: activeShift } = await supabase
@@ -325,10 +325,10 @@ export default function Login() {
         .or('clock_out.is.null')
         .limit(1)
       if (!activeShift || activeShift.length === 0) {
-        setError('You must be clocked in by a manager before logging in.')
-        setPin('')
-        setLoading(false)
-        return
+        await supabase.from('attendance').insert({
+          staff_id: profile.id,
+          clock_in: new Date().toISOString(),
+        })
       }
     }
 

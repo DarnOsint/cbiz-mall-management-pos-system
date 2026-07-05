@@ -487,84 +487,27 @@ export default function POS() {
   }, [profile?.id])
 
   const fetchAssignedTables = async (role: string, staffId: string) => {
-    if (['owner', 'manager', 'accountant'].includes(role)) {
-      setAssignedTableIds(null)
-      setAssignedZoneNames(null)
-      setIsClockedIn(true)
-      return
-    }
+    // All logged-in staff see all zones/tables — no zone assignment restrictions
+    setAssignedTableIds(null)
+    setAssignedZoneNames(null)
+    setIsClockedIn(true)
 
-    // Allow overnight shifts: treat any open attendance row (clock_out is null) as clocked-in,
-    // even if the attendance.date is yesterday.
-    const { data: attendance } = await supabase
+    // Track attendance for shift stats window
+    void supabase
       .from('attendance')
-      .select('id, clock_in, date')
+      .select('id')
       .eq('staff_id', staffId)
       .or('clock_out.is.null')
-      .order('clock_in', { ascending: false })
       .limit(1)
-    // Only update if we haven't already confirmed clocked-in — prevents mid-session flicker
-    const clockedIn = attendance !== null && attendance.length > 0
-    setIsClockedIn((prev) => {
-      // Once clocked in, don't flip to false due to a network hiccup
-      if (prev === true && !clockedIn) return true
-      return clockedIn
-    })
-
-    const { data: zoneData } = await supabase
-      .from('zone_assignments')
-      .select('category_id')
-      .eq('staff_id', staffId)
-      .eq('is_active', true)
-
-    const { data: directTables } = await supabase
-      .from('tables')
-      .select('id, category_id')
-      .eq('assigned_staff', staffId)
-    const directIds = (directTables || []).map((t: { id: string }) => t.id)
-
-    if ((!zoneData || zoneData.length === 0) && directIds.length === 0) {
-      // No assignments — restrict to nothing (empty arrays = no access)
-      setAssignedTableIds([])
-      setAssignedZoneNames([])
-      return
-    }
-
-    const categoryIds = zoneData ? zoneData.map((z: { category_id: string }) => z.category_id) : []
-
-    // Also include category IDs from directly assigned tables
-    const directCategoryIds = (directTables || [])
-      .map((t: { category_id: string }) => t.category_id)
-      .filter(Boolean)
-    const allCategoryIds = [...new Set([...categoryIds, ...directCategoryIds])]
-
-    // Fetch all tables in assigned zones
-    let zoneIds: string[] = []
-    if (categoryIds.length > 0) {
-      const { data: zoneTableData } = await supabase
-        .from('tables')
-        .select('id')
-        .in('category_id', categoryIds)
-      zoneIds = (zoneTableData || []).map((t: { id: string }) => t.id)
-    }
-
-    const combined = [...new Set([...zoneIds, ...directIds])]
-    setAssignedTableIds(combined.length > 0 ? combined : [])
-
-    // Resolve zone names from DB — don't rely on tables state which may not be loaded yet
-    const { data: categoryData } = await supabase
-      .from('table_categories')
-      .select('id, name')
-      .in('id', allCategoryIds)
-    const uniqueZoneNames = (categoryData || []).map((c: { name: string }) => c.name)
-    setAssignedZoneNames(uniqueZoneNames.length > 0 ? uniqueZoneNames : [])
-
-    // Auto-open the waitron's zone tab
-    if (uniqueZoneNames.length === 1) {
-      setDefaultZone(uniqueZoneNames[0])
-    } else if (uniqueZoneNames.length > 0) {
-      setDefaultZone(uniqueZoneNames[0])
-    }
+      .then(({ data }) => {
+        if (!data || data.length === 0) {
+          // Auto clock-in if not already clocked
+          supabase.from('attendance').insert({
+            staff_id: staffId,
+            clock_in: new Date().toISOString(),
+          }).then()
+        }
+      })
   }
 
   const activeOrderRef = useRef<typeof activeOrder>(null)
@@ -1295,30 +1238,6 @@ export default function POS() {
   useEffect(() => {
     if (isWaitron && posTab !== 'tables') setPosTab('tables')
   }, [isWaitron, posTab])
-
-  if (isClockedIn === false)
-    return (
-      <div className="min-h-full bg-gray-950 flex items-center justify-center p-6">
-        <div className="max-w-sm w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-5">
-            <LogOut size={28} className="text-red-400" />
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center mx-auto mb-4">
-            <span className="text-black font-bold text-lg">B</span>
-          </div>
-          <h2 className="text-lg font-bold text-red-400 mb-2">You are not clocked in</h2>
-          <p className="text-gray-400 text-sm mb-2">
-            Please ask your manager to clock you in before you can access the POS.
-          </p>
-          <button
-            onClick={signOut}
-            className="mt-6 flex items-center gap-2 mx-auto bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
-          >
-            <LogOut size={14} /> Sign Out
-          </button>
-        </div>
-      </div>
-    )
 
   if (loading)
     return (
