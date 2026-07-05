@@ -22,6 +22,8 @@ import {
   X,
   Check,
   Search,
+  Bike,
+  DollarSign,
 } from 'lucide-react'
 import TableGrid from './TableGrid'
 import CoversModal from './CoversModal'
@@ -32,7 +34,7 @@ import CashSaleModal from './CashSaleModal'
 import CustomerOrderAlerts from '../../components/CustomerOrderAlerts'
 import WaiterCalls from '../management/WaiterCalls'
 
-import type { Table, MenuItem, Order, OrderItem, Profile } from '../../types'
+import type { Table, MenuItem, Order, OrderItem, Profile, BodaOperator } from '../../types'
 import { useToast } from '../../context/ToastContext'
 import { localBulkPut, localGetAll } from '../../lib/db'
 import { offlineInsertNoReturn, offlineUpdateNoReturn } from '../../lib/offlineWrite'
@@ -295,7 +297,7 @@ export default function POS() {
   const [assignedTableIds, setAssignedTableIds] = useState<string[] | null>(null)
   const [assignedZoneNames, setAssignedZoneNames] = useState<string[] | null>(null)
   const [defaultZone, setDefaultZone] = useState<string>('All')
-  const [posTab, setPosTab] = useState<'tables' | 'history' | 'shift'>('tables')
+  const [posTab, setPosTab] = useState<'tables' | 'history' | 'shift' | 'deliveries'>('tables')
   const [joinMode, setJoinMode] = useState(false)
   const [joinSelection, setJoinSelection] = useState<Table[]>([])
   // Active joins: maps primary table ID → array of secondary table IDs
@@ -309,6 +311,9 @@ export default function POS() {
   const [showPayment, setShowPayment] = useState(false)
   const [showCashSale, setShowCashSale] = useState(false)
   const [cashSaleType, setCashSaleType] = useState<'cash' | 'takeaway'>('cash')
+  const [deliveries, setDeliveries] = useState<(Order & { boda_operators?: Pick<BodaOperator, 'id' | 'name' | 'phone'> | null })[]>([])
+  const [deliveriesLoading, setDeliveriesLoading] = useState(false)
+  const [payingDelivery, setPayingDelivery] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -708,6 +713,51 @@ export default function POS() {
       })) as HistoryOrder[]
     )
     setHistoryLoading(false)
+  }
+
+  const fetchDeliveries = async () => {
+    setDeliveriesLoading(true)
+    const { data } = await supabase
+      .from('orders')
+      .select(`id, created_at, status, order_type, total_amount, customer_name, customer_phone, delivery_area, delivery_status, delivery_fee, notes, staff_id, boda_operator_id,
+        boda_operators(id, name, phone)`)
+      .in('delivery_status', ['out_for_delivery', 'pending_delivery'])
+      .order('created_at', { ascending: false })
+    if (data) setDeliveries(data as any)
+    setDeliveriesLoading(false)
+  }
+
+  const markDeliveryPaid = async (orderId: string) => {
+    if (payingDelivery) return
+    setPayingDelivery(orderId)
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          delivery_status: 'paid',
+          payment_received_at: new Date().toISOString(),
+          status: 'paid',
+          closed_at: new Date().toISOString(),
+          payment_method: 'cash',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId)
+      if (error) throw error
+      await audit({
+        action: 'DELIVERY_PAID',
+        entity: 'order',
+        entityId: orderId,
+        entityName: 'Delivery order',
+        newValue: { status: 'paid', delivery_status: 'paid' },
+        performer: profile as Profile,
+      })
+      toast.success('Payment Recorded', 'Delivery payment received')
+      await fetchDeliveries()
+    } catch (err) {
+      toast.error('Error', (err as Error).message)
+    } finally {
+      setPayingDelivery(null)
+    }
   }
 
   const [tableStaffMap, setTableStaffMap] = useState<Record<string, string>>({})
@@ -1418,6 +1468,7 @@ export default function POS() {
           ? ([['tables', UtensilsCrossed, 'Tables']] as const)
           : ([
               ['tables', UtensilsCrossed, 'Tables'],
+              ['deliveries', Bike, 'Deliveries'],
               ['history', History, 'My Orders'],
               ['shift', TrendingUp, 'My Shift'],
             ] as const)
@@ -1428,6 +1479,7 @@ export default function POS() {
               setPosTab(id)
               if (id === 'history') fetchHistory()
               if (id === 'shift') fetchShiftStats()
+              if (id === 'deliveries') fetchDeliveries()
             }}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${posTab === id ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-500 hover:text-white'}`}
           >
@@ -1821,6 +1873,93 @@ export default function POS() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {posTab === 'deliveries' && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-lg mx-auto p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-white text-lg font-bold">Delivery Orders</h2>
+                  <p className="text-gray-500 text-xs">
+                    Orders out for delivery — mark as paid when rider returns with cash
+                  </p>
+                </div>
+                <button onClick={fetchDeliveries} className="text-gray-500 hover:text-white p-2">
+                  <RefreshCw size={14} />
+                </button>
+              </div>
+              {deliveriesLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <RefreshCw size={20} className="animate-spin text-amber-500" />
+                </div>
+              ) : deliveries.length === 0 ? (
+                <div className="text-center py-16">
+                  <Bike size={32} className="text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No pending deliveries</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {deliveries.map((order) => {
+                    const rider = order.boda_operators as { name?: string; phone?: string } | null
+                    const pmRaw = (order.payment_method || '').toLowerCase()
+                    return (
+                      <div key={order.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-semibold text-sm">
+                              {order.customer_name || 'Customer'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-gray-500 text-xs">
+                                {new Date(order.created_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </span>
+                              <span className="text-gray-700 text-xs">|</span>
+                              <span className="text-blue-400 text-xs capitalize">
+                                {order.delivery_status === 'out_for_delivery' ? 'Out for delivery' : order.delivery_status}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-amber-400 font-bold text-sm">
+                              {formatDualPrice(order.total_amount || 0)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="px-4 pb-3 space-y-1">
+                          {order.customer_phone && (
+                            <p className="text-gray-400 text-xs">
+                              <span className="text-gray-600">Phone:</span> {order.customer_phone}
+                            </p>
+                          )}
+                          {order.delivery_area && (
+                            <p className="text-gray-400 text-xs">
+                              <span className="text-gray-600">Delivery to:</span> {order.delivery_area}
+                            </p>
+                          )}
+                          {rider?.name && (
+                            <p className="text-gray-400 text-xs">
+                              <span className="text-gray-600">Rider:</span> {rider.name} {rider.phone ? `(${rider.phone})` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="px-4 py-3 bg-gray-950 border-t border-gray-800">
+                          <button
+                            onClick={() => markDeliveryPaid(order.id)}
+                            disabled={payingDelivery === order.id}
+                            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-colors"
+                          >
+                            <DollarSign size={15} />
+                            {payingDelivery === order.id ? 'Recording...' : 'Mark as Paid — Cash Received'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

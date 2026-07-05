@@ -4,6 +4,7 @@ export type Role = 'owner' | 'manager' | 'waitron' | 'kitchen' | 'bar'
 
 export type OrderStatus = 'open' | 'paid' | 'voided' | 'pending'
 export type OrderType = 'table' | 'cash_sale' | 'takeaway'
+export type DeliveryStatus = 'pending_delivery' | 'out_for_delivery' | 'delivered' | 'paid'
 export type PaymentMethod =
   | 'cash'
   | 'bank_pos'
@@ -78,6 +79,16 @@ export interface OrderItem {
     | null
 }
 
+export interface BodaOperator {
+  id: string
+  name: string
+  phone: string
+  service_area?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Order {
   id: string
   table_id?: string | null
@@ -90,6 +101,11 @@ export interface Order {
   payment_method?: PaymentMethod | null
   customer_name?: string | null
   customer_phone?: string | null
+  boda_operator_id?: string | null
+  delivery_area?: string | null
+  delivery_status?: DeliveryStatus | null
+  delivery_fee?: number
+  payment_received_at?: string | null
   created_at: string
   closed_at?: string | null
   updated_at?: string | null
@@ -98,6 +114,7 @@ export interface Order {
     | { name: string; table_categories?: { name: string } | null }
     | null
   order_items?: OrderItem[]
+  boda_operators?: Pick<BodaOperator, 'id' | 'name' | 'phone'> | null
 }
 
 export interface TillSession {

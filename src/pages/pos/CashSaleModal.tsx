@@ -18,7 +18,7 @@ import {
   Printer,
   Clock,
 } from 'lucide-react'
-import type { MenuItem, ItemDestination } from '../../types'
+import type { MenuItem, ItemDestination, BodaOperator } from '../../types'
 import { useToast } from '../../context/ToastContext'
 import { formatDualPrice, formatSSP } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
@@ -96,6 +96,10 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
   const [packQuantities, setPackQuantities] = useState<Record<string, number>>({})
   const [waitingForBar, setWaitingForBar] = useState(false)
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
+  const [isDelivery, setIsDelivery] = useState(false)
+  const [bodaOperators, setBodaOperators] = useState<BodaOperator[]>([])
+  const [selectedBodaId, setSelectedBodaId] = useState('')
+  const [deliveryArea, setDeliveryArea] = useState('')
 
   const isTakeaway = type === 'takeaway'
 
@@ -116,6 +120,14 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
             /* invalid */
           }
         }
+      })
+    supabase
+      .from('boda_operators')
+      .select('*')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        if (data) setBodaOperators(data as BodaOperator[])
       })
   }, [isTakeaway])
 
@@ -179,8 +191,9 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
   const packItems = packSizes
     .filter((p) => (packQuantities[p.id] || 0) > 0)
     .map((p) => ({ ...p, qty: packQuantities[p.id] }))
+  const deliveryFee = isDelivery ? 2000 : 0
   const itemsTotal = orderItems.reduce((sum, i) => sum + i.total, 0)
-  const total = itemsTotal + packFee
+  const total = itemsTotal + packFee + deliveryFee
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
   // Finalize order after barman approves (or immediately if no bar items)
@@ -304,6 +317,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
   const canPay = () => {
     if (processing) return false
     if (isTakeaway && !customerName) return false
+    if (isDelivery && !selectedBodaId) return false
     if (paymentMethod === 'credit' && !customerName) return false
     if (paymentMethod === 'cash') return parseFloat(cashTendered) >= total
     return true
@@ -313,6 +327,8 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
     if (orderItems.length === 0) return toast.warning('Required', 'Add at least one item')
     if (isTakeaway && !customerName)
       return toast.warning('Required', 'Customer name is required for takeaway')
+    if (isDelivery && !selectedBodaId)
+      return toast.warning('Required', 'Select a delivery rider')
     if (paymentMethod === 'credit' && !customerName)
       return toast.warning('Required', 'Customer name is required for credit')
     setProcessing(true)
@@ -323,18 +339,26 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         return dest === 'bar'
       })
       const orderId = crypto.randomUUID()
-      // If order has bar items, create as 'open' so barman must approve first
+      // For delivery: create as 'open' with delivery_status so payment is collected on delivery
+      // For bar items: create as 'open' so barman must approve first
+      // Otherwise: create as 'paid' immediately
+      const needsDelivery = isDelivery
+      const needsBarApproval = hasBarItems && !needsDelivery
       const { data: order, error: orderError } = await offlineInsert('orders', {
         id: orderId,
         staff_id: staffId,
         order_type: type,
-        status: hasBarItems ? 'open' : 'paid',
-        payment_method: hasBarItems ? null : paymentMethod,
+        status: needsDelivery || needsBarApproval ? 'open' : 'paid',
+        payment_method: needsDelivery ? 'cash' : needsBarApproval ? null : paymentMethod,
         total_amount: total,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
-        notes,
-        closed_at: hasBarItems ? null : new Date().toISOString(),
+        notes: needsDelivery && deliveryArea ? `Delivery to: ${deliveryArea}${notes ? ' — ' + notes : ''}` : notes,
+        boda_operator_id: needsDelivery ? selectedBodaId : null,
+        delivery_area: needsDelivery ? deliveryArea || null : null,
+        delivery_status: needsDelivery ? 'out_for_delivery' : null,
+        delivery_fee: needsDelivery ? deliveryFee : 0,
+        closed_at: needsDelivery ? null : needsBarApproval ? null : new Date().toISOString(),
         created_at: new Date().toISOString(),
       })
       if (orderError) throw orderError
@@ -368,7 +392,27 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         const { error } = await offlineInsert('order_items', item)
         if (error) throw error
       }
-      if (hasBarItems) {
+      if (needsDelivery) {
+        // Delivery order — rider dispatched, payment collected on delivery
+        await audit({
+          action: 'DELIVERY_CREATED',
+          entity: 'order',
+          entityId: (order as { id: string }).id,
+          entityName: `Delivery — ${customerName}`,
+          newValue: { total, items: orderItems.length, area: deliveryArea, rider: selectedBodaId },
+          performer: profile,
+        })
+        setCompletedOrder({
+          order: { id: (order as { id: string }).id },
+          items: orderItems,
+          total,
+          change: 0,
+          customerName,
+          paymentMethod: 'Delivery (Cash on Delivery)',
+        })
+        setProcessing(false)
+        setSuccess(true)
+      } else if (hasBarItems) {
         // Wait for barman to mark all bar items ready before finalizing payment
         setPendingOrderId((order as { id: string }).id)
         setWaitingForBar(true)
@@ -555,11 +599,24 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             <CheckCircle size={32} className="text-green-400" />
           </div>
           <div>
-            <h3 className="text-white text-xl font-bold mb-1">Order Complete!</h3>
+            <h3 className="text-white text-xl font-bold mb-1">
+              {isDelivery ? 'Rider Dispatched!' : 'Order Complete!'}
+            </h3>
             <p className="text-gray-400 text-sm">
-              {isTakeaway ? `Takeaway for ${customerName}` : 'Cash sale processed'}
+              {isDelivery
+                ? `${customerName} — awaiting payment from rider`
+                : isTakeaway
+                  ? `Takeaway for ${customerName}`
+                  : 'Cash sale processed'}
             </p>
           </div>
+          {isDelivery && (
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+              <p className="text-blue-400 text-xs">
+                The Boda rider has been dispatched with the order. Mark as paid in the Deliveries tab when the rider returns with cash.
+              </p>
+            </div>
+          )}
           {paymentMethod === 'cash' && change > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
               <p className="text-amber-400 text-xs mb-1">Change to return</p>
@@ -713,6 +770,54 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     placeholder="Phone number"
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
                   />
+                  {/* Delivery toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={isDelivery}
+                        onChange={(e) => {
+                          setIsDelivery(e.target.checked)
+                          if (!e.target.checked) setSelectedBodaId('')
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-amber-500 transition-colors" />
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${isDelivery ? 'translate-x-4' : ''}`} />
+                    </div>
+                    <span className="text-gray-300 text-xs font-medium">Deliver to customer</span>
+                  </label>
+                  {isDelivery && (
+                    <div className="space-y-2 pt-1">
+                      {bodaOperators.length > 0 ? (
+                        <select
+                          value={selectedBodaId}
+                          onChange={(e) => setSelectedBodaId(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 appearance-none"
+                        >
+                          <option value="">Select Boda rider *</option>
+                          {bodaOperators.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name} — {b.phone}{b.service_area ? ` (${b.service_area})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-red-400 text-xs">No riders registered. Ask manager to add riders in Back Office.</p>
+                      )}
+                      <input
+                        value={deliveryArea}
+                        onChange={(e) => setDeliveryArea(e.target.value)}
+                        placeholder="Delivery area / address"
+                        className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                      />
+                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2">
+                        <p className="text-blue-400 text-xs text-center">
+                          Rider delivers order and collects cash. Mark as paid when rider returns with payment.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -849,6 +954,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     <span className="text-gray-400">{formatDualPrice(p.qty * p.price)}</span>
                   </div>
                 ))}
+                {isDelivery && deliveryFee > 0 && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500">Delivery fee</span>
+                    <span className="text-amber-400">{formatDualPrice(deliveryFee)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400 text-sm">Total</span>
                   <PriceDisplay
