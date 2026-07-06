@@ -145,7 +145,7 @@ export default function ReceiptModal({
       }
     })
     const itemLines = Array.from(grouped.entries())
-      .map(([name, { qty, total }]) => fmtRow(`${qty}x ${name}`, `N${total.toLocaleString()}`))
+      .map(([name, { qty, total }]) => fmtRow(`${qty}x ${name}`, `${formatPrice(total)}`))
       .join('\n')
 
     // Group returned items too
@@ -170,11 +170,11 @@ export default function ReceiptModal({
             divider,
             fmtRow(
               'Amt Received:',
-              `N${(amountReceived > 0 ? amountReceived : total + tipAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)
             ),
             fmtRow(
               'Tip (Thank you!):',
-              `N${tipAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              formatPrice(tipAmount)
             ),
           ]
         : []
@@ -199,7 +199,7 @@ export default function ReceiptModal({
         solidDivider,
         fmtRow(
           'TOTAL:',
-          `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          formatPrice(total)
         ),
         ...tipLines,
         solidDivider,
@@ -236,7 +236,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
       solidDivider,
       fmtRow(
         'TOTAL:',
-        `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        formatPrice(total)
       ),
       ...tipLines,
       solidDivider,
@@ -444,39 +444,41 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
                 <div
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 32px 72px 84px',
+                    gap: '2px',
                     fontSize: '10px',
                     fontWeight: 'bold',
                     marginBottom: '4px',
                   }}
                 >
-                  <span style={{ flex: 1 }}>ITEM</span>
-                  <span style={{ width: '24px', textAlign: 'center' }}>QTY</span>
-                  <span style={{ width: '48px', textAlign: 'right' }}>PRICE</span>
-                  <span style={{ width: '64px', textAlign: 'right' }}>TOTAL</span>
+                  <span>ITEM</span>
+                  <span style={{ textAlign: 'center' }}>QTY</span>
+                  <span style={{ textAlign: 'right' }}>PRICE</span>
+                  <span style={{ textAlign: 'right' }}>TOTAL</span>
                 </div>
                 <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
                 {billableItems.map((item, i) => (
                   <div
                     key={i}
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 32px 72px 84px',
+                      gap: '2px',
                       fontSize: '11px',
                       margin: '3px 0',
-                      alignItems: 'flex-start',
+                      alignItems: 'start',
                     }}
                   >
-                    <span style={{ flex: 1, paddingRight: '4px', wordBreak: 'break-word' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '4px' }}>
                       {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
                         item.id}
                     </span>
-                    <span style={{ width: '24px', textAlign: 'center' }}>{item.quantity}</span>
-                    <span style={{ width: '60px', textAlign: 'right', fontSize: '9px' }}>
+                    <span style={{ textAlign: 'center' }}>{item.quantity}</span>
+                    <span style={{ textAlign: 'right', fontSize: '9px' }}>
                       {formatPrice(item.unit_price || 0)}
                     </span>
-                    <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
+                    <span style={{ textAlign: 'right', fontSize: '9px' }}>
                       {formatPrice((item as unknown as { total_price?: number }).total_price || 0)}
                     </span>
                   </div>
@@ -486,20 +488,23 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     <div
                       key={`ret-${i}`}
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 32px 72px 84px',
+                        gap: '2px',
                         fontSize: '10px',
                         margin: '2px 0',
                         color: '#999',
                         textDecoration: 'line-through',
                       }}
                     >
-                      <span style={{ flex: 1 }}>
+                      <span>
                         {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
                           item.id}{' '}
                         [RETURNED]
                       </span>
-                      <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
+                      <span />
+                      <span />
+                      <span style={{ textAlign: 'right', fontSize: '9px' }}>
                         {formatPrice(0)}
                       </span>
                     </div>
