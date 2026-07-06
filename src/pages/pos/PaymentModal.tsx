@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { audit } from '../../lib/audit'
-import { formatDualPrice, formatSSP } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 import { useAuth } from '../../context/AuthContext'
 import { sendPushToStaff } from '../../hooks/usePushNotifications'
@@ -1017,7 +1017,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                           'Item'}
                       </p>
                       <p className="text-gray-500 text-xs">
-                        {formatDualPrice((item.total_price || 0) + (item.extra_charge || 0))}
+                        {formatPrice((item.total_price || 0) + (item.extra_charge || 0))}
                       </p>
                     </div>
                     {itemAssignments[item.id] !== undefined && (
@@ -1070,7 +1070,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
               <div className="mt-4 bg-gray-900 border border-amber-500/30 rounded-xl p-4 space-y-3">
                 <p className="text-amber-400 text-sm font-bold">
                   Collecting from Person {currentSplitPerson + 1} —{' '}
-                  {formatDualPrice(getPersonTotal(currentSplitPerson))}
+                  {formatPrice(getPersonTotal(currentSplitPerson))}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {paymentMethods
@@ -1197,7 +1197,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                   <span className="text-gray-300">
                     {item.quantity}x {item.menu_items?.name}
                   </span>
-                  <span className="text-gray-400">{formatDualPrice(item.total_price || 0)}</span>
+                  <span className="text-gray-400">{formatPrice(item.total_price || 0)}</span>
                 </div>
               ))}
             </div>
@@ -1255,7 +1255,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                     onClick={() => setCashTendered(amount.toString())}
                     className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs rounded-lg py-2 transition-colors"
                   >
-                    {formatSSP(amount)}
+                    {formatPrice(amount)}
                   </button>
                 ))}
               </div>
@@ -1341,7 +1341,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
               <CreditCard size={28} className="text-blue-400 mx-auto mb-2" />
               <p className="text-blue-400 font-medium">Bank POS</p>
               <p className="text-gray-400 text-sm mt-1">
-                Process {formatDualPrice(total)} on the POS terminal, then confirm below.
+                Process {formatPrice(total)} on the POS terminal, then confirm below.
               </p>
             </div>
           )}
@@ -1377,7 +1377,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                   )}
                   {selectedBank && (
                     <div className="bg-gray-800 rounded-xl p-3 space-y-1">
-                      <p className="text-gray-400 text-xs">Transfer {formatDualPrice(total)} to:</p>
+                      <p className="text-gray-400 text-xs">Transfer {formatPrice(total)} to:</p>
                       <p className="text-white font-bold text-sm">{selectedBank.bank_name}</p>
                       <p className="text-amber-400 font-mono font-bold">
                         {selectedBank.account_number}
@@ -1672,7 +1672,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                 <div className="flex items-center justify-between bg-green-500/10 rounded-lg px-3 py-2">
                   <p className="text-green-400 text-xs">Tip will be recorded against your name</p>
                   <p className="text-green-400 font-bold">
-                    {formatDualPrice(parseFloat(tipAmount) || 0)}
+                    {formatPrice(parseFloat(tipAmount) || 0)}
                   </p>
                 </div>
               )}
@@ -1689,8 +1689,8 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
               : paymentMethod === 'run_tab'
                 ? 'Run Tab — Continue Ordering'
                 : paymentMethod === 'credit'
-                  ? `Record ${formatDualPrice(total)} as Debt`
-                  : `Confirm ${formatDualPrice(total)} Payment`}
+                  ? `Record ${formatPrice(total)} as Debt`
+                  : `Confirm ${formatPrice(total)} Payment`}
           </button>
         </div>
       </div>

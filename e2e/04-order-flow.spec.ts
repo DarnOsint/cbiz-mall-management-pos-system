@@ -20,7 +20,7 @@ test.describe('Order Flow — End to End', () => {
     await expect(page.getByText(/Counter|Cash Sale/i)).toBeVisible({ timeout: 6_000 })
 
     // Add first visible item
-    const firstItem = page.locator('[class*="menu-item"], button').filter({ hasText: /SSP|\$/ }).first()
+    const firstItem = page.locator('[class*="menu-item"], button').filter({ hasText: /SSP/ }).first()
     if (await firstItem.isVisible()) {
       await firstItem.click()
     } else {

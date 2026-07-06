@@ -1,4 +1,4 @@
-import { formatPrice, formatSSP } from '../lib/currency'
+import { formatPrice } from '../lib/currency'
 
 interface Props {
   amount: number
@@ -17,7 +17,7 @@ export default function PriceDisplay({
     <span className="inline-flex flex-col leading-tight">
       <span className={className}>{formatPrice(amount)}</span>
       {showSSP && (
-        <span className={`text-[10px] text-gray-500 ${sspClassName}`}>{formatSSP(amount)}</span>
+        <span className={`text-[10px] text-gray-500 ${sspClassName}`}>{formatPrice(amount)}</span>
       )}
     </span>
   )

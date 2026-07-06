@@ -417,7 +417,7 @@ export default function TableConfig({ onBack }: Props) {
                 min="0"
                 value={newZoneHireFee}
                 onChange={(e) => setNewZoneHireFee(e.target.value)}
-                placeholder="Hire fee (USD) — leave blank if none"
+                placeholder="Hire fee (SSP) — leave blank if none"
                 className={inp}
               />
               <div className="flex gap-2">
@@ -570,7 +570,7 @@ export default function TableConfig({ onBack }: Props) {
               </div>
               <div>
                 <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                  Hire Fee (USD) — leave blank if none
+                  Hire Fee (SSP) — leave blank if none
                 </label>
                 <input
                   type="number"

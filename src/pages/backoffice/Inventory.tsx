@@ -18,7 +18,7 @@ import {
   Clock,
   Trash2,
 } from 'lucide-react'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import { audit } from '../../lib/audit'
 
 const UNITS = ['bottles', 'crates', 'litres', 'kg', 'packs', 'cartons', 'pieces'] as const
@@ -331,8 +331,7 @@ export default function Inventory({ onBack }: Props) {
           <div>
             <h1 className="text-white font-bold">Drink Inventory & Restocking</h1>
             <p className="text-gray-400 text-xs">
-              {items.length} items · {lowStockCount} low stock · Stock value: {getCurrencySymbol()}
-              {formatPrice(totalStockValue)}
+              {items.length} items · {lowStockCount} low stock · Stock value: SSP{formatPrice(totalStockValue)}
             </p>
           </div>
         </div>
@@ -538,8 +537,7 @@ export default function Inventory({ onBack }: Props) {
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-400 text-sm">{restockLog.length} restock entries</p>
               <p className="text-gray-500 text-xs">
-                Total spent: {getCurrencySymbol()}
-                {formatPrice(restockLog.reduce((s, r) => s + (r.total_cost || 0), 0))}
+                Total spent: SSP{formatPrice(restockLog.reduce((s, r) => s + (r.total_cost || 0), 0))}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">

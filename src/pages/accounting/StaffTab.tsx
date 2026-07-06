@@ -1,6 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { WaitronStat } from './types'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 
 interface Props {
   waitronStats: WaitronStat[]
@@ -73,7 +73,7 @@ export default function StaffTab({ waitronStats }: Props) {
               <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#6b7280', fontSize: 9 }}
-                tickFormatter={(v) => `${getCurrencySymbol()}${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `SSP ${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={{

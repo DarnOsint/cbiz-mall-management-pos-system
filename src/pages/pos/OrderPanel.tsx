@@ -16,7 +16,7 @@ import type { Table, MenuItem, Order, OrderItem, Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 import { audit } from '../../lib/audit'
 import { sendPushToStaff } from '../../hooks/usePushNotifications'
-import { formatDualPrice } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 
 interface OrderItemLocal {
@@ -574,7 +574,7 @@ export default function OrderPanel({
               ).table_categories?.hire_fee
               return hireFee ? (
                 <p className="text-amber-400 text-xs font-semibold mt-0.5">
-                  🏷 Hire fee: {formatDualPrice(hireFee)} — add to bill manually
+                  🏷 Hire fee: {formatPrice(hireFee)} — add to bill manually
                 </p>
               ) : null
             })()}
@@ -638,7 +638,7 @@ export default function OrderPanel({
                     </span>
                     <span className="flex-1 text-gray-400 text-sm truncate">{item.name}</span>
                     <span className="text-gray-500 text-xs shrink-0">
-                      {formatDualPrice(item.total)}
+                      {formatPrice(item.total)}
                     </span>
                     <button
                       onClick={() => {
@@ -704,7 +704,7 @@ export default function OrderPanel({
                     </button>
                   </div>
                   <span className="text-amber-400 text-sm shrink-0">
-                    {formatDualPrice(item.total)}
+                    {formatPrice(item.total)}
                   </span>
                   <button
                     onClick={() => deleteItem(item)}
@@ -736,7 +736,7 @@ export default function OrderPanel({
                     >
                       <p className="text-white text-sm font-medium">{item.name}</p>
                       <p className="text-amber-400 text-sm font-bold mt-1">
-                        {formatDualPrice(item.price)}
+                        {formatPrice(item.price)}
                       </p>
                     </button>
                   )
@@ -764,7 +764,7 @@ export default function OrderPanel({
             >
               <ShoppingBag size={12} /> {showPacks ? 'Hide' : 'Add'} Takeaway Packs
               {packFee > 0 && (
-                <span className="text-amber-400/60 ml-1">({formatDualPrice(packFee)})</span>
+                <span className="text-amber-400/60 ml-1">({formatPrice(packFee)})</span>
               )}
             </button>
             {showPacks && (
@@ -804,7 +804,7 @@ export default function OrderPanel({
                         {pack.name}
                       </span>
                       <span className={`text-xs ${qty > 0 ? 'text-amber-400' : 'text-gray-600'}`}>
-                        {formatDualPrice(pack.price)}
+                        {formatPrice(pack.price)}
                       </span>
                     </div>
                   )

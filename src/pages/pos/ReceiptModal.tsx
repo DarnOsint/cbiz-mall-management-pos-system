@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatSSP } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import { X, Printer, Download } from 'lucide-react'
 import type { Order, OrderItem, Table } from '../../types'
 
@@ -472,10 +472,10 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </span>
                     <span style={{ width: '24px', textAlign: 'center' }}>{item.quantity}</span>
                     <span style={{ width: '60px', textAlign: 'right', fontSize: '9px' }}>
-                      {formatSSP(item.unit_price || 0)}
+                      {formatPrice(item.unit_price || 0)}
                     </span>
                     <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
-                      {formatSSP((item as unknown as { total_price?: number }).total_price || 0)}
+                      {formatPrice((item as unknown as { total_price?: number }).total_price || 0)}
                     </span>
                   </div>
                 ))}
@@ -498,12 +498,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                         [RETURNED]
                       </span>
                       <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
-                        {formatSSP(0)}
+                        {formatPrice(0)}
                       </span>
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatSSP(subtotal)]].map(([l, v]) => (
+                {[['Subtotal', formatPrice(subtotal)]].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -528,7 +528,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   }}
                 >
                   <span>TOTAL</span>
-                  <span style={{ fontSize: '10px', textAlign: 'right' }}>{formatSSP(total)}</span>
+                  <span style={{ fontSize: '10px', textAlign: 'right' }}>{formatPrice(total)}</span>
                 </div>
                 {tipAmount > 0 && (
                   <>
@@ -543,7 +543,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     >
                       <span>Amount Received</span>
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(amountReceived > 0 ? amountReceived : total + tipAmount)}
+                        {formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
                       </span>
                     </div>
                     <div
@@ -558,7 +558,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     >
                       <span>💚 Tip (Thank you!)</span>
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(tipAmount)}
+                        {formatPrice(tipAmount)}
                       </span>
                     </div>
                   </>
@@ -703,7 +703,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatSSP(subtotal)]].map(([l, v]) => (
+                {[['Subtotal', formatPrice(subtotal)]].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -727,7 +727,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   }}
                 >
                   <span>TOTAL CHARGED</span>
-                  <span style={{ fontSize: '9px', textAlign: 'right' }}>{formatSSP(total)}</span>
+                  <span style={{ fontSize: '9px', textAlign: 'right' }}>{formatPrice(total)}</span>
                 </div>
                 {tipAmount > 0 && (
                   <>
@@ -742,7 +742,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     >
                       <span>Amount Received</span>
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(amountReceived > 0 ? amountReceived : total + tipAmount)}
+                        {formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
                       </span>
                     </div>
                     <div
@@ -756,7 +756,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     >
                       <span>TIP RECEIVED</span>
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(tipAmount)}
+                        {formatPrice(tipAmount)}
                       </span>
                     </div>
                   </>

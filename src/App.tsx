@@ -357,10 +357,7 @@ function AppInner() {
   )
 }
 
-import { initCurrency } from './lib/currency'
-
 function App() {
-  initCurrency()
   return (
     <BrowserRouter>
       <AuthProvider>

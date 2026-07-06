@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import type { MenuItem, ItemDestination, BodaOperator } from '../../types'
 import { useToast } from '../../context/ToastContext'
-import { formatDualPrice, formatSSP } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 
 interface OrderItemLocal {
@@ -586,7 +586,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 </div>
               ))}
           </div>
-          <p className="text-gray-600 text-xs">{formatDualPrice(total)}</p>
+          <p className="text-gray-600 text-xs">{formatPrice(total)}</p>
         </div>
       </div>
     )
@@ -723,7 +723,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   onClick={() => setActiveTab('order')}
                   className="w-full bg-amber-500 text-black font-bold rounded-xl py-2.5 text-sm"
                 >
-                  View Order ({orderItems.length} items) — {formatDualPrice(total)} →
+                  View Order ({orderItems.length} items) — {formatPrice(total)} →
                 </button>
               </div>
             )}
@@ -737,7 +737,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   >
                     <p className="text-white text-sm font-medium leading-tight">{item.name}</p>
                     <p className="text-amber-400 text-sm font-bold mt-1">
-                      {formatDualPrice(item.price)}
+                      {formatPrice(item.price)}
                     </p>
                     <p className="text-gray-500 text-xs mt-0.5">
                       {
@@ -860,7 +860,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           </button>
                         </div>
                         <span className="text-amber-400 text-sm font-bold">
-                          {formatDualPrice(item.total)}
+                          {formatPrice(item.total)}
                         </span>
                       </div>
                     </div>
@@ -926,8 +926,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           <span
                             className={`text-xs shrink-0 ${qty > 0 ? 'text-amber-400 font-bold' : 'text-gray-600'}`}
                           >
-                            {formatDualPrice(pack.price)}
-                            {qty > 1 ? ` × ${qty} = ${formatDualPrice(pack.price * qty)}` : ''}
+                            {formatPrice(pack.price)}
+                            {qty > 1 ? ` × ${qty} = ${formatPrice(pack.price * qty)}` : ''}
                           </span>
                         </div>
                       )
@@ -943,7 +943,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 {packFee > 0 && (
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-500">Items subtotal</span>
-                    <span className="text-gray-400">{formatDualPrice(itemsTotal)}</span>
+                    <span className="text-gray-400">{formatPrice(itemsTotal)}</span>
                   </div>
                 )}
                 {packItems.map((p) => (
@@ -951,13 +951,13 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     <span className="text-gray-500">
                       {p.qty}x {p.name}
                     </span>
-                    <span className="text-gray-400">{formatDualPrice(p.qty * p.price)}</span>
+                    <span className="text-gray-400">{formatPrice(p.qty * p.price)}</span>
                   </div>
                 ))}
                 {isDelivery && deliveryFee > 0 && (
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-500">Delivery fee</span>
-                    <span className="text-amber-400">{formatDualPrice(deliveryFee)}</span>
+                    <span className="text-amber-400">{formatPrice(deliveryFee)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center">
@@ -1003,7 +1003,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           onClick={() => setCashTendered(a.toString())}
                           className="bg-gray-800 border border-gray-700 text-gray-400 text-xs rounded-lg py-1.5 hover:text-white transition-colors"
                         >
-                          {formatSSP(a)}
+                          {formatPrice(a)}
                         </button>
                       ))}
                     </div>
@@ -1043,7 +1043,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 {paymentMethod === 'credit' && isTakeaway && (
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2">
                     <p className="text-amber-400 text-xs text-center">
-                      {formatDualPrice(total)} will be added to {customerName || 'customer'}'s tab
+                      {formatPrice(total)} will be added to {customerName || 'customer'}'s tab
                     </p>
                   </div>
                 )}
@@ -1134,7 +1134,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     disabled={!canPay()}
                     className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded-xl py-3 text-sm transition-colors"
                   >
-                    {processing ? 'Processing...' : `Confirm ${formatDualPrice(total)}`}
+                    {processing ? 'Processing...' : `Confirm ${formatPrice(total)}`}
                   </button>
                 </div>
               </div>

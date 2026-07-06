@@ -15,7 +15,7 @@ test.describe('Accounting', () => {
 
   test('overview tab shows revenue summary', async ({ page }) => {
     await expect(page.getByText(/Gross Revenue|Total Revenue/i)).toBeVisible({ timeout: 8_000 })
-    await expect(page.getByText(/SSP|\$/)).toBeVisible()
+    await expect(page.getByText(/SSP/)).toBeVisible()
   })
 
   test('staff tab shows waitron performance', async ({ page }) => {

@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { audit } from '../../lib/audit'
 import { useAuth } from '../../context/AuthContext'
 import { ArrowLeft, Plus, Edit2, X, Save, ToggleLeft, ToggleRight, Search, Tag } from 'lucide-react'
-import { formatPrice, getExchangeRate } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import { useToast } from '../../context/ToastContext'
 
 interface MenuCategory {
@@ -25,7 +25,6 @@ interface ItemForm {
   name: string
   category_id: string
   price: string
-  price_ssp: string
   description: string
   image_url: string
   is_available: boolean
@@ -57,7 +56,6 @@ export default function MenuManagement({ onBack }: Props) {
     name: '',
     category_id: '',
     price: '',
-    price_ssp: '',
     description: '',
     image_url: '',
     is_available: true,
@@ -92,13 +90,10 @@ export default function MenuManagement({ onBack }: Props) {
   }
   const openEditItem = (item: MenuItem) => {
     setEditingItem(item)
-    const usdPrice = item.price
-    const sspPrice = Math.round(usdPrice * getExchangeRate())
     setItemForm({
       name: item.name,
       category_id: item.category_id,
-      price: usdPrice.toString(),
-      price_ssp: sspPrice.toString(),
+      price: item.price.toString(),
       description: item.description || '',
       image_url: item.image_url || '',
       is_available: item.is_available,
@@ -495,50 +490,22 @@ export default function MenuManagement({ onBack }: Props) {
                     ))}
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                      Price (USD)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={itemForm.price}
-                      onChange={(e) => {
-                        const usd = e.target.value
-                        const num = parseFloat(usd)
-                        const ssp = isNaN(num) ? '' : String(Math.round(num * getExchangeRate()))
-                        setItemForm({ ...itemForm, price: usd, price_ssp: ssp })
-                      }}
-                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                      Price (SSP)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={itemForm.price_ssp}
-                      onChange={(e) => {
-                        const ssp = e.target.value
-                        const num = parseFloat(ssp)
-                        const rate = getExchangeRate()
-                        const usd = isNaN(num) || rate === 0 ? '' : String((num / rate).toFixed(2))
-                        setItemForm({ ...itemForm, price: usd, price_ssp: ssp })
-                      }}
-                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500"
-                      placeholder="0"
-                    />
-                  </div>
+                <div>
+                  <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
+                    Price (SSP)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={itemForm.price}
+                    onChange={(e) => {
+                      setItemForm({ ...itemForm, price: e.target.value })
+                    }}
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500"
+                    placeholder="0"
+                  />
                 </div>
-                <p className="text-gray-500 text-[11px] -mt-2">
-                  Rate: $1 = SSP {getExchangeRate().toLocaleString()} — edit in Executive dashboard
-                </p>
                 <div>
                   <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
                     Description

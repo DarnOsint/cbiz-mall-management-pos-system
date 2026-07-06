@@ -10,7 +10,7 @@ import StatCards from './exec/StatCards'
 import RevenueChart from './exec/RevenueChart'
 import QuickActions from './exec/QuickActions'
 import RecentOrders from './exec/RecentOrders'
-import CurrencySelector from './exec/CurrencySelector'
+
 import type { PostgrestFilterBuilder } from '@supabase/postgrest-js'
 
 interface Stats {
@@ -331,7 +331,6 @@ export default function Executive() {
       </div>
 
       <div className="p-4 md:p-6">
-        <CurrencySelector />
         <StatCards stats={stats} />
         <RevenueChart trendData={trendData} />
         <QuickActions />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { formatDualPrice } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 import type { ItemDestination } from '../../types'
 import { HelpTooltip } from '../../components/HelpTooltip'
@@ -253,7 +253,7 @@ function DesktopMenuBrowser({
                       {item.name}
                     </p>
                     <p className="text-amber-400 text-sm font-bold mt-1">
-                      {formatDualPrice(item.price)}
+                      {formatPrice(item.price)}
                     </p>
                   </div>
                 </button>
@@ -1569,7 +1569,7 @@ export default function POS() {
                                 {order.tables?.name || 'Cash Sale'}
                               </p>
                               <p className="text-amber-400 font-bold text-sm">
-                                {formatDualPrice(order.netTotal || 0)}
+                                {formatPrice(order.netTotal || 0)}
                               </p>
                             </div>
                             <div className="flex items-center justify-between">
@@ -1659,7 +1659,7 @@ export default function POS() {
                           </div>
                           <div className="text-right">
                             <p className="text-amber-400 font-bold text-sm">
-                              {formatDualPrice(order.total_amount || 0)}
+                              {formatPrice(order.total_amount || 0)}
                             </p>
                           </div>
                         </div>
@@ -1808,7 +1808,7 @@ export default function POS() {
                                         'Item'}
                                     </td>
                                     <td className="text-gray-400 py-0.5 text-right pl-2">
-                                      {formatDualPrice(item.total_price || 0)}
+                                      {formatPrice(item.total_price || 0)}
                                     </td>
                                   </tr>
                                 ))}

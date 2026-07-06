@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { createPDF, addTable, savePDF } from '../../lib/pdfExport'
 import { supabase } from '../../lib/supabase'
-import { formatPrice, formatDualPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { useAuth } from '../../context/AuthContext'
@@ -875,7 +875,7 @@ export default function Reports() {
                   },
                   {
                     label: 'Returned Items',
-                    value: `${report.returnedItems} (${formatDualPrice(report.returnedValue)})`,
+                    value: `${report.returnedItems} (${formatPrice(report.returnedValue)})`,
                     color: 'text-orange-400',
                     icon: ShoppingBag,
                   },
@@ -1033,7 +1033,7 @@ export default function Reports() {
                     <YAxis
                       tick={{ fill: '#6b7280', fontSize: 10 }}
                       tickFormatter={(v: number) =>
-                        getCurrencySymbol() + (v / 1000).toFixed(0) + 'k'
+                        'SSP ' + (v / 1000).toFixed(0) + 'k'
                       }
                     />
                     <Tooltip
@@ -1042,7 +1042,7 @@ export default function Reports() {
                         border: '1px solid #374151',
                         borderRadius: '8px',
                       }}
-                      formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
+                      formatter={(v: number) => [formatPrice(v), 'Revenue']}
                     />
                     <Bar dataKey="revenue" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -1072,7 +1072,7 @@ export default function Reports() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
+                        formatter={(v: number) => [formatPrice(v), 'Revenue']}
                         contentStyle={{
                           background: '#111827',
                           border: '1px solid #374151',

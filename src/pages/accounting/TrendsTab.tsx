@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { TrendPoint } from './types'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 
 interface Props {
   trendData: TrendPoint[]
@@ -33,7 +33,7 @@ export default function TrendsTab({ trendData }: Props) {
               <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#6b7280', fontSize: 10 }}
-                tickFormatter={(v) => `${getCurrencySymbol()}${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `SSP ${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={tooltipStyle}

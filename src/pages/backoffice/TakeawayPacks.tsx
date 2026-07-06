@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ArrowLeft, Plus, Trash2, Save, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../context/ToastContext'
-import { getCurrencySymbol } from '../../lib/currency'
+
 
 interface Props {
   onBack: () => void
@@ -127,7 +127,7 @@ export default function TakeawayPacks({ onBack }: Props) {
                   className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 placeholder-gray-600"
                 />
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-gray-500 text-sm">{getCurrencySymbol()}</span>
+                  <span className="text-gray-500 text-sm">SSP</span>
                   <input
                     type="number"
                     min="0"

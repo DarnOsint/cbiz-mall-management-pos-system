@@ -26,13 +26,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { audit } from '../../lib/audit'
 import type { AccountingSummary, TrendPoint, WaitronStat } from './types'
-import {
-  formatPrice,
-  formatSSP,
-  formatDualPrice,
-  getCurrencySymbol,
-  getExchangeRate,
-} from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 
 interface Props {
@@ -272,12 +266,10 @@ export default function OverviewTab({
   const saveRecon = async () => {
     if (!canSaveThisDay) return
     setSaving(true)
-    const exchangeRate = getExchangeRate()
-    const payload: Reconciliation & { exchange_rate?: number } = {
+    const payload = {
       ...recon,
       outstanding: autoShortage,
       excess: autoExcess,
-      exchange_rate: exchangeRate,
     }
     await supabase.from('settings').upsert(
       {
@@ -296,7 +288,6 @@ export default function OverviewTab({
         totalCash: totalCashCollected,
         totalTransferReceipts: totalTransferReceipts,
         shortfall,
-        exchangeRate,
       },
       performer: profile as any,
     })
@@ -345,44 +336,32 @@ export default function OverviewTab({
       month: 'short',
       year: 'numeric',
     })
-    const rate = getExchangeRate()
-    const fmtUSD = (v: number) =>
-      `$${(v / rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     const fmtSSP = (v: number) =>
       `SSP ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const fmtBoth = (v: number) => {
-      const usd = (v / rate).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-      const ssp = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      return `$${usd}  (SSP ${ssp})`
-    }
     const lines = [
       '',
       ctr('C.Biz African Food'),
       ctr('DAILY RECONCILIATION'),
       div,
       row('Date:', fmtDate),
-      row('Rate:', `$1 = SSP ${rate.toLocaleString()}`),
       row('Printed:', new Date().toLocaleString('en-NG')),
       div,
       ctr('SALES SUMMARY'),
       div,
-      row('Gross Revenue:', fmtBoth(summary.total)),
-      row('Net Revenue:', fmtBoth(netRevenue)),
+      row('Gross Revenue:', fmtSSP(summary.total)),
+      row('Net Revenue:', fmtSSP(netRevenue)),
       row('Total Orders:', String(summary.orders)),
-      row('Avg Order Value:', fmtBoth(summary.avgOrder)),
+      row('Avg Order Value:', fmtSSP(summary.avgOrder)),
       div,
       ctr('PAYMENT BREAKDOWN'),
       div,
       ...Object.entries(summary.byMethod || {})
         .filter(([, v]) => v > 0)
-        .map(([k, v]) => row(k + ':', fmtBoth(v))),
+        .map(([k, v]) => row(k + ':', fmtSSP(v))),
       div,
       ctr('STAFF SALES'),
       div,
-      ...waitronStats.map((w) => row(w.name, `${fmtBoth(w.revenue)} (${w.orders})`)),
+      ...waitronStats.map((w) => row(w.name, `${fmtSSP(w.revenue)} (${w.orders})`)),
       div,
       ctr('WAITRON REMITTANCE'),
       div,
@@ -391,44 +370,44 @@ export default function OverviewTab({
         const transfer = recon.transferReceipts[w.name] || 0
         if (cash <= 0 && transfer <= 0) return []
         return [
-          row(`${w.name} Cash:`, fmtBoth(cash)),
-          row(`${w.name} Transfer:`, fmtBoth(transfer)),
+          row(`${w.name} Cash:`, fmtSSP(cash)),
+          row(`${w.name} Transfer:`, fmtSSP(transfer)),
         ]
       }),
-      row('TOTAL CASH:', fmtBoth(totalCashCollected)),
-      row('TOTAL TRANSFER:', fmtBoth(totalTransferReceipts)),
+      row('TOTAL CASH:', fmtSSP(totalCashCollected)),
+      row('TOTAL TRANSFER:', fmtSSP(totalTransferReceipts)),
       div,
       ctr('OUTSTANDING PER WAITRON'),
       div,
       ...Object.entries(mergedOutstanding)
         .filter(([, v]) => v > 0)
-        .map(([name, amt]) => row(name, fmtBoth(amt))),
-      row('TOTAL OUTSTANDING:', fmtBoth(totalOutstanding)),
+        .map(([name, amt]) => row(name, fmtSSP(amt))),
+      row('TOTAL OUTSTANDING:', fmtSSP(totalOutstanding)),
       div,
       ctr('EXCESS PER WAITRON'),
       div,
       ...Object.entries(autoExcess)
         .filter(([, v]) => v > 0)
-        .map(([name, amt]) => row(name, fmtBoth(amt))),
-      row('TOTAL EXCESS:', fmtBoth(totalExcess)),
+        .map(([name, amt]) => row(name, fmtSSP(amt))),
+      row('TOTAL EXCESS:', fmtSSP(totalExcess)),
       div,
       ctr('EXPENSES & PAYOUTS'),
       div,
-      row('Total Payouts:', fmtBoth(totalPayouts)),
+      row('Total Payouts:', fmtSSP(totalPayouts)),
       div,
       sol,
       ctr('END OF DAY RECONCILIATION'),
       sol,
-      row('Total Sales (POS):', fmtBoth(expectedRevenue)),
-      row('Total Received:', fmtBoth(totalReceived)),
-      row('Payouts:', fmtBoth(totalPayouts)),
-      row('Outstanding (Waitrons):', fmtBoth(totalOutstanding)),
-      row('Excess (Waitrons):', fmtBoth(totalExcess)),
-      row('Accounted For:', fmtBoth(totalReceived)),
+      row('Total Sales (POS):', fmtSSP(expectedRevenue)),
+      row('Total Received:', fmtSSP(totalReceived)),
+      row('Payouts:', fmtSSP(totalPayouts)),
+      row('Outstanding (Waitrons):', fmtSSP(totalOutstanding)),
+      row('Excess (Waitrons):', fmtSSP(totalExcess)),
+      row('Accounted For:', fmtSSP(totalReceived)),
       sol,
       row(
         shortfall > 0 ? 'SHORTFALL:' : shortfall < 0 ? 'SURPLUS:' : 'BALANCED:',
-        fmtBoth(Math.abs(shortfall))
+        fmtSSP(Math.abs(shortfall))
       ),
       sol,
       '',
@@ -622,9 +601,7 @@ export default function OverviewTab({
           <h3 className="text-amber-400 font-bold flex items-center gap-2">
             <DollarSign size={16} />{' '}
             {isSingleDay ? 'Daily Reconciliation' : 'Reconciliation Summary'}
-            <span className="text-gray-500 text-[10px] font-normal ml-2">
-              Rate: $1 = SSP {getExchangeRate().toLocaleString()}
-            </span>
+
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-gray-400 text-xs">
@@ -706,7 +683,7 @@ export default function OverviewTab({
                 <div key={w.name} className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
                   <span className="text-gray-600 text-xs w-40">
-                    exp {formatDualPrice(w.cashExpected || 0)}
+                    exp {formatPrice(w.cashExpected || 0)}
                   </span>
                   <input
                     type="number"
@@ -725,7 +702,7 @@ export default function OverviewTab({
                     className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500"
                   />
                   <span className="text-gray-600 text-xs w-44">
-                    exp {formatDualPrice(w.transferExpected || 0)}
+                    exp {formatPrice(w.transferExpected || 0)}
                   </span>
                   <input
                     type="number"
@@ -786,24 +763,24 @@ export default function OverviewTab({
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
                   <span className="text-gray-500 text-xs shrink-0">
                     remitted{' '}
-                    {formatDualPrice(
+                    {formatPrice(
                       (recon.cashCollected[w.name] || 0) + (recon.transferReceipts[w.name] || 0)
                     )}
                   </span>
                   <span className="text-gray-500 text-xs shrink-0">
-                    expected {formatDualPrice((w.cashExpected || 0) + (w.transferExpected || 0))}
+                    expected {formatPrice((w.cashExpected || 0) + (w.transferExpected || 0))}
                   </span>
                   <span className="text-red-400 text-xs shrink-0">
-                    shortage: {formatDualPrice(shortage)}
+                    shortage: {formatPrice(shortage)}
                   </span>
                   {isSingleDay && excess > 0 && (
                     <span className="text-green-400 text-xs shrink-0">
-                      excess: {formatDualPrice(excess)}
+                      excess: {formatPrice(excess)}
                     </span>
                   )}
                   {credit > 0 && (
                     <span className="text-amber-400 text-xs shrink-0">
-                      Credit: {formatDualPrice(credit)}
+                      Credit: {formatPrice(credit)}
                     </span>
                   )}
                 </div>
@@ -951,7 +928,7 @@ export default function OverviewTab({
               <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#6b7280', fontSize: 10 }}
-                tickFormatter={(v) => `${getCurrencySymbol()}${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `SSP ${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={{
@@ -960,7 +937,7 @@ export default function OverviewTab({
                   borderRadius: '8px',
                 }}
                 labelStyle={{ color: '#fff' }}
-                formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
+                formatter={(v: number) => [formatPrice(v), 'Revenue']}
               />
               <Line
                 type="monotone"
