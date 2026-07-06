@@ -206,6 +206,7 @@ export default function ReceiptModal({
         '',
         centre('-- Staff Record Only --'),
         '',
+        centre('Order: +211 927 880 248'),
       ].join('\n')
 
       return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Waiter Copy - ${orderRef}</title>
@@ -242,6 +243,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
       '',
       centre('** PAYMENT CONFIRMED **'),
       '',
+      centre('Order: +211 927 880 248'),
     ].join('\n')
 
     return `<!DOCTYPE html>
@@ -583,6 +585,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 <div style={{ textAlign: 'center', fontSize: '10px', lineHeight: '1.6' }}>
                   <div>Thank you for visiting!</div>
                   <div style={{ color: '#666' }}>Please come again 🙏</div>
+                  <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 'bold', color: '#000' }}>
+                    Order: +211 927 880 248
+                  </div>
                   <div style={{ marginTop: '4px', fontSize: '9px', color: '#888' }}>
                     Powered by C.BizOS
                   </div>

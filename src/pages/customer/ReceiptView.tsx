@@ -278,6 +278,7 @@ export default function ReceiptView() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-gray-950 border-t border-gray-800 py-2 text-center">
+        <p className="text-gray-500 text-xs font-semibold">Order: +211 927 880 248</p>
         <p className="text-gray-700 text-xs">C.Biz Lounge · C.BizOS</p>
       </div>
     </div>
