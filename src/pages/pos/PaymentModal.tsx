@@ -141,7 +141,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const [splitPayMethod, setSplitPayMethod] = useState('cash')
   const [splitCash, setSplitCash] = useState('')
   const [tipAmount, setTipAmount] = useState('')
-  const [amountReceived, setAmountReceived] = useState(String(total))
 
   const billableItems = (order?.order_items || []).filter(
     (i) => !i.return_requested && !i.return_accepted
@@ -155,6 +154,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const returnedTotal = returnedItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
   const subtotal = activeItemsTotal
   const total = subtotal
+  const [amountReceived, setAmountReceived] = useState(String(total))
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
   const hasUnreadyItems = false
