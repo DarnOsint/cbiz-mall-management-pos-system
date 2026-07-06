@@ -74,7 +74,6 @@ export default function ReceiptModal({
         0
       )
   const total = subtotal
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.origin}/receipt/${order.id}`)}&color=000000&bgcolor=ffffff`
 
   const handleThermalPrint = async () => {
     setPrinting(true)
@@ -216,9 +215,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 </style></head><body>${lines}</body></html>`
     }
 
-    // Customer copy — monospace with QR code image at bottom
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/receipt/${order.id}`)}&color=000000&bgcolor=ffffff`
-
+    // Customer copy — monospace
     const customerLines = [
       '',
       centre('C.Biz African Food'),
@@ -255,18 +252,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #000; background: #fff; width: 80mm; padding: 4mm; }
     .receipt-text { white-space: pre; }
-    .qr-section { text-align: center; margin: 8px 0 4px; }
-    .qr-label { font-size: 10px; color: #555; margin-top: 3px; font-style: italic; }
     .footer { text-align: center; font-size: 11px; margin-top: 6px; }
     @media print { body { width: 80mm; } @page { margin: 0; size: 80mm auto; } }
   </style>
 </head>
 <body>
   <div class="receipt-text">${customerLines}</div>
-  <div class="qr-section">
-    <img src="${qrUrl}" width="90" height="90" alt="QR" style="display:block;margin:0 auto;" onload="window._qrLoaded=true" />
-    <div class="qr-label">Scan to view your order online</div>
-  </div>
   <div class="footer">Thank you for visiting C.Biz African Food!</div>
 </body>
 </html>`
@@ -288,8 +279,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
     win.onafterprint = () => win.close()
 
     win.onload = () => {
-      // Wait longer for customer copy to allow QR image to load
-      const delay = type === 'customer' ? 800 : 200
+      const delay = 200
       setTimeout(() => {
         try {
           win.print()
@@ -470,7 +460,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       alignItems: 'start',
                     }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '4px' }}>
+                    <span style={{ wordBreak: 'break-word', paddingRight: '4px' }}>
                       {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
                         item.id}
                     </span>
@@ -575,17 +565,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     Note: {(order as unknown as { notes: string }).notes}
                   </div>
                 )}
-                <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
-                <div style={{ textAlign: 'center', margin: '8px 0' }}>
-                  <img
-                    src={qrUrl}
-                    alt="QR"
-                    style={{ width: '80px', height: '80px', display: 'block', margin: '0 auto' }}
-                  />
-                  <div style={{ fontSize: '9px', marginTop: '4px', color: '#666' }}>
-                    Scan to review your order
-                  </div>
-                </div>
                 <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
                 <div style={{ textAlign: 'center', fontSize: '10px', lineHeight: '1.6' }}>
                   <div>Thank you for visiting!</div>
