@@ -122,7 +122,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     }
   }, [order.id])
   const [paymentMethod, setPaymentMethod] = useState<string>('cash')
-  const [cashTendered, setCashTendered] = useState('')
   const [processing, setProcessing] = useState(false)
   const [success, setSuccess] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
@@ -154,6 +153,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const returnedTotal = returnedItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
   const subtotal = activeItemsTotal
   const total = subtotal
+  const [cashTendered, setCashTendered] = useState(String(total))
   const [amountReceived, setAmountReceived] = useState(String(total))
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
