@@ -183,6 +183,9 @@ export default function ReceiptModal({
       const lines = [
         '',
         centre('C.Biz African Food'),
+        centre('Where every flavour tells a story'),
+        centre('Customs Round About, Opp Dr John Garang Museum,'),
+        centre('Behind Former Fidelity Hospital, Juba.'),
         centre('-- WAITER COPY --'),
         divider,
         fmtRow('Ref:', orderRef),
@@ -219,6 +222,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
     const customerLines = [
       '',
       centre('C.Biz African Food'),
+      centre('Where every flavour tells a story'),
+      centre('Customs Round About, Opp Dr John Garang Museum,'),
+      centre('Behind Former Fidelity Hospital, Juba.'),
       divider,
       fmtRow('Ref:', orderRef),
       fmtRow('Table:', table?.name ?? 'N/A'),
@@ -398,7 +404,14 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
                     C.Biz African Food
                   </div>
-                  <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
+                  <div style={{ fontSize: '9px', fontStyle: 'italic', color: '#555', marginTop: '2px' }}>
+                    Where every flavour tells a story
+                  </div>
+                  <div style={{ fontSize: '8px', color: '#666', marginTop: '1px', lineHeight: '1.3' }}>
+                    Customs Round About, Opp Dr John Garang Museum,<br />
+                    Behind Former Fidelity Hospital, Juba.
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#444', marginTop: '3px' }}>
                     — — — — — — — — — — — —
                   </div>
                 </div>
