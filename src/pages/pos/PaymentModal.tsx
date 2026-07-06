@@ -17,6 +17,7 @@ import {
   Printer,
 } from 'lucide-react'
 import ReceiptModal from './ReceiptModal'
+import { useToast } from '../../context/ToastContext'
 import type { Table, Profile } from '../../types'
 
 
