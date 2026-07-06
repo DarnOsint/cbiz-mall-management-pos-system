@@ -147,7 +147,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   >([])
   const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [tipAmount, setTipAmount] = useState('')
-  const [amountReceived, setAmountReceived] = useState('')
+  const [amountReceived, setAmountReceived] = useState(String(total))
   const [cashSplit, setCashSplit] = useState('')
   const [secondarySplit, setSecondarySplit] = useState('')
   useState(() => {
