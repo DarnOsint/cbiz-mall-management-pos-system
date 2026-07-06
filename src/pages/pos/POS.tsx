@@ -928,7 +928,6 @@ export default function POS() {
           })
           .eq('id', activeOrder.id)
         const newItems = items.map((item) => {
-          const isPack = (item.modifier_notes || '').startsWith('Takeaway Pack')
           return {
             id: crypto.randomUUID(),
             order_id: activeOrder.id,
@@ -938,14 +937,12 @@ export default function POS() {
             quantity: item.quantity,
             unit_price: item.price,
             total_price: item.total,
-            status: isPack ? 'pending' : 'pending',
-            destination: isPack
-              ? 'kitchen'
-              : normalizeDestination(
-                  item.menu_categories?.destination,
-                  item.name,
-                  item.menu_categories?.name
-                ),
+            status: 'pending',
+            destination: normalizeDestination(
+              item.menu_categories?.destination,
+              item.name,
+              item.menu_categories?.name
+            ),
             modifier_notes: item.modifier_notes || null,
             extra_charge: item.extra_charge || 0,
             created_at: new Date().toISOString(),
@@ -1054,7 +1051,6 @@ export default function POS() {
       const orderItemRows = [
         ...baseItems,
         ...items.map((item) => {
-          const isPack = (item.modifier_notes || '').startsWith('Takeaway Pack')
           return {
             id: crypto.randomUUID(),
             order_id: (newOrder as Order).id,
@@ -1064,14 +1060,12 @@ export default function POS() {
             quantity: item.quantity,
             unit_price: item.price,
             total_price: item.total,
-            status: isPack ? 'pending' : 'pending',
-            destination: isPack
-              ? 'kitchen'
-              : normalizeDestination(
-                  item.menu_categories?.destination,
-                  item.name,
-                  item.menu_categories?.name
-                ),
+            status: 'pending',
+            destination: normalizeDestination(
+              item.menu_categories?.destination,
+              item.name,
+              item.menu_categories?.name
+            ),
             modifier_notes: item.modifier_notes || null,
             extra_charge: item.extra_charge || 0,
             created_at: new Date().toISOString(),

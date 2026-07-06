@@ -92,8 +92,6 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
   const [completedOrder, setCompletedOrder] = useState<CompletedOrder | null>(null)
   const [notes, setNotes] = useState('')
   const [activeTab, setActiveTab] = useState<'menu' | 'order'>('menu')
-  const [packSizes, setPackSizes] = useState<{ id: string; name: string; price: number }[]>([])
-  const [packQuantities, setPackQuantities] = useState<Record<string, number>>({})
   const [waitingForBar, setWaitingForBar] = useState(false)
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
   const [isDelivery, setIsDelivery] = useState(false)
@@ -103,24 +101,8 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
 
   const isTakeaway = type === 'takeaway'
 
-  // Load takeaway pack sizes
   useEffect(() => {
     if (!isTakeaway) return
-    supabase
-      .from('settings')
-      .select('value')
-      .eq('id', 'takeaway_pack_sizes')
-      .single()
-      .then(({ data }) => {
-        if (data?.value) {
-          try {
-            const sizes = JSON.parse(data.value) as { id: string; name: string; price: number }[]
-            setPackSizes(sizes)
-          } catch {
-            /* invalid */
-          }
-        }
-      })
     supabase
       .from('boda_operators')
       .select('*')
@@ -185,15 +167,9 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
     })
   }
 
-  const packFee = isTakeaway
-    ? packSizes.reduce((sum, p) => sum + (packQuantities[p.id] || 0) * p.price, 0)
-    : 0
-  const packItems = packSizes
-    .filter((p) => (packQuantities[p.id] || 0) > 0)
-    .map((p) => ({ ...p, qty: packQuantities[p.id] }))
   const deliveryFee = isDelivery ? 2000 : 0
   const itemsTotal = orderItems.reduce((sum, i) => sum + i.total, 0)
-  const total = itemsTotal + packFee + deliveryFee
+  const total = itemsTotal + deliveryFee
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
   // Finalize order after barman approves (or immediately if no bar items)
@@ -373,21 +349,6 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         destination: normalizeDestination(item.menu_categories?.destination || 'bar', item.name),
         created_at: new Date().toISOString(),
       }))
-      // Add takeaway pack fees as line items
-      for (const pack of packItems) {
-        itemRows.push({
-          id: crypto.randomUUID(),
-          order_id: (order as { id: string }).id,
-          menu_item_id: null as unknown as string,
-          quantity: pack.qty,
-          unit_price: pack.price,
-          total_price: pack.qty * pack.price,
-          status: 'delivered',
-          destination: 'kitchen',
-          modifier_notes: `Takeaway Pack — ${pack.name}`,
-          created_at: new Date().toISOString(),
-        } as (typeof itemRows)[0])
-      }
       for (const item of itemRows) {
         const { error } = await offlineInsert('order_items', item)
         if (error) throw error
@@ -477,11 +438,6 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
       .map(([name, { qty, total }]) => fmtRow(`${qty}x ${name}`, `N${total.toLocaleString()}`))
       .join('\n')
 
-    const packLines = packItems
-      .map((p) => fmtRow(`${p.qty}x Pack (${p.name})`, `N${(p.qty * p.price).toLocaleString()}`))
-      .join('\n')
-    const packLine = packLines ? '\n' + packLines : ''
-
     const fmtTotal = `N${o.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
     const lines = [
@@ -498,7 +454,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
       divider,
       fmtRow('ITEM', 'AMOUNT'),
       divider,
-      itemLines + packLine,
+      itemLines,
       solidDivider,
       fmtRow('TOTAL:', fmtTotal),
       ...(o.paymentMethod === 'cash' && o.change > 0

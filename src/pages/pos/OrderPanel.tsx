@@ -10,7 +10,6 @@ import {
   Circle,
   Search,
   Clock,
-  ShoppingBag,
 } from 'lucide-react'
 import type { Table, MenuItem, Order, OrderItem, Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
@@ -190,40 +189,6 @@ export default function OrderPanel({
   const isSubmitting = useRef(false)
   const [modifierNotes, setModifierNotes] = useState('')
   const [modifierCharge, setModifierCharge] = useState('')
-
-  // Takeaway packs for table orders
-  const [packSizes, setPackSizes] = useState<{ id: string; name: string; price: number }[]>([])
-  const [packQuantities, setPackQuantities] = useState<Record<string, number>>({})
-  const [showPacks, setShowPacks] = useState(false)
-
-  useEffect(() => {
-    supabase
-      .from('settings')
-      .select('value')
-      .eq('id', 'takeaway_pack_sizes')
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.value) {
-          try {
-            setPackSizes(JSON.parse(data.value))
-          } catch {
-            /* */
-          }
-        }
-      })
-  }, [])
-
-  const packFee = packSizes.reduce((sum, p) => sum + (packQuantities[p.id] || 0) * p.price, 0)
-  const packItems = packSizes
-    .filter((p) => (packQuantities[p.id] || 0) > 0)
-    .map((p) => ({ ...p, qty: packQuantities[p.id] }))
-
-  // Clear packs when the section is hidden
-  useEffect(() => {
-    if (!showPacks && Object.keys(packQuantities).length > 0) {
-      setPackQuantities({})
-    }
-  }, [showPacks, packQuantities])
 
   const categories = [
     'All',
@@ -511,46 +476,20 @@ export default function OrderPanel({
     (sum, item) => sum + item.quantity * item.price + (item.extra_charge || 0),
     0
   )
-  const total = itemsTotal + packFee
+  const total = itemsTotal
 
   const handlePlaceOrder = async () => {
     if (isSubmitting.current) return
     isSubmitting.current = true
     try {
-      const hasPacks = packItems.reduce((s, p) => s + (p.qty || 0), 0) > 0
-      const packOnly = orderItems.length === 0 && hasPacks
-      if (orderItems.length === 0 && !packOnly) return
+      if (orderItems.length === 0) return
       const newItems = orderItems.filter((i) => !i._existing)
-      if (newItems.length === 0 && activeOrder && !hasPacks) {
+      if (newItems.length === 0 && activeOrder) {
         await onPlaceOrder({ table, items: [], notes, total: 0 })
         return
       }
-      const newTotal = newItems.reduce((sum, i) => sum + (i.total || 0), 0) + packFee
-      // Add pack items as order items
-      const allItems = [
-        ...newItems,
-        ...packItems.map((p) => ({
-          id: `takeaway_pack:${p.id}`,
-          name: `Takeaway Pack — ${p.name}`,
-          price: p.price,
-          quantity: p.qty,
-          total: p.qty * p.price,
-          menu_categories: null,
-          modifier_notes: `Takeaway Pack — ${p.name}`,
-          destination: 'kitchen', // ensure it shows on kitchen KDS/prints
-          _existing: false,
-          _newId: `takeaway_pack:${p.id}:${crypto.randomUUID()}`,
-          // Preserve explicit null to satisfy menu_item_id null paths
-          menu_item_id: null,
-          unit_price: p.price,
-          total_price: p.qty * p.price,
-          order_id: '',
-        })),
-      ]
-      await onPlaceOrder({ table, items: allItems as typeof newItems, notes, total: newTotal })
-      // Reset pack selections after a successful submit to avoid duplicate adds
-      setPackQuantities({})
-      setShowPacks(false)
+      const newTotal = newItems.reduce((sum, i) => sum + (i.total || 0), 0)
+      await onPlaceOrder({ table, items: newItems as typeof newItems, notes, total: newTotal })
     } finally {
       isSubmitting.current = false
     }
@@ -754,65 +693,6 @@ export default function OrderPanel({
             />
           </div>
         </div>
-
-        {/* Takeaway packs for table orders */}
-        {packSizes.length > 0 && (
-          <div className="px-3 py-2 border-t border-gray-800 bg-gray-900 shrink-0">
-            <button
-              onClick={() => setShowPacks(!showPacks)}
-              className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs font-medium mb-1"
-            >
-              <ShoppingBag size={12} /> {showPacks ? 'Hide' : 'Add'} Takeaway Packs
-              {packFee > 0 && (
-                <span className="text-amber-400/60 ml-1">({formatPrice(packFee)})</span>
-              )}
-            </button>
-            {showPacks && (
-              <div className="space-y-1">
-                {packSizes.map((pack) => {
-                  const qty = packQuantities[pack.id] || 0
-                  return (
-                    <div key={pack.id} className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          setPackQuantities((p) => ({
-                            ...p,
-                            [pack.id]: Math.max(0, (p[pack.id] || 0) - 1),
-                          }))
-                        }
-                        disabled={qty === 0}
-                        className="w-5 h-5 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-30 flex items-center justify-center text-white text-[10px]"
-                      >
-                        -
-                      </button>
-                      <span
-                        className={`text-xs w-4 text-center ${qty > 0 ? 'text-white font-bold' : 'text-gray-600'}`}
-                      >
-                        {qty}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setPackQuantities((p) => ({ ...p, [pack.id]: (p[pack.id] || 0) + 1 }))
-                        }
-                        className="w-5 h-5 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white text-[10px]"
-                      >
-                        +
-                      </button>
-                      <span
-                        className={`text-xs flex-1 ${qty > 0 ? 'text-white' : 'text-gray-500'}`}
-                      >
-                        {pack.name}
-                      </span>
-                      <span className={`text-xs ${qty > 0 ? 'text-amber-400' : 'text-gray-600'}`}>
-                        {formatPrice(pack.price)}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
 
         <div className="p-3 border-t border-gray-800 bg-gray-900 shrink-0">
           <div className="flex justify-between items-center mb-2">

@@ -9,7 +9,6 @@ import {
   Lock,
   ChefHat,
   Map,
-  ShoppingBag,
   Bike,
 } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
@@ -20,7 +19,6 @@ import Inventory from './Inventory'
 import ChangePassword from './ChangePassword'
 import KitchenStock from './KitchenStock'
 import FloorPlan from './FloorPlan'
-import TakeawayPacks from './TakeawayPacks'
 import BarChillerStock from './BarChillerStock'
 import DeliveryOperators from './DeliveryOperators'
 
@@ -103,15 +101,7 @@ export default function BackOffice() {
       color: 'bg-orange-600',
       roles: ['owner', 'manager', 'kitchen'],
     },
-    {
-      id: 'takeawaypacks',
-      label: 'Takeaway Pack Sizes',
-      desc: 'Configure pack sizes and prices for takeaway orders',
-      icon: ShoppingBag,
-      color: 'bg-lime-600',
-      roles: ['owner', 'manager'],
-    },
-    {
+{
       id: 'delivery',
       label: 'Delivery Operators',
       desc: 'Manage Boda Boda riders for takeaway delivery',
@@ -165,8 +155,6 @@ export default function BackOffice() {
   if (activeSection === 'barchiller')
     return <BarChillerStock onBack={() => setActiveSection(null)} />
 
-  if (activeSection === 'takeawaypacks')
-    return <TakeawayPacks onBack={() => setActiveSection(null)} />
   if (activeSection === 'delivery')
     return <DeliveryOperators onBack={() => setActiveSection(null)} />
 

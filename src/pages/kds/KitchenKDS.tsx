@@ -114,20 +114,12 @@ function getKitchenOrderSortTime(order: KdsOrder): string {
 const isKitchenItem = (item: KdsOrder['order_items'][number]): boolean => {
   const dest = item.menu_items?.menu_categories?.destination || item.destination
   if (dest && dest.toLowerCase() === 'kitchen') return true
-  // Fallback: takeaway packs have null menu_items and a modifier label
+  // Legacy fallback: items with no menu relation and a takeaway label
   return (
     !item.menu_items &&
     ((item.modifier_notes || '').toLowerCase().includes('takeaway pack') ||
       (item.notes || '').toLowerCase().includes('takeaway pack') ||
       (item as any).name?.toLowerCase?.().includes('takeaway pack'))
-  )
-}
-
-const isTakeawayPack = (item: KdsOrder['order_items'][number]): boolean => {
-  return (
-    (item.modifier_notes || '').toLowerCase().includes('takeaway pack') ||
-    (item.notes || '').toLowerCase().includes('takeaway pack') ||
-    (item as any).name?.toLowerCase?.().includes('takeaway pack')
   )
 }
 function getNextStatus(status: string): string | null {
