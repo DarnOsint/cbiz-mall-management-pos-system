@@ -92,8 +92,6 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
   const [completedOrder, setCompletedOrder] = useState<CompletedOrder | null>(null)
   const [notes, setNotes] = useState('')
   const [activeTab, setActiveTab] = useState<'menu' | 'order'>('menu')
-  const [waitingForBar, setWaitingForBar] = useState(false)
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
   const [isDelivery, setIsDelivery] = useState(false)
   const [bodaOperators, setBodaOperators] = useState<BodaOperator[]>([])
   const [selectedBodaId, setSelectedBodaId] = useState('')
@@ -262,34 +260,6 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
     ]
   )
 
-  // Poll for barman approval when waiting
-  useEffect(() => {
-    if (!waitingForBar || !pendingOrderId) return
-    const checkBarReady = async () => {
-      const { data } = await supabase
-        .from('order_items')
-        .select('id, status')
-        .eq('order_id', pendingOrderId)
-        .eq('destination', 'bar')
-        .in('status', ['pending', 'preparing'])
-      if (!data || data.length === 0) {
-        await finalizeOrder(pendingOrderId)
-      }
-    }
-    checkBarReady()
-    const poll = setInterval(checkBarReady, 3000)
-    const channel = supabase
-      .channel('cashsale-bar-' + pendingOrderId)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, () => {
-        void checkBarReady()
-      })
-      .subscribe()
-    return () => {
-      clearInterval(poll)
-      void supabase.removeChannel(channel)
-    }
-  }, [waitingForBar, pendingOrderId, finalizeOrder])
-
   const canPay = () => {
     if (processing) return false
     if (isTakeaway && !customerName) return false
@@ -309,23 +279,14 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
       return toast.warning('Required', 'Customer name is required for credit')
     setProcessing(true)
     try {
-      const hasBarItems = orderItems.some((i) => {
-        const dest = normalizeDestination(i.menu_categories?.destination || 'bar', i.name)
-        if (dest === 'shisha') return false
-        return dest === 'bar'
-      })
       const orderId = crypto.randomUUID()
-      // For delivery: create as 'open' with delivery_status so payment is collected on delivery
-      // For bar items: create as 'open' so barman must approve first
-      // Otherwise: create as 'paid' immediately
       const needsDelivery = isDelivery
-      const needsBarApproval = hasBarItems && !needsDelivery
       const { data: order, error: orderError } = await offlineInsert('orders', {
         id: orderId,
         staff_id: staffId,
         order_type: type === 'takeaway' ? 'takeaway' : 'dine-in',
-        status: needsDelivery || needsBarApproval ? 'open' : 'paid',
-        payment_method: needsDelivery ? 'cash' : needsBarApproval ? null : paymentMethod,
+        status: needsDelivery ? 'open' : 'paid',
+        payment_method: needsDelivery ? 'cash' : paymentMethod,
         total_amount: total,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
@@ -334,7 +295,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         delivery_area: needsDelivery ? deliveryArea || null : null,
         delivery_status: needsDelivery ? 'out_for_delivery' : null,
         delivery_fee: needsDelivery ? deliveryFee : 0,
-        closed_at: needsDelivery ? null : needsBarApproval ? null : new Date().toISOString(),
+        closed_at: needsDelivery ? null : new Date().toISOString(),
         created_at: new Date().toISOString(),
       })
       if (orderError) throw orderError
@@ -373,14 +334,8 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         })
         setProcessing(false)
         setSuccess(true)
-      } else if (hasBarItems) {
-        // Wait for barman to mark all bar items ready before finalizing payment
-        setPendingOrderId((order as { id: string }).id)
-        setWaitingForBar(true)
-        setProcessing(false)
-        toast.success('Order Sent to Bar', 'Waiting for barman to confirm drinks...')
       } else {
-        // No bar items — finalize immediately
+        // Finalize immediately
         await finalizeOrder((order as { id: string }).id)
         setProcessing(false)
       }
@@ -512,40 +467,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
       }
     }, 300000)
   }
-
-  if (waitingForBar)
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-gray-900 rounded-2xl p-6 text-center max-w-sm w-full border border-amber-500/30 space-y-4">
-          <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto animate-pulse">
-            <Clock size={32} className="text-amber-400" />
-          </div>
-          <div>
-            <h3 className="text-white text-xl font-bold mb-1">Waiting for Barman</h3>
-            <p className="text-gray-400 text-sm">
-              {isTakeaway ? `Takeaway for ${customerName}` : 'Cash sale'} — drinks sent to bar
-            </p>
-            <p className="text-amber-400 text-xs mt-2">
-              The barman must mark all drinks as ready before payment can be completed.
-            </p>
-          </div>
-          <div className="bg-gray-800 rounded-xl p-3">
-            <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">Bar Items</p>
-            {orderItems
-              .filter((i) => (i.menu_categories?.destination || 'bar') === 'bar')
-              .map((item, idx) => (
-                <div key={idx} className="flex justify-between text-sm text-gray-300 py-0.5">
-                  <span>
-                    {item.quantity}x {item.name}
-                  </span>
-                  <span className="text-amber-400">Pending...</span>
-                </div>
-              ))}
-          </div>
-          <p className="text-gray-600 text-xs">{formatPrice(total)}</p>
-        </div>
-      </div>
-    )
 
   if (success)
     return (

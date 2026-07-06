@@ -17,8 +17,8 @@ import {
   Printer,
 } from 'lucide-react'
 import ReceiptModal from './ReceiptModal'
-import type { Table, Profile, ItemDestination } from '../../types'
-import { useToast } from '../../context/ToastContext'
+import type { Table, Profile } from '../../types'
+
 
 interface OrderItemExtended {
   id: string
@@ -65,62 +65,6 @@ interface Props {
   table: Table
   onSuccess: () => void
   onClose: () => void
-}
-
-const normalizeDestination = (
-  dest?: string | null,
-  name?: string | null,
-  catName?: string | null
-): ItemDestination => {
-  const d = (dest || '').trim().toLowerCase()
-  const lowerName = (name || '').toLowerCase()
-  const lowerCat = (catName || '').toLowerCase()
-
-  const isMixologistItem =
-    lowerName.includes('cocktail') ||
-    lowerName.includes('mocktail') ||
-    lowerName.includes('chapman') ||
-    lowerName.includes('sunrise') ||
-    lowerName.includes('colada') ||
-    lowerName.includes('mojito') ||
-    lowerName.includes('milkshake') ||
-    lowerName.includes('shake') ||
-    lowerName.includes('smoothie') ||
-    lowerName.includes('fruit punch') ||
-    lowerName.includes('punch') ||
-    lowerCat.includes('chapman') ||
-    lowerCat.includes('sunrise') ||
-    lowerCat.includes('colada') ||
-    lowerCat.includes('mojito') ||
-    lowerCat.includes('cocktail') ||
-    lowerCat.includes('mocktail') ||
-    lowerCat.includes('milkshake') ||
-    lowerCat.includes('smoothie') ||
-    lowerCat.includes('punch')
-
-  if (d === 'kitchen' || lowerCat.includes('kitchen') || lowerName.includes('kitchen'))
-    return 'kitchen'
-  if (
-    d === 'griller' ||
-    d === 'grill' ||
-    d === 'grilling' ||
-    lowerCat.includes('grill') ||
-    lowerName.includes('grill')
-  )
-    return 'kitchen'
-  if (
-    d === 'shisha' ||
-    d === 'hookah' ||
-    d === 'games' ||
-    d === 'game' ||
-    d === 'games_master' ||
-    lowerCat.includes('shisha') ||
-    lowerCat.includes('game') ||
-    lowerName.includes('shisha')
-  )
-    return 'bar'
-  if (d === 'mixologist' || d === 'cocktail' || d === 'cocktails' || isMixologistItem) return 'bar'
-  return 'bar'
 }
 
 const getStationItemTime = (item: OrderItemExtended, fallbackCreatedAt: string): string =>
@@ -233,37 +177,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const total = subtotal
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
-  // Only bar items block payment — kitchen/griller have no dedicated tab so waitron can pay freely
-  const unreadyItems = (order?.order_items || []).filter((i) => {
-    const catDest =
-      (
-        i as unknown as {
-          menu_items?: { menu_categories?: { destination?: string; name?: string } }
-        }
-      ).menu_items?.menu_categories?.destination || ''
-    const catName =
-      (i as unknown as { menu_items?: { menu_categories?: { name?: string } } }).menu_items
-        ?.menu_categories?.name || ''
-    const normDest = normalizeDestination(
-      i.destination || catDest || 'bar',
-      i.menu_items?.name,
-      catName
-    )
-    // shisha, games, kitchen, and grill should not block payment
-    if (
-      normDest === 'shisha' ||
-      normDest === 'games' ||
-      normDest === 'kitchen' ||
-      normDest === 'griller'
-    )
-      return false
-    // Bar and mixologist items must be accepted before payment.
-    // - Bar: accepted when marked ready.
-    // - Mixologist: accepted when moved from pending → preparing.
-    if (i.return_requested || i.return_accepted) return false
-    return i.status === 'pending'
-  })
-  const hasUnreadyItems = unreadyItems.length > 0
+  const hasUnreadyItems = false
 
   const requestReturn = async (itemId: string) => {
     const item = (order?.order_items || []).find((i) => i.id === itemId)
@@ -1606,30 +1520,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
             </div>
           )}
 
-          {/* Unready items warning — blocks payment */}
-          {hasUnreadyItems && paymentMethod !== 'run_tab' && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-              <p className="text-red-400 font-semibold text-sm mb-2">⚠️ Items not yet ready</p>
-              <p className="text-gray-400 text-xs mb-2">
-                These items have not been marked ready/delivered by the station. Payment is blocked
-                until all items are prepared and served:
-              </p>
-              <div className="space-y-1">
-                {unreadyItems.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                    <p className="text-red-300 text-xs font-medium">
-                      {item.quantity}x{' '}
-                      {item.menu_items?.name ||
-                        (item as unknown as { modifier_notes?: string }).modifier_notes ||
-                        'Item'}
-                      <span className="text-gray-500 ml-1 capitalize">({item.destination})</span>
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* Tip section — only for non-credit, non-tab payments */}
           {paymentMethod !== 'credit' && paymentMethod !== 'run_tab' && (
