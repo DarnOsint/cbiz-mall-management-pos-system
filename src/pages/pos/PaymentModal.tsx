@@ -9,8 +9,6 @@ import { offlineUpdateNoReturn } from '../../lib/offlineWrite'
 import {
   X,
   Banknote,
-  CreditCard,
-  Smartphone,
   CheckCircle,
   Clock,
   UtensilsCrossed,
@@ -142,27 +140,8 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const [returnQty, setReturnQty] = useState(1)
   const [splitPayMethod, setSplitPayMethod] = useState('cash')
   const [splitCash, setSplitCash] = useState('')
-  const [bankAccounts, setBankAccounts] = useState<
-    { id: string; bank_name: string; account_number: string; account_name: string }[]
-  >([])
-  const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [tipAmount, setTipAmount] = useState('')
   const [amountReceived, setAmountReceived] = useState(String(total))
-  const [cashSplit, setCashSplit] = useState('')
-  const [secondarySplit, setSecondarySplit] = useState('')
-  useState(() => {
-    supabase
-      .from('bank_accounts')
-      .select('id, bank_name, account_number, account_name')
-      .eq('is_active', true)
-      .order('created_at')
-      .then(({ data }) => {
-        if (data && data.length > 0) {
-          setBankAccounts(data)
-          setSelectedBankId(data[0].id)
-        }
-      })
-  })
 
   const billableItems = (order?.order_items || []).filter(
     (i) => !i.return_requested && !i.return_accepted
@@ -384,13 +363,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
 
   const canProcess = () => {
     if (processing) return false
-    if (hasUnreadyItems && paymentMethod !== 'run_tab') return false
     if (paymentMethod === 'cash') return parseFloat(cashTendered) >= total
-    if (paymentMethod === 'cash+transfer' || paymentMethod === 'cash+card') {
-      const c = parseFloat(cashSplit || '0')
-      const s = parseFloat(secondarySplit || '0')
-      return c + s >= total && c >= 0 && s >= 0
-    }
     if (paymentMethod === 'credit') return debtorName.trim().length > 0
     return true
   }
@@ -671,23 +644,14 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     try {
       if (!navigator.onLine) {
         if (paymentMethod === 'credit') {
-          toast.error('Offline', 'Credit payments require internet. Use cash/card/transfer.')
+          toast.error('Offline', 'Credit payments require internet.')
           return
         }
-
-        const resolvedMethod =
-          paymentMethod === 'transfer'
-            ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
-            : paymentMethod === 'cash+transfer'
-              ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-              : paymentMethod === 'cash+card'
-                ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                : paymentMethod
 
         const closedAt = new Date().toISOString()
         await offlineUpdateNoReturn('orders', order.id, {
           status: 'paid',
-          payment_method: resolvedMethod,
+          payment_method: paymentMethod,
           closed_at: closedAt,
           total_amount: total,
         } as any)
@@ -698,7 +662,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           assigned_staff: null,
         } as any)
 
-        setPaidOrder({ ...order, payment_method: resolvedMethod } as typeof order)
+        setPaidOrder({ ...order, payment_method: paymentMethod } as typeof order)
         setSuccess(true)
         setShowReceipt(true)
         toast.success('Offline Payment', 'Saved offline. Will sync when internet returns.')
@@ -798,14 +762,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
         .from('orders')
         .update({
           status: 'paid',
-          payment_method:
-            paymentMethod === 'transfer'
-              ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
-              : paymentMethod === 'cash+transfer'
-                ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                : paymentMethod === 'cash+card'
-                  ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                  : paymentMethod,
+          payment_method: paymentMethod,
           closed_at: new Date().toISOString(),
         })
         .eq('id', order.id)
@@ -835,14 +792,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           order_total: total,
           amount_received: parseFloat(amountReceived) || total + tipVal,
           tip_amount: tipVal,
-          payment_method:
-            paymentMethod === 'transfer'
-              ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
-              : paymentMethod === 'cash+transfer'
-                ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                : paymentMethod === 'cash+card'
-                  ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                  : paymentMethod,
+          payment_method: paymentMethod,
           shift_date: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10), // WAT = UTC+1
           status: 'pending',
         })
@@ -868,12 +818,8 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   ]
   const paymentMethods = [
     { id: 'cash', label: 'Cash', icon: Banknote, color: 'text-green-400' },
-    { id: 'card', label: 'Bank POS', icon: CreditCard, color: 'text-blue-400' },
-    { id: 'transfer', label: 'Bank Transfer', icon: Smartphone, color: 'text-amber-400' },
     { id: 'credit', label: 'Pay Later (Debt)', icon: Clock, color: 'text-red-400' },
     { id: 'run_tab', label: 'Run Tab', icon: UtensilsCrossed, color: 'text-amber-400' },
-    { id: 'cash+transfer', label: 'Cash + Transfer', icon: Smartphone, color: 'text-amber-400' },
-    { id: 'cash+card', label: 'Cash + POS', icon: CreditCard, color: 'text-blue-400' },
   ]
 
   if (splitMode && !success)
@@ -1196,122 +1142,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
               )}
             </div>
           )}
-          {(paymentMethod === 'cash+transfer' || paymentMethod === 'cash+card') && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-400 text-xs uppercase tracking-wide mb-2 block">
-                    Cash Received (SSP)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={cashSplit}
-                    onChange={(e) => setCashSplit(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-gray-400 text-xs uppercase tracking-wide mb-2 block">
-                    {paymentMethod === 'cash+transfer'
-                      ? 'Transfer Received (SSP)'
-                      : 'POS Received (SSP)'}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={secondarySplit}
-                    onChange={(e) => setSecondarySplit(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm text-gray-300">
-                <div className="flex justify-between">
-                  <span>Total</span>
-                  <PriceDisplay
-                    amount={total}
-                    className="text-white font-bold"
-                    sspClassName="text-[10px] text-gray-400"
-                  />
-                </div>
-                <div className="flex justify-between">
-                  <span>Entered</span>
-                  <PriceDisplay
-                    amount={parseFloat(cashSplit || '0') + parseFloat(secondarySplit || '0')}
-                    className="text-amber-400 font-bold"
-                    sspClassName="text-[10px] text-amber-400/60"
-                  />
-                </div>
-                {parseFloat(cashSplit || '0') + parseFloat(secondarySplit || '0') < total && (
-                  <p className="text-red-400 text-xs mt-2">
-                    Short — enter full amount before confirming.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-          {paymentMethod === 'card' && (
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
-              <CreditCard size={28} className="text-blue-400 mx-auto mb-2" />
-              <p className="text-blue-400 font-medium">Bank POS</p>
-              <p className="text-gray-400 text-sm mt-1">
-                Process {formatPrice(total)} on the POS terminal, then confirm below.
-              </p>
-            </div>
-          )}
-          {paymentMethod === 'transfer' &&
-            (() => {
-              const selectedBank = bankAccounts.find((b) => b.id === selectedBankId)
-              return (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Smartphone size={20} className="text-amber-400" />
-                    <p className="text-amber-400 font-medium">Bank Transfer</p>
-                  </div>
-                  {bankAccounts.length > 1 && (
-                    <div className="mb-3">
-                      <p className="text-gray-400 text-xs mb-2">Select bank account:</p>
-                      <div className="space-y-2">
-                        {bankAccounts.map((bank) => (
-                          <button
-                            key={bank.id}
-                            onClick={() => setSelectedBankId(bank.id)}
-                            className={`w-full text-left rounded-xl p-2.5 border transition-colors ${selectedBankId === bank.id ? 'bg-amber-500/20 border-amber-500/50' : 'bg-gray-800 border-gray-700 hover:border-amber-500/30'}`}
-                          >
-                            <p
-                              className={`text-sm font-semibold ${selectedBankId === bank.id ? 'text-amber-400' : 'text-white'}`}
-                            >
-                              {bank.bank_name}
-                            </p>
-                            <p className="text-gray-400 text-xs">{bank.account_number}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {selectedBank && (
-                    <div className="bg-gray-800 rounded-xl p-3 space-y-1">
-                      <p className="text-gray-400 text-xs">Transfer {formatPrice(total)} to:</p>
-                      <p className="text-white font-bold text-sm">{selectedBank.bank_name}</p>
-                      <p className="text-amber-400 font-mono font-bold">
-                        {selectedBank.account_number}
-                      </p>
-                      <p className="text-gray-300 text-sm">{selectedBank.account_name}</p>
-                      <p className="text-gray-500 text-xs pt-1">
-                        Confirm transfer before proceeding.
-                      </p>
-                    </div>
-                  )}
-                  {bankAccounts.length === 0 && (
-                    <p className="text-gray-400 text-sm text-center">
-                      No bank accounts configured. Ask the owner to add bank accounts in the
-                      Executive dashboard.
-                    </p>
-                  )}
-                </div>
-              )
-            })()}
+
           {paymentMethod === 'credit' && (
             <div className="space-y-3">
               <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
