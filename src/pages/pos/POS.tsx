@@ -1007,7 +1007,7 @@ export default function POS() {
         id: orderId,
         table_id: table.id,
         staff_id: profile!.id,
-        order_type: 'table',
+        order_type: 'dine-in',
         status: 'open',
         total_amount: total + hireFeeAmt,
         notes,

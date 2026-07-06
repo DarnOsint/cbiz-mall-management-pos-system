@@ -323,7 +323,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
       const { data: order, error: orderError } = await offlineInsert('orders', {
         id: orderId,
         staff_id: staffId,
-        order_type: type,
+        order_type: type === 'takeaway' ? 'takeaway' : 'dine-in',
         status: needsDelivery || needsBarApproval ? 'open' : 'paid',
         payment_method: needsDelivery ? 'cash' : needsBarApproval ? null : paymentMethod,
         total_amount: total,
