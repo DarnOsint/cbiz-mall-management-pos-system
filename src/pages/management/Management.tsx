@@ -2,19 +2,16 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import {
-  Users,
   LayoutDashboard,
   ShoppingBag,
-  Clock,
   AlertTriangle,
-  UtensilsCrossed,
+  Wine,
+  ChefHat,
+  Snowflake,
   Shield,
   RotateCcw,
-  Package,
-  Trophy,
 } from 'lucide-react'
 import WaiterCalls from './WaiterCalls'
-import KitchenStock from '../backoffice/KitchenStock'
 import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
 import ChillerTab from './mgmt/ChillerTab'
 import StationSalesTab from './mgmt/StationSalesTab'
@@ -24,7 +21,6 @@ import { HelpTooltip } from '../../components/HelpTooltip'
 import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
-import OrdersByWaitronTab from './mgmt/OrdersByWaitronTab'
 import VoidsTab from './mgmt/VoidsTab'
 
 const sessionWindow = () => {
@@ -54,9 +50,9 @@ const activityWindow = (dateStr: string) => {
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'orders', label: 'Orders', icon: ShoppingBag },
-  { id: 'barsales', label: 'Bar Sales', icon: UtensilsCrossed },
-  { id: 'kitchen', label: 'Kitchen Sales', icon: UtensilsCrossed },
-  { id: 'chiller', label: 'Chiller', icon: UtensilsCrossed },
+  { id: 'barsales', label: 'Bar Sales', icon: Wine },
+  { id: 'kitchen', label: 'Kitchen Sales', icon: ChefHat },
+  { id: 'chiller', label: 'Chiller', icon: Snowflake },
   { id: 'returns', label: 'Returns', icon: RotateCcw },
   { id: 'voids', label: 'Voids', icon: AlertTriangle },
   { id: 'activity', label: 'Activity Log', icon: Shield },
@@ -156,9 +152,6 @@ export default function Management() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
         scheduleFetchStats(10000)
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
-        scheduleFetchStats(10000)
-      )
       .subscribe()
     return () => {
       clearInterval(iv)
@@ -172,19 +165,7 @@ export default function Management() {
       id: 'mgmt-overview',
       title: 'Overview',
       description:
-        "Live dashboard: open orders, occupied tables, staff on shift, and today's revenue — all updating in real time. The late orders banner turns red when any order exceeds the alert threshold. Figures are deduplicated so one waitron always counts as one.",
-    },
-    {
-      id: 'mgmt-shifts',
-      title: 'Shifts Tab',
-      description:
-        'Clock staff in and out. The system checks the database live before every clock-in to prevent duplicate entries. Clocking out a waitron with open orders triggers a warning — resolve those orders first.',
-    },
-    {
-      id: 'mgmt-tables',
-      title: 'Zone Assignment',
-      description:
-        'Assign waitrons to zones (Inside, Outside) or to specific individual tables. A waitron only sees and serves tables in their assigned area. You can reassign mid-shift if needed.',
+        "Live dashboard: open orders, occupied tables, and today's revenue — all updating in real time. The late orders banner turns red when any order exceeds the alert threshold.",
     },
     {
       id: 'mgmt-orders',
@@ -193,16 +174,28 @@ export default function Management() {
         'Live view of all open orders — table, waitron, items, and total. Use Force Close on any order that is stuck as open after payment has already been collected. Force Close marks all items as delivered so the KDS clears, frees the table, and closes the order cleanly.',
     },
     {
-      id: 'mgmt-kitchen',
-      title: 'Kitchen Stock Tab',
+      id: 'mgmt-barsales',
+      title: 'Bar Sales Tab',
       description:
-        'Daily food stock register — records what was received, auto-syncs what was sold from POS, and calculates what should remain. Managers can edit and delete entries; kitchen staff can only add new entries. Variance alarms flag possible theft or waste.',
+        'Breakdown of bar revenue, items sold by category (drinks, wine, spirits), and per-waitron bar sales for the current session.',
+    },
+    {
+      id: 'mgmt-kitchen',
+      title: 'Kitchen Sales Tab',
+      description:
+        'Food revenue and items sold by category for the current session. Helps track kitchen throughput and popular dishes.',
+    },
+    {
+      id: 'mgmt-chiller',
+      title: 'Chiller Tab',
+      description:
+        'Daily bar stock register — opening stock, received, sold, voided, and calculated closing. Live POS sales auto-populate the sold column. Add new items directly from this tab.',
     },
     {
       id: 'mgmt-activity',
       title: 'Activity Log Tab',
       description:
-        'Complete audit trail of everything that has happened: logins (email and PIN, with device type), clock-ins and outs, orders placed and paid, voids, supplier actions, and settings changes. Filter by group (Login, Sales, Voids, Shifts, BackOffice) or search by staff name or action. Exportable to CSV.',
+        'Complete audit trail of everything that has happened: logins, orders placed and paid, voids, and settings changes. Filter by date, search by staff name or action. Exportable to CSV.',
     },
 
   ]
