@@ -1,4 +1,4 @@
-import { TrendingUp, ShoppingBag, LayoutDashboard, Users, Package } from 'lucide-react'
+import { TrendingUp, ShoppingBag, LayoutDashboard, Users, Package, UtensilsCrossed, Wine } from 'lucide-react'
 import { formatPrice } from '../../../lib/currency'
 import PriceDisplay from '../../../components/PriceDisplay'
 
@@ -9,6 +9,8 @@ interface Stats {
   totalTables: number
   staffOnDuty: number
   lowStock: number
+  foodItems: number
+  drinkItems: number
 }
 
 interface Props {
@@ -25,6 +27,20 @@ export default function StatCards({ stats }: Props) {
       icon: TrendingUp,
       color: 'text-green-400',
       bg: 'bg-green-400/10',
+    },
+    {
+      label: 'Food Items Sold',
+      value: stats.foodItems.toString(),
+      icon: UtensilsCrossed,
+      color: 'text-orange-400',
+      bg: 'bg-orange-400/10',
+    },
+    {
+      label: 'Drink Items Sold',
+      value: stats.drinkItems.toString(),
+      icon: Wine,
+      color: 'text-sky-400',
+      bg: 'bg-sky-400/10',
     },
     {
       label: 'Open Orders',
@@ -56,7 +72,7 @@ export default function StatCards({ stats }: Props) {
     },
   ]
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
       {cards.map((c) => (
         <div key={c.label} className="bg-gray-900 rounded-2xl p-4 md:p-5 border border-gray-800">
           <div className={`inline-flex p-2 rounded-lg ${c.bg} mb-3`}>

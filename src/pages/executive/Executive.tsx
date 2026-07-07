@@ -20,6 +20,8 @@ interface Stats {
   totalTables: number
   staffOnDuty: number
   lowStock: number
+  foodItems: number
+  drinkItems: number
 }
 interface TrendDay {
   day: string
@@ -100,6 +102,8 @@ export default function Executive() {
     totalTables: 0,
     staffOnDuty: 0,
     lowStock: 0,
+    foodItems: 0,
+    drinkItems: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
   const [trendData, setTrendData] = useState<TrendDay[]>([])
@@ -121,7 +125,7 @@ export default function Executive() {
   const fetchStats = useCallback(async () => {
     void supabase.rpc('free_orphaned_tables')
     const { sessionStart, sessionEnd, sessionStartIso } = getSessionWindow()
-    const [ordersRes, tablesRes, shiftsRes, stockRes, recentRes, revenueRes, trendRes] =
+    const [ordersRes, tablesRes, shiftsRes, stockRes, recentRes, revenueRes, trendRes, itemsRes] =
       await Promise.all([
         supabase.from('orders').select('id').eq('status', 'open'),
         supabase.from('tables').select('status'),
@@ -151,7 +155,28 @@ export default function Executive() {
           .eq('status', 'paid')
           .gte('closed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order('closed_at', { ascending: true }),
+        supabase
+          .from('order_items')
+          .select('quantity, destination, status, return_requested, return_accepted')
+          .gte('created_at', sessionStartIso)
+          .lt('created_at', sessionEnd.toISOString()),
       ])
+    const activeItems = (itemsRes.data || []).filter(
+      (i: any) =>
+        !i.return_requested &&
+        !i.return_accepted &&
+        (i.status || '').toLowerCase() !== 'cancelled'
+    )
+    const foodItems = activeItems
+      .filter((i: any) => (i.destination || '').toLowerCase() === 'kitchen')
+      .reduce((s: number, i: any) => s + (i.quantity || 0), 0)
+    const drinkItems = activeItems
+      .filter(
+        (i: any) =>
+          (i.destination || '').toLowerCase() === 'bar' ||
+          (i.destination || '').toLowerCase() === 'mixologist'
+      )
+      .reduce((s: number, i: any) => s + (i.quantity || 0), 0)
     setStats({
       revenue: (revenueRes.data || []).reduce((s: number, o: any) => {
         const net = (o.order_items || [])
@@ -170,6 +195,8 @@ export default function Executive() {
       staffOnDuty: new Set((shiftsRes.data || []).map((r: { staff_id: string }) => r.staff_id))
         .size,
       lowStock: stockRes.data?.filter((i) => i.current_stock <= i.minimum_stock).length || 0,
+      foodItems,
+      drinkItems,
     })
     setRecentOrders((recentRes.data || []) as Record<string, unknown>[])
     const dayMap: Record<string, TrendDay> = {}

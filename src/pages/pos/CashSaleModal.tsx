@@ -96,6 +96,10 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
   const [bodaOperators, setBodaOperators] = useState<BodaOperator[]>([])
   const [selectedBodaId, setSelectedBodaId] = useState('')
   const [deliveryArea, setDeliveryArea] = useState('')
+  const [packSizes] = useState<{ id: string; name: string; price: number }[]>([])
+  const [packQuantities, setPackQuantities] = useState<Record<string, number>>({})
+  const [waitingForBar, setWaitingForBar] = useState(false)
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
 
   const isTakeaway = type === 'takeaway'
 
@@ -167,7 +171,17 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
 
   const deliveryFee = isDelivery ? 2000 : 0
   const itemsTotal = orderItems.reduce((sum, i) => sum + i.total, 0)
-  const total = itemsTotal + deliveryFee
+  const packFee = Object.entries(packQuantities).reduce((sum, [id, qty]) => {
+    const pack = packSizes.find((p) => p.id === id)
+    return sum + (pack ? pack.price * qty : 0)
+  }, 0)
+  const packItems = Object.entries(packQuantities)
+    .filter(([, qty]) => qty > 0)
+    .map(([id, qty]) => {
+      const pack = packSizes.find((p) => p.id === id)
+      return { id, name: pack?.name || 'Pack', price: pack?.price || 0, qty }
+    })
+  const total = itemsTotal + deliveryFee + packFee
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
   // Finalize order after barman approves (or immediately if no bar items)

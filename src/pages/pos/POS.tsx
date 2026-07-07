@@ -1659,9 +1659,13 @@ export default function POS() {
                         </div>
                         <div className="px-4 pb-3 space-y-1">
                           {order.customer_phone && (
-                            <p className="text-gray-400 text-xs">
+                            <a
+                              href={`tel:${order.customer_phone}`}
+                              className="text-gray-400 text-xs hover:text-amber-400 transition-colors flex items-center gap-1"
+                            >
+                              <Phone size={11} />
                               <span className="text-gray-600">Phone:</span> {order.customer_phone}
-                            </p>
+                            </a>
                           )}
                           {order.delivery_area && (
                             <p className="text-gray-400 text-xs">
@@ -1670,7 +1674,15 @@ export default function POS() {
                           )}
                           {rider?.name && (
                             <p className="text-gray-400 text-xs">
-                              <span className="text-gray-600">Rider:</span> {rider.name} {rider.phone ? `(${rider.phone})` : ''}
+                              <span className="text-gray-600">Rider:</span> {rider.name}{' '}
+                              {rider.phone ? (
+                                <a
+                                  href={`tel:${rider.phone}`}
+                                  className="text-amber-400 hover:text-amber-300 underline transition-colors"
+                                >
+                                  {rider.phone}
+                                </a>
+                              ) : ''}
                             </p>
                           )}
                         </div>
