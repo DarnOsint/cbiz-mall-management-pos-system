@@ -21,8 +21,6 @@ import {
 
 import WaitronOrdersTab from './WaitronOrdersTab'
 import StockSummaryTab from './StockSummaryTab'
-import AttendanceTab from './AttendanceTab'
-import TimesheetTab from './TimesheetTab'
 import Debtors from './Debtors'
 import OverviewTab from './OverviewTab'
 import OrdersTab from './OrdersTab'
@@ -30,8 +28,6 @@ import StaffTab from './StaffTab'
 import TrendsTab from './TrendsTab'
 import LedgerTab from './LedgerTab'
 import AuditTab from './AuditTab'
-import MainStoreTab from './MainStoreTab'
-import StoreToChillerTab from './StoreToChillerTab'
 import { getNetOrderAmount } from './orderAmounts'
 
 import type {
@@ -51,8 +47,6 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
   { id: 'orders', label: 'Orders', icon: ShoppingBag },
   { id: 'staff', label: 'Staff Sales', icon: Users },
-  { id: 'attendance', label: 'Attendance', icon: CalendarDays },
-  { id: 'timesheet', label: 'Timesheet', icon: Clock },
   { id: 'trends', label: 'Trends', icon: TrendingUp },
   { id: 'debtors', label: 'Outstanding', icon: AlertTriangle },
   { id: 'ledger', label: 'Ledger', icon: BookOpen },
@@ -60,8 +54,6 @@ const TABS = [
   { id: 'waitron_orders', label: 'Waitron Orders', icon: ClipboardList },
   { id: 'bar_stock', label: 'Bar Stock', icon: UtensilsCrossed },
   { id: 'kitchen_stock', label: 'Kitchen Stock', icon: ChefHat },
-  { id: 'store_to_chiller', label: 'Store → Chiller', icon: Package },
-  { id: 'main_store', label: 'Main Store', icon: Package },
 ] as const
 
 const getWaitronRemittance = (paymentMethod: string | null | undefined, amount: number) => {
@@ -206,12 +198,7 @@ export default function Accounting() {
         .eq('status', 'paid')
         .gte('created_at', new Date(Date.now() - 30 * 864e5).toISOString())
         .order('created_at', { ascending: true }),
-      supabase
-        .from('attendance')
-        .select('id, staff_id, staff_name, role, date, clock_in, clock_out, duration_minutes')
-        .gte('clock_in', start)
-        .lte('clock_in', end)
-        .order('clock_in', { ascending: false }),
+      Promise.resolve({ data: [] as any[] }) as any,
       supabase
         .from('audit_log')
         .select(
@@ -346,7 +333,7 @@ export default function Accounting() {
     })
     setTrendData(Object.values(dayMap))
 
-    setTimesheet((timesheetRes.data || []) as TimesheetEntry[])
+    setTimesheet([])
     setAuditLog((auditRes.data || []) as AuditEntry[])
     setPayouts((payoutsRes.data || []) as PayoutRow[])
 
@@ -542,8 +529,6 @@ export default function Accounting() {
           <OrdersTab orders={orders} orderFilter={orderFilter} onFilterChange={setOrderFilter} />
         )}
         {activeTab === 'staff' && <StaffTab waitronStats={waitronStats} />}
-        {activeTab === 'attendance' && <AttendanceTab />}
-        {activeTab === 'timesheet' && <TimesheetTab />}
         {activeTab === 'trends' && <TrendsTab trendData={trendData} />}
         {activeTab === 'debtors' && (
           <Debtors onBack={() => setActiveTab('overview')} embedded={true} />
@@ -554,8 +539,6 @@ export default function Accounting() {
         {activeTab === 'waitron_orders' && <WaitronOrdersTab />}
         {activeTab === 'bar_stock' && <StockSummaryTab type="bar" />}
         {activeTab === 'kitchen_stock' && <StockSummaryTab type="kitchen" />}
-        {activeTab === 'store_to_chiller' && <StoreToChillerTab />}
-        {activeTab === 'main_store' && <MainStoreTab />}
       </div>
     </div>
   )

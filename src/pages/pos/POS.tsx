@@ -15,8 +15,6 @@ import {
   Phone,
   History,
   Printer,
-  TrendingUp,
-  Clock,
   X,
   Search,
   Bike,
@@ -84,30 +82,6 @@ const currentBusinessDateWAT = () => {
 
 interface MenuItemWithZone extends MenuItem {
   current_stock?: number | null
-}
-
-interface ShiftOrder {
-  id: string
-  total_amount?: number
-  closed_at: string
-  tables?: { name: string } | null
-  order_items: {
-    quantity: number
-    total_price?: number | null
-    status?: string | null
-    return_requested?: boolean | null
-    return_accepted?: boolean | null
-    menu_items?: { name: string } | null
-  }[]
-  netTotal?: number
-}
-interface ShiftStats {
-  clockIn?: string
-  ordersCount: number
-  totalSales: number
-  totalItems: number
-  uniqueTables: number
-  recentOrders: ShiftOrder[]
 }
 
 interface HistoryOrder {
@@ -294,14 +268,11 @@ export default function POS() {
   const [assignedTableIds, setAssignedTableIds] = useState<string[] | null>(null)
   const [assignedZoneNames, setAssignedZoneNames] = useState<string[] | null>(null)
   const [defaultZone, setDefaultZone] = useState<string>('All')
-  const [posTab, setPosTab] = useState<'tables' | 'history' | 'shift' | 'deliveries'>('tables')
+  const [posTab, setPosTab] = useState<'tables' | 'history' | 'deliveries'>('tables')
 
   const [orderHistory, setOrderHistory] = useState<HistoryOrder[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [reprintOrder, setReprintOrder] = useState<HistoryOrder | null>(null)
-  const [shiftStats, setShiftStats] = useState<ShiftStats | null>(null)
-  const [shiftLoading, setShiftLoading] = useState(false)
-  const [isClockedIn, setIsClockedIn] = useState<boolean | null>(null)
   const [showPayment, setShowPayment] = useState(false)
   const [showCashSale, setShowCashSale] = useState(false)
   const [cashSaleType, setCashSaleType] = useState<'cash' | 'takeaway'>('cash')
@@ -391,33 +362,10 @@ export default function POS() {
 
   useEffect(() => {
     if (!profile) return
-    fetchAssignedTables(profile.role, profile.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id])
-
-  const fetchAssignedTables = async (role: string, staffId: string) => {
-    // All logged-in staff see all zones/tables — no zone assignment restrictions
     setAssignedTableIds(null)
     setAssignedZoneNames(null)
-    setIsClockedIn(true)
-
-    // Track attendance for shift stats window
-    void supabase
-      .from('attendance')
-      .select('id')
-      .eq('staff_id', staffId)
-      .or('clock_out.is.null')
-      .limit(1)
-      .then(({ data }) => {
-        if (!data || data.length === 0) {
-          // Auto clock-in if not already clocked
-          supabase.from('attendance').insert({
-            staff_id: staffId,
-            clock_in: new Date().toISOString(),
-          }).then()
-        }
-      })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id])
 
   const activeOrderRef = useRef<typeof activeOrder>(null)
   useEffect(() => {
@@ -426,7 +374,6 @@ export default function POS() {
 
   const fullRefresh = () => {
     fetchTables()
-    if (profile) fetchAssignedTables(profile.role, profile.id)
     const current = activeOrderRef.current
     if (current) {
       supabase
@@ -453,97 +400,14 @@ export default function POS() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchShiftStats = async () => {
-    setShiftLoading(true)
-    // Allow overnight shifts: use the open attendance record (clock_out null) as window start.
-    // Fallback to today 00:00 WAT if none.
-    const today = new Date(Date.now() + 60 * 60 * 1000).toISOString().split('T')[0]
-    const { data: attendanceOpen } = await supabase
-      .from('attendance')
-      .select('clock_in, date')
-      .eq('staff_id', profile?.id)
-      .or('clock_out.is.null')
-      .order('clock_in', { ascending: false })
-      .limit(1)
-    const activeClockIn = attendanceOpen?.[0]?.clock_in
-    const windowStartIso = activeClockIn
-      ? new Date(activeClockIn).toISOString()
-      : new Date(today).toISOString()
-    const [attendanceRes, ordersRes] = await Promise.all([
-      // keep a single attendance record for UI display (open shift if available)
-      supabase
-        .from('attendance')
-        .select('clock_in, date')
-        .eq('staff_id', profile?.id)
-        .or('clock_out.is.null')
-        .order('clock_in', { ascending: false })
-        .limit(1),
-      supabase
-        .from('orders')
-        .select(
-          `id, total_amount, closed_at, tables(name),
-          order_items(
-            quantity,
-            total_price,
-            status,
-            return_requested,
-            return_accepted,
-            menu_items(name)
-          )`
-        )
-        .eq('staff_id', profile?.id)
-        .eq('status', 'paid')
-        .gte('closed_at', windowStartIso),
-    ])
-    const attendance = attendanceRes.data?.[0] as { clock_in: string } | undefined
-    const orders = (ordersRes.data || []) as unknown as ShiftOrder[]
-
-    const filteredOrders = orders.map((o) => {
-      const items = o.order_items.filter(
-        (i) =>
-          !i.return_requested &&
-          !i.return_accepted &&
-          (i.status || '').toLowerCase() !== 'cancelled'
-      )
-      const netTotal = items.reduce((s, i) => s + (i.total_price ?? 0), 0)
-      return { ...o, order_items: items, netTotal }
-    })
-
-    const totalSales = filteredOrders.reduce((s, o) => s + (o.netTotal || 0), 0)
-    const totalItems = filteredOrders.reduce(
-      (s, o) => s + o.order_items.reduce((ss, i) => ss + (i.quantity || 0), 0),
-      0
-    )
-    const uniqueTables = new Set(orders.map((o) => o.tables?.name).filter(Boolean)).size
-    setShiftStats({
-      clockIn: attendance?.clock_in,
-      ordersCount: orders.length,
-      totalSales,
-      totalItems,
-      uniqueTables,
-      recentOrders: filteredOrders.slice(0, 5),
-    })
-    setShiftLoading(false)
-  }
-
   const fetchHistory = async () => {
     setHistoryLoading(true)
-    // Include overnight: start from open clock-in if present, else today's 00:00
-    const { data: attendanceOpen } = await supabase
-      .from('attendance')
-      .select('clock_in')
-      .eq('staff_id', profile?.id)
-      .or('clock_out.is.null')
-      .order('clock_in', { ascending: false })
-      .limit(1)
-    const windowStart = attendanceOpen?.[0]?.clock_in
-      ? new Date(attendanceOpen[0].clock_in)
-      : (() => {
-          const t = new Date()
-          t.setHours(8, 0, 0, 0)
-          if (new Date().getHours() < 8) t.setDate(t.getDate() - 1)
-          return t
-        })()
+    // Session window: 1pm previous day → 1pm today WAT
+    const now = new Date()
+    const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
+    const windowStart = new Date(lagosNow)
+    windowStart.setHours(13, 0, 0, 0)
+    if (lagosNow.getHours() < 13) windowStart.setDate(windowStart.getDate() - 1)
     const { data } = await supabase
       .from('orders')
       .select(
@@ -1185,12 +1049,6 @@ export default function POS() {
               storageKey="pos"
               tips={[
                 {
-                  id: 'pos-clockin',
-                  title: 'Clock In Required',
-                  description:
-                    'You must be clocked in by a manager before accessing the POS. If you see a locked screen, contact your shift manager. The manager also assigns you a POS machine terminal at clock-in — this links all your sales to that device for end-of-shift reconciliation.',
-                },
-                {
                   id: 'pos-tables',
                   title: 'Table Grid',
                   description:
@@ -1238,12 +1096,7 @@ export default function POS() {
                   description:
                     'Selecting Credit creates a debtor record for the customer. If the customer already has an account (matched by phone number), their existing balance is increased rather than creating a duplicate entry.',
                 },
-                {
-                  id: 'pos-shift',
-                  title: 'My Shift Tab',
-                  description:
-                    'Your shift summary — clock-in time, POS machine assigned, orders closed, tables served, and total sales. Refreshes in real time. Use this before clocking out to verify your figures match the till.',
-                },
+
               ]}
             />
             <button
@@ -1263,7 +1116,6 @@ export default function POS() {
               ['tables', UtensilsCrossed, 'Tables'],
               ['deliveries', Bike, 'Deliveries'],
               ['history', History, 'My Orders'],
-              ['shift', TrendingUp, 'My Shift'],
             ] as const)
         ).map(([id, Icon, label]) => (
           <button
@@ -1271,7 +1123,6 @@ export default function POS() {
             onClick={() => {
               setPosTab(id)
               if (id === 'history') fetchHistory()
-              if (id === 'shift') fetchShiftStats()
               if (id === 'deliveries') fetchDeliveries()
             }}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${posTab === id ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-500 hover:text-white'}`}
@@ -1310,301 +1161,7 @@ export default function POS() {
           </div>
         )}
 
-        {posTab === 'shift' && (
-          <div className="flex-1 overflow-y-auto">
-            {shiftLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <RefreshCw size={20} className="animate-spin text-amber-500" />
-              </div>
-            ) : !shiftStats ? (
-              <div className="text-center py-16">
-                <Clock size={32} className="text-gray-700 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No shift data available</p>
-              </div>
-            ) : (
-              <div className="max-w-lg mx-auto p-4">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h2 className="text-white text-lg font-bold">My Shift Summary</h2>
-                    <p className="text-gray-500 text-xs">
-                      {profile?.full_name} —{' '}
-                      {new Date().toLocaleDateString('en-NG', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <button onClick={fetchShiftStats} className="text-gray-500 hover:text-white p-2">
-                    <RefreshCw size={14} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!shiftStats) return
-                      const W = 40
-                      const div = '-'.repeat(W)
-                      const sol = '='.repeat(W)
-                      const row = (l: string, r: string) => {
-                        const left = l.substring(0, W - r.length - 1)
-                        return left + ' '.repeat(Math.max(1, W - left.length - r.length)) + r
-                      }
-                      const ctr = (s: string) =>
-                        ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
-                      const fmt = (n: number) => `N${n.toLocaleString()}`
-                      const fmtDate = new Date().toLocaleDateString('en-NG', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })
 
-                      const lines: string[] = [
-                        '',
-                        ctr('C.Biz African Food'),
-                        ctr('SHIFT SUMMARY'),
-                        div,
-                        row('Waitron:', profile?.full_name || 'Staff'),
-                        row('Date:', fmtDate),
-                        ...(shiftStats.clockIn
-                          ? [
-                              row(
-                                'Clock In:',
-                                new Date(shiftStats.clockIn).toLocaleTimeString('en-NG', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                })
-                              ),
-                            ]
-                          : []),
-                        row(
-                          'Printed:',
-                          new Date().toLocaleTimeString('en-NG', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          })
-                        ),
-                        div,
-                        ctr('SALES SUMMARY'),
-                        div,
-                        row('Total Orders:', String(shiftStats.ordersCount)),
-                        row('Total Items:', String(shiftStats.totalItems)),
-                        row('Tables Served:', String(shiftStats.uniqueTables)),
-                        sol,
-                        row('TOTAL SALES:', fmt(shiftStats.totalSales)),
-                        sol,
-                        '',
-                        ctr('ORDER BREAKDOWN'),
-                        div,
-                      ]
-
-                      shiftStats.recentOrders.forEach((o, idx) => {
-                        const time = new Date(o.closed_at).toLocaleTimeString('en-NG', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })
-                        lines.push(
-                          row(`${idx + 1}. ${o.tables?.name || 'Cash Sale'}`, fmt(o.netTotal || 0))
-                        )
-                        lines.push(row(`   ${time}`, ''))
-                        o.order_items.forEach((i) => {
-                          lines.push(
-                            row(
-                              `   ${i.quantity}x ${i.menu_items?.name || 'Item'}`,
-                              fmt(i.total_price || 0)
-                            )
-                          )
-                        })
-                        lines.push('')
-                      })
-
-                      lines.push(sol)
-                      lines.push(row('TOTAL:', fmt(shiftStats.totalSales)))
-                      lines.push(sol)
-                      lines.push('')
-                      lines.push(ctr('*** END OF SUMMARY ***'))
-                      lines.push('')
-
-                      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Shift Summary — ${profile?.full_name}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Courier New',monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre;}@media print{body{width:80mm;}@page{margin:0;size:80mm auto;}}</style></head><body>${lines.join('\n')}</body></html>`
-                      const w = window.open('', '_blank', 'width=400,height=600,toolbar=no')
-                      if (!w) return
-                      w.document.open('text/html', 'replace')
-                      w.document.write(html)
-                      w.document.close()
-                      w.onload = () =>
-                        setTimeout(() => {
-                          try {
-                            w.print()
-                          } catch {
-                            /* ignore */
-                          }
-                          w.close()
-                        }, 200)
-                    }}
-                    className="text-xs bg-amber-500 text-black px-3 py-1.5 rounded-lg font-semibold hover:bg-amber-400"
-                  >
-                    Print Summary
-                  </button>
-                </div>
-
-                {/* Clock info */}
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
-                        <Clock size={18} className="text-green-400" />
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-[10px] uppercase tracking-wider">
-                          Clocked In
-                        </p>
-                        <p className="text-white font-bold text-lg">
-                          {shiftStats.clockIn
-                            ? new Date(shiftStats.clockIn).toLocaleTimeString('en-NG', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                              })
-                            : '—'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-gray-500 text-[10px] uppercase tracking-wider">On Shift</p>
-                      <p className="text-white font-bold text-lg">
-                        {shiftStats.clockIn
-                          ? (() => {
-                              const mins = Math.floor(
-                                (Date.now() - new Date(shiftStats.clockIn).getTime()) / 60000
-                              )
-                              const h = Math.floor(mins / 60)
-                              const m = mins % 60
-                              return h > 0 ? `${h}h ${m}m` : `${m} min`
-                            })()
-                          : '—'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total Sales — hero stat */}
-                <div className="bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 rounded-2xl p-5 mb-4 text-center">
-                  <p className="text-amber-400/70 text-[10px] uppercase tracking-widest mb-1">
-                    Total Sales
-                  </p>
-                  <PriceDisplay
-                    amount={shiftStats.totalSales}
-                    className="text-amber-400 text-4xl font-bold tracking-tight"
-                    sspClassName="text-[12px] text-amber-400/50"
-                  />
-                </div>
-
-                {/* Performance stats */}
-                <div className="grid grid-cols-3 gap-3 mb-5">
-                  {(
-                    [
-                      {
-                        label: 'Orders',
-                        value: shiftStats.ordersCount,
-                        color: 'text-blue-400',
-                        bg: 'bg-blue-500/10',
-                        border: 'border-blue-500/20',
-                      },
-                      {
-                        label: 'Tables',
-                        value: shiftStats.uniqueTables,
-                        color: 'text-green-400',
-                        bg: 'bg-green-500/10',
-                        border: 'border-green-500/20',
-                      },
-                      {
-                        label: 'Items',
-                        value: shiftStats.totalItems,
-                        color: 'text-purple-400',
-                        bg: 'bg-purple-500/10',
-                        border: 'border-purple-500/20',
-                      },
-                    ] as const
-                  ).map(({ label, value, color, bg, border }) => (
-                    <div
-                      key={label}
-                      className={`${bg} border ${border} rounded-2xl p-3 text-center`}
-                    >
-                      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">
-                        {label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Recent orders breakdown */}
-                {shiftStats.recentOrders.length > 0 && (
-                  <div>
-                    <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-3">
-                      Recent Orders
-                    </p>
-                    <div className="space-y-2">
-                      {shiftStats.recentOrders.map((order) => {
-                        const itemCount = order.order_items.reduce(
-                          (s, i) => s + (i.quantity || 0),
-                          0
-                        )
-                        return (
-                          <div
-                            key={order.id}
-                            className="bg-gray-900 border border-gray-800 rounded-xl p-3"
-                          >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <p className="text-white text-sm font-semibold">
-                                {order.tables?.name || 'Cash Sale'}
-                              </p>
-                              <p className="text-amber-400 font-bold text-sm">
-                                {formatPrice(order.netTotal || 0)}
-                              </p>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <p className="text-gray-500 text-xs">
-                                {new Date(order.closed_at).toLocaleTimeString('en-NG', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                })}
-                                {' · '}
-                                {itemCount} item{itemCount !== 1 ? 's' : ''}
-                              </p>
-                            </div>
-                            {order.order_items.length > 0 && (
-                              <div className="mt-2 pt-2 border-t border-gray-800 space-y-0.5">
-                                {order.order_items.map((item, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center justify-between text-xs"
-                                  >
-                                    <span className="text-gray-400">
-                                      {item.quantity}x{' '}
-                                      {item.menu_items?.name ||
-                                        (item as unknown as { modifier_notes?: string })
-                                          .modifier_notes ||
-                                        'Item'}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         {posTab === 'deliveries' && (
           <div className="flex-1 overflow-y-auto">

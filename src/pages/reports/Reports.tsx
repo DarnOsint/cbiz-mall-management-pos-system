@@ -104,11 +104,7 @@ interface TillSession {
 interface VoidEntry {
   total_value?: number
 }
-interface AttendanceEntry {
-  staff_name?: string
-  role?: string
-  duration_minutes?: number
-}
+
 interface PaidOrder {
   id: string
   total_amount?: number
@@ -153,7 +149,6 @@ interface Report {
   payouts: Payout[]
   tillSessions: TillSession[]
   voids: VoidEntry[]
-  attendance: AttendanceEntry[]
 }
 
 export default function Reports() {
@@ -215,29 +210,6 @@ export default function Reports() {
   }
 
   const generateReport = async () => {
-    if (reportType === 'zreport') {
-      const { start, end } = getDateBounds()
-      const { data: openShifts } = await supabase
-        .from('attendance')
-        .select('*, profiles(full_name)')
-        .gte('clock_in', start)
-        .lte('clock_in', end)
-        .or('clock_out.is.null')
-      if (openShifts && openShifts.length > 0) {
-        const names = openShifts
-          .map(
-            (s: { profiles?: { full_name?: string } | null }) => s.profiles?.full_name || 'Unknown'
-          )
-          .join(', ')
-        toast.warning(
-          'Required',
-          'Z-Report blocked. The following staff are still clocked in:\n\n' +
-            names +
-            '\n\nAll staff must be clocked out before running the Z-Report.'
-        )
-        return
-      }
-    }
     setLoading(true)
     try {
       const { start, end } = getDateBounds()
@@ -248,7 +220,6 @@ export default function Reports() {
         tillRes,
         debtorsRes,
         voidsRes,
-        attendanceRes,
         returnsRes,
       ] = await Promise.all([
         supabase
@@ -273,7 +244,6 @@ export default function Reports() {
           .lte('opened_at', end),
         supabase.from('debtors').select('*').gte('created_at', start).lte('created_at', end),
         supabase.from('void_log').select('*').gte('created_at', start).lte('created_at', end),
-        supabase.from('attendance').select('*').gte('clock_in', start).lte('clock_in', end),
         supabase
           .from('returns_log')
           .select('id, item_name, quantity, item_total, status, requested_at')
@@ -310,7 +280,6 @@ export default function Reports() {
         credit_limit?: number
       }[]
       const voids = (voidsRes.data || []) as VoidEntry[]
-      const attendance = (attendanceRes.data || []) as AttendanceEntry[]
       const returnsData = (returnsRes.data || []) as Array<{
         id: string
         item_name: string
@@ -482,7 +451,6 @@ export default function Reports() {
         payouts,
         tillSessions,
         voids,
-        attendance,
       })
     } catch (err) {
       toast.error(
@@ -662,12 +630,6 @@ export default function Reports() {
                   title: 'Z-Report',
                   description:
                     'End-of-day closure report. All staff must be clocked out before it runs. Use this to formally close each trading day.',
-                },
-                {
-                  id: 'rep-attendance',
-                  title: 'Attendance in Reports',
-                  description:
-                    'Each report includes the attendance log for the period — staff name, role, and shift duration.',
                 },
                 {
                   id: 'rep-export',
@@ -1432,20 +1394,6 @@ export default function Reports() {
                             sol,
                             row('NET CASH:', formatPrice(cashTotal - report.totalExpenses)),
                             sol,
-                            div,
-                            ctr('STAFF ON SHIFT'),
-                            div,
-                            ...((report.attendance || []).length > 0
-                              ? (report.attendance || []).map((a) =>
-                                  row(
-                                    `${a.staff_name} (${a.role})`,
-                                    a.duration_minutes
-                                      ? `${Math.floor(a.duration_minutes / 60)}h ${a.duration_minutes % 60}m`
-                                      : 'Active'
-                                  )
-                                )
-                              : ['  No attendance records']),
-                            div,
                             '',
                             '',
                             row('Manager:', '________________'),
@@ -1564,27 +1512,6 @@ export default function Reports() {
                         <span>Net Cash</span>
                         <span>{formatPrice(cashTotal - report.totalExpenses)}</span>
                       </div>
-                      <div className="border-t border-dashed border-gray-400 my-3" />
-                      <div className="font-bold text-xs uppercase mb-2">Staff on Shift</div>
-                      {(report.attendance || []).length === 0 ? (
-                        <div className="text-xs text-gray-500">No attendance records</div>
-                      ) : (
-                        (report.attendance || []).map((a, i) => (
-                          <div key={i} className="flex justify-between my-1 text-xs">
-                            <span>
-                              {a.staff_name} ({a.role})
-                            </span>
-                            <span>
-                              {a.duration_minutes
-                                ? Math.floor(a.duration_minutes / 60) +
-                                  'h ' +
-                                  (a.duration_minutes % 60) +
-                                  'm'
-                                : 'Active'}
-                            </span>
-                          </div>
-                        ))
-                      )}
                       <div className="border-t border-dashed border-gray-400 my-3" />
                       <div className="mt-6 grid grid-cols-2 gap-8 text-xs text-center">
                         <div>

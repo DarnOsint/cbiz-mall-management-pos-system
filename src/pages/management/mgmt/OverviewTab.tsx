@@ -18,7 +18,6 @@ import { formatPrice } from '../../../lib/currency'
 interface Stats {
   openOrders: number
   occupiedTables: number
-  staffOnShift: number
   todayRevenue: number
 }
 
@@ -56,8 +55,8 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
       bg: 'bg-blue-400/10',
     },
     {
-      label: 'Staff On Shift',
-      value: stats.staffOnShift,
+      label: 'Staff',
+      value: '-',
       icon: Users,
       color: 'text-green-400',
       bg: 'bg-green-400/10',
@@ -72,12 +71,7 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
   ]
 
   const actions = [
-    {
-      label: 'Manage Staff Shifts',
-      sub: 'Clock in/out staff members',
-      action: () => onTabChange('shifts'),
-      icon: Clock,
-    },
+
     {
       label: 'Assign Tables',
       sub: 'Assign tables to waitrons',

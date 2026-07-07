@@ -94,10 +94,10 @@ export default function GamesMasterPage() {
         .lt('created_at', dayEnd.toISOString())
         .order('created_at', { ascending: false }),
       supabase
-        .from('attendance')
-        .select('staff_id, staff_name')
-        .or('clock_out.is.null')
-        .order('staff_name'),
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'waitron')
+        .order('full_name'),
     ])
     if (typesRes.data) {
       const gamesFromMenu = (typesRes.data as any[])
@@ -107,11 +107,12 @@ export default function GamesMasterPage() {
     }
     if (salesRes.data) setSales(salesRes.data as GameSale[])
     if (staffRes.data) {
-      const unique = new Map<string, string>()
-      staffRes.data.forEach((s: { staff_id: string; staff_name: string }) =>
-        unique.set(s.staff_id, s.staff_name)
+      setWaitrons(
+        (staffRes.data as { id: string; full_name: string }[]).map((s) => ({
+          id: s.id,
+          name: s.full_name,
+        }))
       )
-      setWaitrons(Array.from(unique.entries()).map(([id, name]) => ({ id, name })))
     }
     setLoading(false)
   }, [date])

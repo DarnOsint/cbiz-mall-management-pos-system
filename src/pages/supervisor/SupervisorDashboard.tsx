@@ -5,8 +5,6 @@ import { useAuth } from '../../context/AuthContext'
 import ErrorBoundary from '../../components/ErrorBoundary'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { useVisibilityInterval } from '../../hooks/useVisibilityInterval'
-import ShiftManager from '../management/ShiftManager'
-
 import {
   Users,
   ShoppingBag,
@@ -20,10 +18,7 @@ import {
   Wine,
   Flame,
   Bell,
-  UserCheck,
-  Package,
 } from 'lucide-react'
-import SupervisorMainStoreTab from './SupervisorMainStoreTab'
 
 interface OpenOrder {
   id: string
@@ -131,7 +126,7 @@ function SupervisorDashboardInner() {
   const [voids, setVoids] = useState<VoidEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<
-    'floor' | 'staff' | 'calls' | 'voids' | 'shift' | 'tables' | 'store'
+    'floor' | 'staff' | 'calls' | 'voids'
   >('floor')
   const [zoneFilter, setZoneFilter] = useState('All')
   const [lateCount] = useState(0) // SUSPENDED
@@ -141,7 +136,7 @@ function SupervisorDashboardInner() {
     const today = new Date()
     today.setHours(8, 0, 0, 0)
     if (new Date().getHours() < 8) today.setDate(today.getDate() - 1)
-    const [oR, sR, cR, vR, storeR] = await Promise.all([
+    const [oR, cR, vR] = await Promise.all([
       supabase
         .from('orders')
         .select(
@@ -149,11 +144,6 @@ function SupervisorDashboardInner() {
         )
         .eq('status', 'open')
         .order('created_at', { ascending: true }),
-      supabase
-        .from('attendance')
-        .select('id,staff_id,staff_name,role,clock_in')
-        .or('clock_out.is.null')
-        .order('clock_in', { ascending: true }),
       supabase
         .from('waiter_calls')
         .select('id,table_name,waitron_name,status,created_at')
@@ -166,16 +156,12 @@ function SupervisorDashboardInner() {
         .gte('created_at', today.toISOString())
         .order('created_at', { ascending: false })
         .limit(30),
-      supabase
-        .from('store_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
     ])
     setOrders((oR.data || []) as unknown as OpenOrder[])
-    setShifts((sR.data || []) as ActiveShift[])
+    setShifts([])
     setCalls((cR.data || []) as WaiterCall[])
     setVoids((vR.data || []) as VoidEntry[])
-    setPendingStore(storeR.count || 0)
+    setPendingStore(0)
     setLoading(false)
   }, [])
 
@@ -187,8 +173,7 @@ function SupervisorDashboardInner() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'waiter_calls' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_requests' }, fetchAll)
+
       .subscribe()
     return () => {
       supabase.removeChannel(ch)
@@ -226,14 +211,6 @@ function SupervisorDashboardInner() {
       badgeRed: lateCount > 0,
     },
     { id: 'staff' as const, label: 'Staff', icon: Users, badge: shifts.length, badgeRed: false },
-    {
-      id: 'store' as const,
-      label: 'Store',
-      icon: Package,
-      badge: pendingStore,
-      badgeRed: pendingStore > 0,
-    },
-    { id: 'shift' as const, label: 'Shift', icon: UserCheck, badge: 0, badgeRed: false },
   ]
 
   if (loading)
@@ -289,7 +266,7 @@ function SupervisorDashboardInner() {
             color: pendingItems > 0 ? 'text-amber-400' : 'text-green-400',
           },
           { label: 'Cooking', value: preparingItems, color: 'text-blue-400' },
-          { label: 'On Shift', value: shifts.length, color: 'text-purple-400' },
+          { label: 'Staff', value: shifts.length, color: 'text-purple-400' },
         ].map((k) => (
           <div key={k.label} className="bg-gray-950 py-3 text-center">
             <p className={`text-xl font-black ${k.color}`}>{k.value}</p>
@@ -501,9 +478,7 @@ function SupervisorDashboardInner() {
             </>
           ))}
 
-        {tab === 'store' && <SupervisorMainStoreTab />}
 
-        {tab === 'shift' && <ShiftManager />}
       </div>
     </div>
   )

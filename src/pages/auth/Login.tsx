@@ -315,23 +315,6 @@ export default function Login() {
     }
     resetAttempts('rl_pin')
 
-    // Auto clock-in for operational roles when they log in with PIN
-    const clockInRequired = ['waitron', 'kitchen', 'bar']
-    if (clockInRequired.includes(profile.role)) {
-      const { data: activeShift } = await supabase
-        .from('attendance')
-        .select('id')
-        .eq('staff_id', profile.id)
-        .or('clock_out.is.null')
-        .limit(1)
-      if (!activeShift || activeShift.length === 0) {
-        await supabase.from('attendance').insert({
-          staff_id: profile.id,
-          clock_in: new Date().toISOString(),
-        })
-      }
-    }
-
     // Normalize PIN storage: if stored as PBKDF2 hash, call server-side RPC
     // to re-hash using pgcrypto so the RPC can verify it directly next time
     if (profile.pin && profile.pin.startsWith('pbkdf2:')) {

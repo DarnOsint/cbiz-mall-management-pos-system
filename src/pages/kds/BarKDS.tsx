@@ -16,11 +16,9 @@ import {
   X,
   History,
   Snowflake,
-  Package,
   ClipboardList,
 } from 'lucide-react'
 import BarChillerStock from '../backoffice/BarChillerStock'
-import StoreRequestPanel from './StoreRequestPanel'
 import type { KdsOrder } from './types'
 import DailySummaryTab from './DailySummaryTab'
 import { useToast } from '../../context/ToastContext'
@@ -122,7 +120,6 @@ function BarKDSInner() {
     | 'chiller'
     | 'issue_log'
     | 'requests'
-    | 'store_requests'
   >('orders')
   const [returnHistory, setReturnHistory] = useState<
     Array<{
@@ -748,16 +745,6 @@ function BarKDSInner() {
             ) : null
           })()}
         </button>
-        <button
-          onClick={() => setActiveTab('store_requests')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'store_requests'
-              ? 'border-purple-500 text-purple-400'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
-        >
-          <Package size={14} /> Request from Store
-        </button>
       </div>
 
       {/* Chiller Tab */}
@@ -783,13 +770,6 @@ function BarKDSInner() {
             <BarIssueLogTab />
           </Suspense>
         </ErrorBoundary>
-      )}
-
-      {/* Store Requests Tab */}
-      {activeTab === 'store_requests' && (
-        <div className="flex-1 overflow-y-auto p-4">
-          <StoreRequestPanel />
-        </div>
       )}
 
       {/* Return History Tab */}

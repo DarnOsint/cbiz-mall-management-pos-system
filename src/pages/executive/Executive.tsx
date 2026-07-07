@@ -18,7 +18,6 @@ interface Stats {
   openOrders: number
   occupiedTables: number
   totalTables: number
-  staffOnDuty: number
   lowStock: number
   foodItems: number
   drinkItems: number
@@ -100,7 +99,6 @@ export default function Executive() {
     openOrders: 0,
     occupiedTables: 0,
     totalTables: 0,
-    staffOnDuty: 0,
     lowStock: 0,
     foodItems: 0,
     drinkItems: 0,
@@ -125,11 +123,10 @@ export default function Executive() {
   const fetchStats = useCallback(async () => {
     void supabase.rpc('free_orphaned_tables')
     const { sessionStart, sessionEnd, sessionStartIso } = getSessionWindow()
-    const [ordersRes, tablesRes, shiftsRes, stockRes, recentRes, revenueRes, trendRes, itemsRes] =
+    const [ordersRes, tablesRes, stockRes, recentRes, revenueRes, trendRes, itemsRes] =
       await Promise.all([
         supabase.from('orders').select('id').eq('status', 'open'),
         supabase.from('tables').select('status'),
-        supabase.from('attendance').select('staff_id').or('clock_out.is.null'),
         supabase.from('inventory').select('id, current_stock, minimum_stock').eq('is_active', true),
         supabase
           .from('orders')
@@ -192,8 +189,6 @@ export default function Executive() {
       openOrders: ordersRes.data?.length || 0,
       occupiedTables: tablesRes.data?.filter((t) => t.status === 'occupied').length || 0,
       totalTables: tablesRes.data?.length || 0,
-      staffOnDuty: new Set((shiftsRes.data || []).map((r: { staff_id: string }) => r.staff_id))
-        .size,
       lowStock: stockRes.data?.filter((i) => i.current_stock <= i.minimum_stock).length || 0,
       foodItems,
       drinkItems,
@@ -305,9 +300,6 @@ export default function Executive() {
         scheduleFetchStats(8000)
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, () =>
-        scheduleFetchStats(8000)
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () =>
         scheduleFetchStats(8000)
       )
       .subscribe()

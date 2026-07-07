@@ -32,15 +32,10 @@ export default function UnassignedCustomerOrders() {
       )
 
       const { data: att } = await supabase
-        .from('attendance')
-        .select('staff_id, profiles!attendance_staff_id_fkey(id, full_name, role)')
-        .eq('date', new Date().toISOString().split('T')[0])
-        .or('clock_out.is.null')
-      setWaitrons(
-        ((att || []) as Record<string, unknown>[])
-          .filter((a) => (a.profiles as Waitron)?.role === 'waitron')
-          .map((a) => a.profiles as Waitron)
-      )
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('role', 'waitron')
+      setWaitrons(((att || []) as Waitron[]))
     } catch (err) {
       console.error(err)
     }

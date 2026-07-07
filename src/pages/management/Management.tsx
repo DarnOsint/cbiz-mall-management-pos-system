@@ -13,13 +13,10 @@ import {
   Package,
   Trophy,
 } from 'lucide-react'
-import ShiftManager from './ShiftManager'
-
 import WaiterCalls from './WaiterCalls'
 import KitchenStock from '../backoffice/KitchenStock'
 import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
 import ChillerTab from './mgmt/ChillerTab'
-import StaffPerformanceTab from './mgmt/StaffPerformanceTab'
 import StationSalesTab from './mgmt/StationSalesTab'
 import { useLateOrders } from '../../hooks/useLateOrders'
 import { HelpTooltip } from '../../components/HelpTooltip'
@@ -27,7 +24,6 @@ import { HelpTooltip } from '../../components/HelpTooltip'
 import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
-import MainStoreSummaryTab from './mgmt/MainStoreSummaryTab'
 import OrdersByWaitronTab from './mgmt/OrdersByWaitronTab'
 import VoidsTab from './mgmt/VoidsTab'
 
@@ -57,17 +53,12 @@ const activityWindow = (dateStr: string) => {
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'shifts', label: 'Shifts', icon: Clock },
-
   { id: 'orders', label: 'Orders', icon: ShoppingBag },
-  { id: 'performance', label: 'Staff Performance', icon: Trophy },
   { id: 'barsales', label: 'Bar Sales', icon: UtensilsCrossed },
   { id: 'kitchen', label: 'Kitchen Sales', icon: UtensilsCrossed },
   { id: 'chiller', label: 'Chiller', icon: UtensilsCrossed },
-  { id: 'mainstore', label: 'Main Store', icon: Package },
   { id: 'returns', label: 'Returns', icon: RotateCcw },
   { id: 'voids', label: 'Voids', icon: AlertTriangle },
-
   { id: 'activity', label: 'Activity Log', icon: Shield },
 ] as const
 
@@ -76,7 +67,6 @@ type TabId = (typeof TABS)[number]['id']
 interface Stats {
   openOrders: number
   occupiedTables: number
-  staffOnShift: number
   todayRevenue: number
 }
 export default function Management() {
@@ -92,7 +82,6 @@ export default function Management() {
   const [stats, setStats] = useState<Stats>({
     openOrders: 0,
     occupiedTables: 0,
-    staffOnShift: 0,
     todayRevenue: 0,
   })
 
@@ -104,10 +93,9 @@ export default function Management() {
   const fetchStats = useCallback(async () => {
     void supabase.rpc('free_orphaned_tables')
     const { start, end } = sessionWindow()
-    const [ordersRes, tablesRes, staffRes, revenueRes] = await Promise.all([
+    const [ordersRes, tablesRes, revenueRes] = await Promise.all([
       supabase.from('orders').select('id').eq('status', 'open'),
       supabase.from('tables').select('id').eq('status', 'occupied'),
-      supabase.from('attendance').select('staff_id').or('clock_out.is.null'),
       supabase
         .from('orders')
         .select('total_amount, order_items(total_price, return_requested, return_accepted, status)')
@@ -118,8 +106,6 @@ export default function Management() {
     setStats({
       openOrders: ordersRes.data?.length || 0,
       occupiedTables: tablesRes.data?.length || 0,
-      staffOnShift: new Set((staffRes.data || []).map((r: { staff_id: string }) => r.staff_id))
-        .size,
       todayRevenue: (revenueRes.data || []).reduce((s: number, o: any) => {
         const net = (o.order_items || [])
           .filter(
@@ -170,7 +156,7 @@ export default function Management() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
         scheduleFetchStats(10000)
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () =>
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
         scheduleFetchStats(10000)
       )
       .subscribe()
@@ -307,14 +293,10 @@ export default function Management() {
         {activeTab === 'overview' && (
           <OverviewTab stats={stats} onTabChange={(id) => setActiveTab(id as TabId)} />
         )}
-        {activeTab === 'shifts' && <ShiftManager onRefreshStats={fetchStats} />}
-
         {activeTab === 'orders' && <OpenOrdersTab />}
         {activeTab === 'barsales' && <StationSalesTab destination="bar" label="Bar" />}
         {activeTab === 'kitchen' && <StationSalesTab destination="kitchen" label="Kitchen" />}
-        {activeTab === 'performance' && <StaffPerformanceTab />}
         {activeTab === 'chiller' && <ChillerTab />}
-        {activeTab === 'mainstore' && <MainStoreSummaryTab />}
         {activeTab === 'returns' && <ReturnedDrinksTab />}
         {activeTab === 'voids' && <VoidsTab />}
         {activeTab === 'activity' && (

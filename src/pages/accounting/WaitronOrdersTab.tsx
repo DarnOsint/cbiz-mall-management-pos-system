@@ -13,9 +13,6 @@ interface WaitronShift {
   staff_id: string
   staff_name: string
   role: string
-  zone?: string
-  clock_in: string
-  clock_out?: string
 }
 
 interface WaitronOrder {
@@ -145,34 +142,20 @@ export default function WaitronOrdersTab() {
   const fetchShifts = useCallback(async (d: string) => {
     setLoading(true)
     const { start, end } = sessionWindow(d)
-    const [{ data: attendance }, { data: salesStaff }] = await Promise.all([
-      supabase
-        .from('attendance')
-        .select('staff_id, staff_name, role, clock_in, clock_out')
-        .or(
-          `and(clock_in.gte.${start.toISOString()},clock_in.lt.${end.toISOString()}),and(clock_in.lt.${end.toISOString()},clock_out.is.null)`
-        )
-        .order('clock_in', { ascending: true }),
-      // Include staff who made sales even if they were not clocked in (missing attendance row).
-      // This fixes "sales exist but staff not listed" in Accounting → Waitron Orders.
-      supabase
-        .from('orders')
-        .select('staff_id, profiles(full_name)')
-        .not('staff_id', 'is', null)
-        .or(
-          `and(status.eq.paid,closed_at.gte.${start.toISOString()},closed_at.lt.${end.toISOString()}),and(status.eq.open,created_at.gte.${start.toISOString()},created_at.lt.${end.toISOString()})`
-        )
-        .limit(500),
-    ])
+    // Get all active profiles who had orders in this period
+    const { data: salesStaff } = await supabase
+      .from('orders')
+      .select('staff_id, profiles!inner(full_name, role)')
+      .not('staff_id', 'is', null)
+      .or(
+        `and(status.eq.paid,closed_at.gte.${start.toISOString()},closed_at.lt.${end.toISOString()}),and(status.eq.open,created_at.gte.${start.toISOString()},created_at.lt.${end.toISOString()})`
+      )
+      .limit(500)
 
-    // Deduplicate by staff_id, keep latest attendance entry when present.
     const unique = new Map<string, WaitronShift>()
-    for (const s of (attendance || []) as WaitronShift[]) {
-      unique.set(s.staff_id, s)
-    }
     for (const row of (salesStaff || []) as Array<{
       staff_id: string | null
-      profiles?: { full_name?: string | null } | null
+      profiles?: { full_name?: string | null; role?: string | null } | null
     }>) {
       const staffId = row.staff_id
       if (!staffId) continue
@@ -180,9 +163,7 @@ export default function WaitronOrdersTab() {
       unique.set(staffId, {
         staff_id: staffId,
         staff_name: row.profiles?.full_name || 'Unknown',
-        role: 'sales',
-        clock_in: start.toISOString(),
-        clock_out: end.toISOString(),
+        role: row.profiles?.role || 'staff',
       })
     }
 
@@ -474,16 +455,7 @@ export default function WaitronOrdersTab() {
               >
                 <p className="text-white text-sm font-semibold">{s.staff_name}</p>
                 <p className="text-gray-500 text-xs capitalize">{s.role}</p>
-                <p className="text-gray-600 text-[10px]">
-                  {new Date(s.clock_in).toLocaleTimeString('en-NG', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true,
-                  })}
-                  {s.clock_out
-                    ? ` — ${new Date(s.clock_out).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: true })}`
-                    : ' (active)'}
-                </p>
+
               </button>
             ))}
           </div>
