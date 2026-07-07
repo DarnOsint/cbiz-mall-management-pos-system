@@ -53,7 +53,7 @@ export default function ChillerSummaryTab() {
     const todayIso = new Date().toISOString().slice(0, 10)
     const base = new Date(d)
     if (d === todayIso && new Date().getHours() < 8) base.setDate(base.getDate() - 1)
-    base.setHours(8, 0, 0, 0)
+    base.setHours(23, 0, 0, 0)
     const dayStart = base
     const dayEnd = new Date(base)
     dayEnd.setDate(dayEnd.getDate() + 1)
@@ -98,7 +98,7 @@ export default function ChillerSummaryTab() {
       if (latestRows && latestRows.length > 0) {
         const latestDate = (latestRows[0] as { date: string }).date
         const prevStart = new Date(latestDate)
-        prevStart.setHours(8, 0, 0, 0)
+        prevStart.setHours(23, 0, 0, 0)
         const prevEnd = new Date(prevStart)
         prevEnd.setDate(prevEnd.getDate() + 1)
         const [{ data: prevSold }, { data: prevAccepted }] = await Promise.all([

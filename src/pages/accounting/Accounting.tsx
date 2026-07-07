@@ -121,12 +121,12 @@ export default function Accounting() {
     const now = new Date()
     let start: Date, end: Date
 
-    // Session window: 08:00 previous day → 08:00 today (WAT), resets daily at 8am
+    // Session window: 23:00 previous day → 23:00 today (WAT), resets daily at 11pm
     const sessionStart = () => {
       const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
       const s = new Date(lagosNow)
-      s.setHours(8, 0, 0, 0)
-      if (lagosNow.getHours() < 8) s.setDate(s.getDate() - 1)
+      s.setHours(23, 0, 0, 0)
+      if (lagosNow.getHours() < 23) s.setDate(s.getDate() - 1)
       return s
     }
 
@@ -141,7 +141,7 @@ export default function Accounting() {
       end.setDate(end.getDate() + 1)
     } else if (dateRange === 'Date' && pickedDate) {
       start = new Date(pickedDate)
-      start.setHours(8, 0, 0, 0)
+      start.setHours(23, 0, 0, 0)
       end = new Date(start)
       end.setDate(end.getDate() + 1)
     } else if (dateRange === 'This Week') {
@@ -151,13 +151,13 @@ export default function Accounting() {
       end.setDate(end.getDate() + 7)
     } else if (dateRange === 'This Month') {
       start = new Date(now.getFullYear(), now.getMonth(), 1)
-      start.setHours(8, 0, 0, 0)
+      start.setHours(23, 0, 0, 0)
       end = sessionStart()
     } else if (dateRange === 'Custom' && customStart && customEnd) {
       start = new Date(customStart)
-      start.setHours(8, 0, 0, 0)
+      start.setHours(23, 0, 0, 0)
       end = new Date(customEnd)
-      end.setHours(8, 0, 0, 0)
+      end.setHours(23, 0, 0, 0)
       end.setDate(end.getDate() + 1)
     } else {
       start = sessionStart()

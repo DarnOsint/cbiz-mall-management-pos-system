@@ -45,7 +45,7 @@ export default function ReturnedDrinksTab() {
   const fetchReturns = useCallback(async (d: string) => {
     setLoading(true)
     const dayStart = new Date(d)
-    dayStart.setHours(8, 0, 0, 0)
+    dayStart.setHours(23, 0, 0, 0)
     const dayEnd = new Date(dayStart)
     dayEnd.setDate(dayEnd.getDate() + 1)
 

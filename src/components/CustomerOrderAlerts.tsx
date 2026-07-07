@@ -63,7 +63,7 @@ function CustomerOrderCard({
       .eq('id', order.id)
 
     const today = new Date()
-    today.setHours(8, 0, 0, 0)
+    today.setHours(23, 0, 0, 0)
     const { data: existing } = await supabase
       .from('orders')
       .select('id, total_amount')
@@ -234,7 +234,7 @@ export default function CustomerOrderAlerts({ profile, assignedTableIds }: Props
   const fetchPending = async () => {
     await expireOldOrders()
     const today = new Date()
-    today.setHours(8, 0, 0, 0)
+    today.setHours(23, 0, 0, 0)
     const { data: directTables } = await supabase
       .from('tables')
       .select('id')

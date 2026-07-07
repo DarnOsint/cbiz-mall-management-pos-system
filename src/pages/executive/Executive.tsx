@@ -42,8 +42,8 @@ function getSessionWindow() {
     })
   )
   const sessionStart = new Date(lagosNow)
-  sessionStart.setHours(8, 0, 0, 0)
-  if (lagosNow.getHours() < 8) {
+  sessionStart.setHours(23, 0, 0, 0)
+  if (lagosNow.getHours() < 23) {
     sessionStart.setDate(sessionStart.getDate() - 1)
   }
   const sessionEnd = new Date(sessionStart)

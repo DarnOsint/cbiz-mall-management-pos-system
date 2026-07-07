@@ -124,8 +124,8 @@ const getBarBucket = (name?: string | null, catName?: string | null): BarBucket 
 }
 
 const sessionWindow = (dateStr: string) => {
-  // 8am–8am WAT window, independent of device timezone
-  const start = new Date(`${dateStr}T08:00:00+01:00`)
+  // 11pm–11pm WAT window, independent of device timezone
+  const start = new Date(`${dateStr}T23:00:00+01:00`)
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
   return { start, end }

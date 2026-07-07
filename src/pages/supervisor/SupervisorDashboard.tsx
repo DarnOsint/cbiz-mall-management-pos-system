@@ -134,7 +134,7 @@ function SupervisorDashboardInner() {
 
   const fetchAll = useCallback(async () => {
     const today = new Date()
-    today.setHours(8, 0, 0, 0)
+    today.setHours(23, 0, 0, 0)
     if (new Date().getHours() < 8) today.setDate(today.getDate() - 1)
     const [oR, cR, vR] = await Promise.all([
       supabase

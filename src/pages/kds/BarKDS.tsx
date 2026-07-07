@@ -303,7 +303,7 @@ function BarKDSInner() {
       if (!profile) return
       const targetDate = d || historyDate
       const dayStart = new Date(targetDate)
-      dayStart.setHours(8, 0, 0, 0)
+      dayStart.setHours(23, 0, 0, 0)
       const dayEnd = new Date(dayStart)
       dayEnd.setDate(dayEnd.getDate() + 1)
       const { data } = await supabase

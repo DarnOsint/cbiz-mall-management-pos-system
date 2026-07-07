@@ -27,8 +27,8 @@ const sessionWindow = () => {
   const now = new Date()
   const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
   const start = new Date(lagosNow)
-  start.setHours(8, 0, 0, 0)
-  if (lagosNow.getHours() < 8) start.setDate(start.getDate() - 1)
+  start.setHours(23, 0, 0, 0)
+  if (lagosNow.getHours() < 23) start.setDate(start.getDate() - 1)
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
   return { start, end }
@@ -36,9 +36,9 @@ const sessionWindow = () => {
 
 const activityWindow = (dateStr: string) => {
   const lagosNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
-  const base = new Date(`${dateStr}T08:00:00+01:00`) // WAT no DST
+  const base = new Date(`${dateStr}T23:00:00+01:00`) // WAT no DST
   const todayStr = lagosNow.toISOString().slice(0, 10)
-  if (dateStr === todayStr && lagosNow.getHours() < 8) {
+  if (dateStr === todayStr && lagosNow.getHours() < 23) {
     base.setDate(base.getDate() - 1)
   }
   const start = base

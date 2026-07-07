@@ -76,7 +76,7 @@ const normalizeDestination = (
 
 const currentBusinessDateWAT = () => {
   const wat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
-  if (wat.getHours() < 8) wat.setDate(wat.getDate() - 1)
+  if (wat.getHours() < 23) wat.setDate(wat.getDate() - 1)
   return wat.toLocaleDateString('en-CA')
 }
 
@@ -402,12 +402,12 @@ export default function POS() {
 
   const fetchHistory = async () => {
     setHistoryLoading(true)
-    // Session window: 1pm previous day → 1pm today WAT
+    // Session window: 11pm previous day → 11pm today WAT
     const now = new Date()
     const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
     const windowStart = new Date(lagosNow)
-    windowStart.setHours(13, 0, 0, 0)
-    if (lagosNow.getHours() < 13) windowStart.setDate(windowStart.getDate() - 1)
+    windowStart.setHours(23, 0, 0, 0)
+    if (lagosNow.getHours() < 23) windowStart.setDate(windowStart.getDate() - 1)
     const { data } = await supabase
       .from('orders')
       .select(
