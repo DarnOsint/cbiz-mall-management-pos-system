@@ -169,7 +169,6 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
     })
   }
 
-  const deliveryFee = isDelivery ? 2000 : 0
   const itemsTotal = orderItems.reduce((sum, i) => sum + i.total, 0)
   const packFee = Object.entries(packQuantities).reduce((sum, [id, qty]) => {
     const pack = packSizes.find((p) => p.id === id)
@@ -181,7 +180,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
       const pack = packSizes.find((p) => p.id === id)
       return { id, name: pack?.name || 'Pack', price: pack?.price || 0, qty }
     })
-  const total = itemsTotal + deliveryFee + packFee
+  const total = itemsTotal + packFee
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
   // Finalize order after barman approves (or immediately if no bar items)
@@ -287,8 +286,7 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
     if (orderItems.length === 0) return toast.warning('Required', 'Add at least one item')
     if (isTakeaway && !customerName)
       return toast.warning('Required', 'Customer name is required for takeaway')
-    if (isDelivery && !selectedBodaId)
-      return toast.warning('Required', 'Select a delivery rider')
+    if (isDelivery && !selectedBodaId) return toast.warning('Required', 'Select a delivery rider')
     if (paymentMethod === 'credit' && !customerName)
       return toast.warning('Required', 'Customer name is required for credit')
     setProcessing(true)
@@ -304,11 +302,14 @@ export default function CashSaleModal({ type, menuItems, staffId, onSuccess, onC
         total_amount: total,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
-        notes: needsDelivery && deliveryArea ? `Delivery to: ${deliveryArea}${notes ? ' — ' + notes : ''}` : notes,
+        notes:
+          needsDelivery && deliveryArea
+            ? `Delivery to: ${deliveryArea}${notes ? ' — ' + notes : ''}`
+            : notes,
         boda_operator_id: needsDelivery ? selectedBodaId : null,
         delivery_area: needsDelivery ? deliveryArea || null : null,
         delivery_status: needsDelivery ? 'out_for_delivery' : null,
-        delivery_fee: needsDelivery ? deliveryFee : 0,
+        delivery_fee: 0,
         closed_at: needsDelivery ? null : new Date().toISOString(),
         created_at: new Date().toISOString(),
       })
@@ -504,7 +505,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
           {isDelivery && (
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
               <p className="text-blue-400 text-xs">
-                The Boda rider has been dispatched with the order. Mark as paid in the Deliveries tab when the rider returns with cash.
+                The Boda rider has been dispatched with the order. Mark as paid in the Deliveries
+                tab when the rider returns with cash.
               </p>
             </div>
           )}
@@ -674,7 +676,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                         className="sr-only peer"
                       />
                       <div className="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-amber-500 transition-colors" />
-                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${isDelivery ? 'translate-x-4' : ''}`} />
+                      <div
+                        className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${isDelivery ? 'translate-x-4' : ''}`}
+                      />
                     </div>
                     <span className="text-gray-300 text-xs font-medium">Deliver to customer</span>
                   </label>
@@ -689,12 +693,15 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           <option value="">Select Boda rider *</option>
                           {bodaOperators.map((b) => (
                             <option key={b.id} value={b.id}>
-                              {b.name} — {b.phone}{b.service_area ? ` (${b.service_area})` : ''}
+                              {b.name} — {b.phone}
+                              {b.service_area ? ` (${b.service_area})` : ''}
                             </option>
                           ))}
                         </select>
                       ) : (
-                        <p className="text-red-400 text-xs">No riders registered. Ask manager to add riders in Back Office.</p>
+                        <p className="text-red-400 text-xs">
+                          No riders registered. Ask manager to add riders in Back Office.
+                        </p>
                       )}
                       <input
                         value={deliveryArea}
@@ -704,7 +711,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       />
                       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2">
                         <p className="text-blue-400 text-xs text-center">
-                          Rider delivers order and collects cash. Mark as paid when rider returns with payment.
+                          Rider delivers order and collects cash. Mark as paid when rider returns
+                          with payment.
                         </p>
                       </div>
                     </div>
@@ -845,12 +853,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     <span className="text-gray-400">{formatPrice(p.qty * p.price)}</span>
                   </div>
                 ))}
-                {isDelivery && deliveryFee > 0 && (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-500">Delivery fee</span>
-                    <span className="text-amber-400">{formatPrice(deliveryFee)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400 text-sm">Total</span>
                   <PriceDisplay

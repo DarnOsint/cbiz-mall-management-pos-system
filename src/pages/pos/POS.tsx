@@ -276,10 +276,11 @@ export default function POS() {
   const [showPayment, setShowPayment] = useState(false)
   const [showCashSale, setShowCashSale] = useState(false)
   const [cashSaleType, setCashSaleType] = useState<'cash' | 'takeaway'>('cash')
-  const [deliveries, setDeliveries] = useState<(Order & { boda_operators?: Pick<BodaOperator, 'id' | 'name' | 'phone'> | null })[]>([])
+  const [deliveries, setDeliveries] = useState<
+    (Order & { boda_operators?: Pick<BodaOperator, 'id' | 'name' | 'phone'> | null })[]
+  >([])
   const [deliveriesLoading, setDeliveriesLoading] = useState(false)
   const [payingDelivery, setPayingDelivery] = useState<string | null>(null)
-
 
   useEffect(() => {
     fetchTables()
@@ -435,8 +436,10 @@ export default function POS() {
     setDeliveriesLoading(true)
     const { data } = await supabase
       .from('orders')
-      .select(`id, created_at, status, order_type, total_amount, customer_name, customer_phone, delivery_area, delivery_status, delivery_fee, notes, staff_id, boda_operator_id,
-        boda_operators(id, name, phone)`)
+      .select(
+        `id, created_at, status, order_type, total_amount, customer_name, customer_phone, delivery_area, delivery_status, delivery_fee, notes, staff_id, boda_operator_id,
+        boda_operators(id, name, phone)`
+      )
       .in('delivery_status', ['out_for_delivery', 'pending_delivery'])
       .order('created_at', { ascending: false })
     if (data) setDeliveries(data as any)
@@ -1096,7 +1099,6 @@ export default function POS() {
                   description:
                     'Selecting Credit creates a debtor record for the customer. If the customer already has an account (matched by phone number), their existing balance is increased rather than creating a duplicate entry.',
                 },
-
               ]}
             />
             <button
@@ -1110,13 +1112,12 @@ export default function POS() {
       </nav>
 
       <div className="flex border-b border-gray-800 bg-gray-900 px-4">
-        {(isWaitron
-          ? ([['tables', UtensilsCrossed, 'Tables']] as const)
-          : ([
-              ['tables', UtensilsCrossed, 'Tables'],
-              ['deliveries', Bike, 'Deliveries'],
-              ['history', History, 'My Orders'],
-            ] as const)
+        {(
+          [
+            ['tables', UtensilsCrossed, 'Tables'],
+            ['deliveries', Bike, 'Deliveries'],
+            ...(isWaitron ? [] : [['history', History, 'My Orders'] as const]),
+          ] as const
         ).map(([id, Icon, label]) => (
           <button
             key={id}
@@ -1135,7 +1136,6 @@ export default function POS() {
       <div className="flex-1 flex overflow-hidden">
         {posTab === 'tables' && (
           <div className={`flex flex-1 flex-col overflow-hidden`}>
-
             {!selectedTable ? (
               <TableGrid
                 tables={tables}
@@ -1160,8 +1160,6 @@ export default function POS() {
             )}
           </div>
         )}
-
-
 
         {posTab === 'deliveries' && (
           <div className="flex-1 overflow-y-auto">
@@ -1192,7 +1190,10 @@ export default function POS() {
                     const rider = order.boda_operators as { name?: string; phone?: string } | null
                     const pmRaw = (order.payment_method || '').toLowerCase()
                     return (
-                      <div key={order.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                      <div
+                        key={order.id}
+                        className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
+                      >
                         <div className="px-4 py-3 flex items-center justify-between">
                           <div>
                             <p className="text-white font-semibold text-sm">
@@ -1200,11 +1201,17 @@ export default function POS() {
                             </p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-gray-500 text-xs">
-                                {new Date(order.created_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                {new Date(order.created_at).toLocaleTimeString('en-NG', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                })}
                               </span>
                               <span className="text-gray-700 text-xs">|</span>
                               <span className="text-blue-400 text-xs capitalize">
-                                {order.delivery_status === 'out_for_delivery' ? 'Out for delivery' : order.delivery_status}
+                                {order.delivery_status === 'out_for_delivery'
+                                  ? 'Out for delivery'
+                                  : order.delivery_status}
                               </span>
                             </div>
                           </div>
@@ -1226,7 +1233,8 @@ export default function POS() {
                           )}
                           {order.delivery_area && (
                             <p className="text-gray-400 text-xs">
-                              <span className="text-gray-600">Delivery to:</span> {order.delivery_area}
+                              <span className="text-gray-600">Delivery to:</span>{' '}
+                              {order.delivery_area}
                             </p>
                           )}
                           {rider?.name && (
@@ -1239,7 +1247,9 @@ export default function POS() {
                                 >
                                   {rider.phone}
                                 </a>
-                              ) : ''}
+                              ) : (
+                                ''
+                              )}
                             </p>
                           )}
                         </div>
@@ -1250,7 +1260,9 @@ export default function POS() {
                             className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
                             <DollarSign size={15} />
-                            {payingDelivery === order.id ? 'Recording...' : 'Mark as Paid — Cash Received'}
+                            {payingDelivery === order.id
+                              ? 'Recording...'
+                              : 'Mark as Paid — Cash Received'}
                           </button>
                         </div>
                       </div>
