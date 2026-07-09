@@ -10,6 +10,11 @@ import {
   Snowflake,
   Shield,
   RotateCcw,
+  Package,
+  Trophy,
+  ThumbsUp,
+  Printer,
+  Wrench,
 } from 'lucide-react'
 import WaiterCalls from './WaiterCalls'
 import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
@@ -22,6 +27,10 @@ import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
 import VoidsTab from './mgmt/VoidsTab'
+import ServiceRatingsTab from './mgmt/ServiceRatingsTab'
+import PrintQueueTab from './mgmt/PrintQueueTab'
+import PrinterSettingsTab from './mgmt/PrinterSettingsTab'
+import PrintSetupTab from './mgmt/PrintSetupTab'
 
 const sessionWindow = () => {
   const now = new Date()
@@ -56,6 +65,9 @@ const TABS = [
   { id: 'returns', label: 'Returns', icon: RotateCcw },
   { id: 'voids', label: 'Voids', icon: AlertTriangle },
   { id: 'activity', label: 'Activity Log', icon: Shield },
+  { id: 'printsetup', label: 'Print Setup', icon: Wrench },
+  { id: 'printqueue', label: 'Print Queue', icon: Printer },
+  { id: 'printers', label: 'Printers', icon: Printer },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -326,6 +338,12 @@ export default function Management() {
             <ActivityLogTab dateRange={activityRange} />
           </div>
         )}
+        {activeTab === 'settings' && (
+          <SettingsTab threshold={threshold} setThreshold={setThreshold} />
+        )}
+        {activeTab === 'printsetup' && <PrintSetupTab />}
+        {activeTab === 'printqueue' && <PrintQueueTab />}
+        {activeTab === 'printers' && <PrinterSettingsTab />}
       </div>
     </div>
   )

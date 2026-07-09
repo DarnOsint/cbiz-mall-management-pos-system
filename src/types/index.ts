@@ -181,6 +181,63 @@ export interface SyncStatus {
   pending: number
 }
 
+// ─── Print queue types ──────────────────────────────────────────────────────
+
+export type PrintJobType = 'customer' | 'waiter' | 'kitchen' | 'bar'
+export type PrintJobStatus = 'pending' | 'printing' | 'printed' | 'failed' | 'cancelled'
+
+export interface PrinterConfig {
+  id: string
+  name: string
+  ip: string
+  port: number
+  copies: number
+  types: PrintJobType[]
+}
+
+export interface PrintJob {
+  id: string
+  order_id: string | null
+  receipt_number: string
+  type: PrintJobType
+  status: PrintJobStatus
+  copies: number
+  printer_ip: string | null
+  receipt_data: Record<string, unknown>
+  error_message: string | null
+  retry_count: number
+  max_retries: number
+  next_retry_at: string | null
+  created_at: string
+  started_at: string | null
+  printed_at: string | null
+}
+
+export interface ReceiptLine {
+  align?: 'left' | 'center' | 'right'
+  bold?: boolean
+  double?: boolean
+  text: string
+}
+
+export interface ReceiptSection {
+  lines: ReceiptLine[]
+  divider?: boolean
+  spaceBefore?: number
+  spaceAfter?: number
+}
+
+export interface ReceiptData {
+  title: string
+  subtitle?: string
+  header: { label: string; value: string }[]
+  items: { name: string; qty: number; price: string; total: string }[]
+  totals: { label: string; value: string; bold?: boolean; double?: boolean }[]
+  footer: string[]
+  barcode?: string
+  qrUrl?: string
+}
+
 // ─── Audit helper params ──────────────────────────────────────────────────
 
 export interface AuditParams {

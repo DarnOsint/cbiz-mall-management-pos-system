@@ -2,22 +2,23 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { audit } from '../../lib/audit'
 import { formatPrice } from '../../lib/currency'
-import PriceDisplay from '../../components/PriceDisplay'
 import { useAuth } from '../../context/AuthContext'
 import { sendPushToStaff } from '../../hooks/usePushNotifications'
 import { offlineUpdateNoReturn } from '../../lib/offlineWrite'
 import {
   X,
   Banknote,
+  CreditCard,
+  Smartphone,
   CheckCircle,
   Clock,
-  UtensilsCrossed,
+  Beer,
   Printer,
 } from 'lucide-react'
 import ReceiptModal from './ReceiptModal'
+import { queuePrintJob } from '../../lib/printService'
+import type { Table, Profile, ItemDestination } from '../../types'
 import { useToast } from '../../context/ToastContext'
-import type { Table, Profile } from '../../types'
-
 
 interface OrderItemExtended {
   id: string
@@ -64,6 +65,61 @@ interface Props {
   table: Table
   onSuccess: () => void
   onClose: () => void
+}
+
+const normalizeDestination = (
+  dest?: string | null,
+  name?: string | null,
+  catName?: string | null
+): ItemDestination => {
+  const d = (dest || '').trim().toLowerCase()
+  const lowerName = (name || '').toLowerCase()
+  const lowerCat = (catName || '').toLowerCase()
+
+  const isMixologistItem =
+    lowerName.includes('cocktail') ||
+    lowerName.includes('mocktail') ||
+    lowerName.includes('chapman') ||
+    lowerName.includes('sunrise') ||
+    lowerName.includes('colada') ||
+    lowerName.includes('mojito') ||
+    lowerName.includes('milkshake') ||
+    lowerName.includes('shake') ||
+    lowerName.includes('smoothie') ||
+    lowerName.includes('fruit punch') ||
+    lowerName.includes('punch') ||
+    lowerCat.includes('chapman') ||
+    lowerCat.includes('sunrise') ||
+    lowerCat.includes('colada') ||
+    lowerCat.includes('mojito') ||
+    lowerCat.includes('cocktail') ||
+    lowerCat.includes('mocktail') ||
+    lowerCat.includes('milkshake') ||
+    lowerCat.includes('smoothie') ||
+    lowerCat.includes('punch')
+
+  if (d === 'kitchen' || lowerCat.includes('kitchen') || lowerName.includes('kitchen'))
+    return 'kitchen'
+  if (
+    d === 'griller' ||
+    d === 'grill' ||
+    d === 'grilling' ||
+    lowerCat.includes('grill') ||
+    lowerName.includes('grill')
+  )
+    return 'griller'
+  if (
+    d === 'shisha' ||
+    d === 'hookah' ||
+    lowerCat.includes('shisha') ||
+    lowerName.includes('shisha')
+  )
+    return 'shisha'
+  if (d === 'games' || d === 'game' || d === 'games_master' || lowerCat.includes('game'))
+    return 'games'
+  if (d === 'mixologist' || d === 'cocktail' || d === 'cocktails' || isMixologistItem)
+    return 'mixologist'
+  return 'bar'
 }
 
 const getStationItemTime = (item: OrderItemExtended, fallbackCreatedAt: string): string =>
@@ -122,6 +178,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     }
   }, [order.id])
   const [paymentMethod, setPaymentMethod] = useState<string>('cash')
+  const [cashTendered, setCashTendered] = useState('')
   const [processing, setProcessing] = useState(false)
   const [success, setSuccess] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
@@ -139,7 +196,27 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const [returnQty, setReturnQty] = useState(1)
   const [splitPayMethod, setSplitPayMethod] = useState('cash')
   const [splitCash, setSplitCash] = useState('')
+  const [bankAccounts, setBankAccounts] = useState<
+    { id: string; bank_name: string; account_number: string; account_name: string }[]
+  >([])
+  const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [tipAmount, setTipAmount] = useState('')
+  const [amountReceived, setAmountReceived] = useState('')
+  const [cashSplit, setCashSplit] = useState('')
+  const [secondarySplit, setSecondarySplit] = useState('')
+  useState(() => {
+    supabase
+      .from('bank_accounts')
+      .select('id, bank_name, account_number, account_name')
+      .eq('is_active', true)
+      .order('created_at')
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setBankAccounts(data)
+          setSelectedBankId(data[0].id)
+        }
+      })
+  })
 
   const billableItems = (order?.order_items || []).filter(
     (i) => !i.return_requested && !i.return_accepted
@@ -153,11 +230,39 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const returnedTotal = returnedItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
   const subtotal = activeItemsTotal
   const total = subtotal
-  const [cashTendered, setCashTendered] = useState(String(total))
-  const [amountReceived, setAmountReceived] = useState(String(total))
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
-  const hasUnreadyItems = false
+  // Only bar items block payment — kitchen/griller have no dedicated tab so waitron can pay freely
+  const unreadyItems = (order?.order_items || []).filter((i) => {
+    const catDest =
+      (
+        i as unknown as {
+          menu_items?: { menu_categories?: { destination?: string; name?: string } }
+        }
+      ).menu_items?.menu_categories?.destination || ''
+    const catName =
+      (i as unknown as { menu_items?: { menu_categories?: { name?: string } } }).menu_items
+        ?.menu_categories?.name || ''
+    const normDest = normalizeDestination(
+      i.destination || catDest || 'bar',
+      i.menu_items?.name,
+      catName
+    )
+    // shisha, games, kitchen, and grill should not block payment
+    if (
+      normDest === 'shisha' ||
+      normDest === 'games' ||
+      normDest === 'kitchen' ||
+      normDest === 'griller'
+    )
+      return false
+    // Bar and mixologist items must be accepted before payment.
+    // - Bar: accepted when marked ready.
+    // - Mixologist: accepted when moved from pending → preparing.
+    if (i.return_requested || i.return_accepted) return false
+    return i.status === 'pending'
+  })
+  const hasUnreadyItems = unreadyItems.length > 0
 
   const requestReturn = async (itemId: string) => {
     const item = (order?.order_items || []).find((i) => i.id === itemId)
@@ -363,178 +468,32 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
 
   const canProcess = () => {
     if (processing) return false
+    if (hasUnreadyItems && paymentMethod !== 'run_tab') return false
     if (paymentMethod === 'cash') return parseFloat(cashTendered) >= total
+    if (paymentMethod === 'cash+transfer' || paymentMethod === 'cash+card') {
+      const c = parseFloat(cashSplit || '0')
+      const s = parseFloat(secondarySplit || '0')
+      return c + s >= total && c >= 0 && s >= 0
+    }
     if (paymentMethod === 'credit') return debtorName.trim().length > 0
     return true
   }
 
   const printPreReceipt = async () => {
     const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
-    const date = new Date().toLocaleDateString('en-NG', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })
-    const time = new Date().toLocaleTimeString('en-NG', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
-    const orderTotal = subtotal
 
-    // Fetch bank accounts for transfer details
-    const { data: bankData } = await supabase
-      .from('bank_accounts')
-      .select('bank_name, account_number, account_name')
-      .eq('is_active', true)
-      .order('created_at')
-    const banks = (bankData || []) as {
-      bank_name: string
-      account_number: string
-      account_name: string
-    }[]
-
-    const W = 40
-    const fmtRow = (left: string, right: string) => {
-      const l = left.substring(0, W - right.length - 1)
-      const spaces = W - l.length - right.length
-      return l + ' '.repeat(Math.max(1, spaces)) + right
-    }
-    const divider = '-'.repeat(W)
-    const solidDivider = '='.repeat(W)
-    const centre = (str: string) => {
-      const pad = Math.max(0, Math.floor((W - str.length) / 2))
-      return ' '.repeat(pad) + str
-    }
-
-    const activeItems = billableItems
-    const adjustedTotal = activeItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
-
-    // Group items by name
-    const grouped = new Map<string, { qty: number; total: number }>()
-    activeItems.forEach((item) => {
-      const name =
-        item.menu_items?.name ||
-        (item as unknown as { modifier_notes?: string }).modifier_notes ||
-        'Item'
-      const existing = grouped.get(name)
-      if (existing) {
-        existing.qty += item.quantity
-        existing.total += item.total_price || 0
-      } else grouped.set(name, { qty: item.quantity, total: item.total_price || 0 })
-    })
-    const itemLines = Array.from(grouped.entries())
-      .map(([name, { qty, total }]) => fmtRow(`${qty}x ${name}`, `N${total.toLocaleString()}`))
-      .join('\n')
-
-    const returnedGrouped = new Map<string, number>()
-    returnedItems.forEach((item) => {
-      const name =
-        item.menu_items?.name ||
-        (item as unknown as { modifier_notes?: string }).modifier_notes ||
-        'Item'
-      returnedGrouped.set(name, (returnedGrouped.get(name) || 0) + item.quantity)
-    })
-    const returnedLines = Array.from(returnedGrouped.entries())
-      .map(([name, qty]) => fmtRow(`${qty}x ${name} [RETURNED]`, 'N0'))
-      .join('\n')
-
-    const bankLines =
-      banks.length > 0
-        ? [
-            divider,
-            centre('-- PAYMENT DETAILS --'),
-            ...banks.flatMap((b) => [
-              fmtRow('Bank:', b.bank_name),
-              fmtRow('Account:', b.account_number),
-              fmtRow('Name:', b.account_name),
-              '',
-            ]),
-          ]
-        : []
-
-    const receipt = [
-      '',
-      centre('C.Biz African Food'),
-      divider,
-      fmtRow('Ref:', orderRef),
-      fmtRow('Table:', table.name),
-      fmtRow('Date:', date),
-      fmtRow('Time:', time),
-      fmtRow('Served by:', profile?.full_name || 'Staff'),
-      divider,
-      fmtRow('ITEM', 'AMOUNT'),
-      divider,
-      itemLines,
-      ...(returnedLines ? [returnedLines] : []),
-      solidDivider,
-      fmtRow(
-        'TOTAL:',
-        `N${adjustedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      ),
-      solidDivider,
-      '',
-      centre('** PRE-PAYMENT RECEIPT **'),
-      centre('Payment not yet confirmed.'),
-      ...bankLines,
-      '',
-      centre('Thank you for visiting'),
-      centre('C.Biz African Food!'),
-      '',
-    ].join('\n')
-
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Pre-Payment Receipt</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 13px;
-      color: #000;
-      background: #fff;
-      width: 80mm;
-      padding: 4mm;
-      white-space: pre;
-    }
-    @media print {
-      body { width: 80mm; }
-      @page { margin: 0; size: 80mm auto; }
-    }
-  </style>
-</head>
-<body>${receipt}</body>
-</html>`
-
-    // Always open browser print — guaranteed path
-    const win = window.open(
-      '',
-      '_blank',
-      'width=500,height=700,toolbar=no,menubar=no,scrollbars=no'
+    const result = await queuePrintJob(
+      order as unknown as import('../../types').Order,
+      'customer',
+      table,
+      billableItems as unknown as import('../../types').OrderItem[],
+      profile?.full_name || 'Staff'
     )
-    if (win) {
-      win.document.open('text/html', 'replace')
-      win.document.write(html)
-      win.document.close()
-      win.onafterprint = () => win.close()
-      win.onload = () => {
-        setTimeout(() => {
-          try {
-            win.print()
-          } catch {
-            /* already closed */
-          }
-        }, 200)
-      }
-      setTimeout(() => {
-        try {
-          if (!win.closed) win.close()
-        } catch {
-          /* already closed */
-        }
-      }, 300000)
+
+    if (result.success) {
+      toast.success('Printed', 'Pre-payment receipt sent to printer')
+    } else {
+      toast.warning('Print Failed', result.error || 'Could not reach print service. Try again.')
     }
   }
 
@@ -644,14 +603,23 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     try {
       if (!navigator.onLine) {
         if (paymentMethod === 'credit') {
-          toast.error('Offline', 'Credit payments require internet.')
+          toast.error('Offline', 'Credit payments require internet. Use cash/card/transfer.')
           return
         }
+
+        const resolvedMethod =
+          paymentMethod === 'transfer'
+            ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
+            : paymentMethod === 'cash+transfer'
+              ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
+              : paymentMethod === 'cash+card'
+                ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
+                : paymentMethod
 
         const closedAt = new Date().toISOString()
         await offlineUpdateNoReturn('orders', order.id, {
           status: 'paid',
-          payment_method: paymentMethod,
+          payment_method: resolvedMethod,
           closed_at: closedAt,
           total_amount: total,
         } as any)
@@ -662,7 +630,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           assigned_staff: null,
         } as any)
 
-        setPaidOrder({ ...order, payment_method: paymentMethod } as typeof order)
+        setPaidOrder({ ...order, payment_method: resolvedMethod } as typeof order)
         setSuccess(true)
         setShowReceipt(true)
         toast.success('Offline Payment', 'Saved offline. Will sync when internet returns.')
@@ -762,7 +730,14 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
         .from('orders')
         .update({
           status: 'paid',
-          payment_method: paymentMethod,
+          payment_method:
+            paymentMethod === 'transfer'
+              ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
+              : paymentMethod === 'cash+transfer'
+                ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
+                : paymentMethod === 'cash+card'
+                  ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
+                  : paymentMethod,
           closed_at: new Date().toISOString(),
         })
         .eq('id', order.id)
@@ -792,7 +767,14 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           order_total: total,
           amount_received: parseFloat(amountReceived) || total + tipVal,
           tip_amount: tipVal,
-          payment_method: paymentMethod,
+          payment_method:
+            paymentMethod === 'transfer'
+              ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
+              : paymentMethod === 'cash+transfer'
+                ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
+                : paymentMethod === 'cash+card'
+                  ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
+                  : paymentMethod,
           shift_date: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10), // WAT = UTC+1
           status: 'pending',
         })
@@ -818,8 +800,12 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   ]
   const paymentMethods = [
     { id: 'cash', label: 'Cash', icon: Banknote, color: 'text-green-400' },
+    { id: 'card', label: 'Bank POS', icon: CreditCard, color: 'text-blue-400' },
+    { id: 'transfer', label: 'Bank Transfer', icon: Smartphone, color: 'text-amber-400' },
     { id: 'credit', label: 'Pay Later (Debt)', icon: Clock, color: 'text-red-400' },
-    { id: 'run_tab', label: 'Run Tab', icon: UtensilsCrossed, color: 'text-amber-400' },
+    { id: 'run_tab', label: 'Run Tab', icon: Beer, color: 'text-amber-400' },
+    { id: 'cash+transfer', label: 'Cash + Transfer', icon: Smartphone, color: 'text-amber-400' },
+    { id: 'cash+card', label: 'Cash + POS', icon: CreditCard, color: 'text-blue-400' },
   ]
 
   if (splitMode && !success)
@@ -829,11 +815,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           <div className="flex items-center justify-between p-4 border-b border-gray-800">
             <div>
               <h3 className="text-white font-bold">Split Bill — {table?.name}</h3>
-              <PriceDisplay
-                amount={total}
-                className="text-xs"
-                sspClassName="text-[8px] text-gray-500"
-              />
+              <p className="text-gray-400 text-xs">Total: {formatPrice(total)}</p>
             </div>
             <button onClick={() => setSplitMode(false)} className="text-gray-400 hover:text-white">
               <X size={18} />
@@ -915,11 +897,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                     >
                       <span className="text-white text-sm font-medium">Person {i + 1}</span>
                       <div className="text-right">
-                        <PriceDisplay
-                          amount={getPersonTotal(i)}
-                          className="text-xs"
-                          sspClassName="text-[8px] text-gray-500"
-                        />
+                        <p className="text-white font-bold">{formatPrice(getPersonTotal(i))}</p>
                         {paid && <p className="text-green-400 text-xs">Paid · {paid.method}</p>}
                       </div>
                     </div>
@@ -985,11 +963,9 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           {paymentMethod === 'cash' && change > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mt-4">
               <p className="text-amber-400 text-xs mb-1">Change to return</p>
-              <PriceDisplay
-                amount={change}
-                className="text-white text-xl font-bold"
-                sspClassName="text-[10px] text-gray-400"
-              />
+              <p className="text-white text-xl font-bold break-all break-all">
+                {formatPrice(change)}
+              </p>
             </div>
           )}
           <div className="flex gap-3 mt-6">
@@ -1064,11 +1040,9 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
             </div>
             <div className="border-t border-gray-700 pt-3 flex justify-between items-center">
               <span className="text-white font-bold">Total</span>
-              <PriceDisplay
-                amount={total}
-                className="text-amber-400 font-bold text-xl"
-                sspClassName="text-[10px] text-amber-400/60"
-              />
+              <span className="text-amber-400 font-bold text-xl break-all">
+                {formatPrice(total)}
+              </span>
             </div>
           </div>
 
@@ -1123,26 +1097,129 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
               {cashTendered && parseFloat(cashTendered) >= total && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
                   <p className="text-green-400 text-xs">Change to return</p>
-                  <PriceDisplay
-                    amount={change}
-                    className="text-white text-xl font-bold"
-                    sspClassName="text-[10px] text-gray-400"
-                  />
+                  <p className="text-white text-xl font-bold break-all">{formatPrice(change)}</p>
                 </div>
               )}
               {cashTendered && parseFloat(cashTendered) < total && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
                   <p className="text-red-400 text-xs">Short by</p>
-                  <PriceDisplay
-                    amount={total - parseFloat(cashTendered)}
-                    className="text-white text-xl font-bold"
-                    sspClassName="text-[10px] text-gray-400"
-                  />
+                  <p className="text-white text-xl font-bold break-all">
+                    {formatPrice(total - parseFloat(cashTendered))}
+                  </p>
                 </div>
               )}
             </div>
           )}
-
+          {(paymentMethod === 'cash+transfer' || paymentMethod === 'cash+card') && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs uppercase tracking-wide mb-2 block">
+                    Cash Received (SSP)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={cashSplit}
+                    onChange={(e) => setCashSplit(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs uppercase tracking-wide mb-2 block">
+                    {paymentMethod === 'cash+transfer'
+                      ? 'Transfer Received (SSP)'
+                      : 'POS Received (SSP)'}
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={secondarySplit}
+                    onChange={(e) => setSecondarySplit(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+              <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 text-sm text-gray-300">
+                <div className="flex justify-between">
+                  <span>Total</span>
+                  <span className="text-white font-bold">{formatPrice(total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Entered</span>
+                  <span className="text-amber-400 font-bold">
+                    {formatPrice(parseFloat(cashSplit || '0') + parseFloat(secondarySplit || '0'))}
+                  </span>
+                </div>
+                {parseFloat(cashSplit || '0') + parseFloat(secondarySplit || '0') < total && (
+                  <p className="text-red-400 text-xs mt-2">
+                    Short — enter full amount before confirming.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {paymentMethod === 'card' && (
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
+              <CreditCard size={28} className="text-blue-400 mx-auto mb-2" />
+              <p className="text-blue-400 font-medium">Bank POS</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Process {formatPrice(total)} on the POS terminal, then confirm below.
+              </p>
+            </div>
+          )}
+          {paymentMethod === 'transfer' &&
+            (() => {
+              const selectedBank = bankAccounts.find((b) => b.id === selectedBankId)
+              return (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Smartphone size={20} className="text-amber-400" />
+                    <p className="text-amber-400 font-medium">Bank Transfer</p>
+                  </div>
+                  {bankAccounts.length > 1 && (
+                    <div className="mb-3">
+                      <p className="text-gray-400 text-xs mb-2">Select bank account:</p>
+                      <div className="space-y-2">
+                        {bankAccounts.map((bank) => (
+                          <button
+                            key={bank.id}
+                            onClick={() => setSelectedBankId(bank.id)}
+                            className={`w-full text-left rounded-xl p-2.5 border transition-colors ${selectedBankId === bank.id ? 'bg-amber-500/20 border-amber-500/50' : 'bg-gray-800 border-gray-700 hover:border-amber-500/30'}`}
+                          >
+                            <p
+                              className={`text-sm font-semibold ${selectedBankId === bank.id ? 'text-amber-400' : 'text-white'}`}
+                            >
+                              {bank.bank_name}
+                            </p>
+                            <p className="text-gray-400 text-xs">{bank.account_number}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedBank && (
+                    <div className="bg-gray-800 rounded-xl p-3 space-y-1">
+                      <p className="text-gray-400 text-xs">Transfer {formatPrice(total)} to:</p>
+                      <p className="text-white font-bold text-sm">{selectedBank.bank_name}</p>
+                      <p className="text-amber-400 font-mono font-bold">
+                        {selectedBank.account_number}
+                      </p>
+                      <p className="text-gray-300 text-sm">{selectedBank.account_name}</p>
+                      <p className="text-gray-500 text-xs pt-1">
+                        Confirm transfer before proceeding.
+                      </p>
+                    </div>
+                  )}
+                  {bankAccounts.length === 0 && (
+                    <p className="text-gray-400 text-sm text-center">
+                      No bank accounts configured. Ask the owner to add bank accounts in the
+                      Executive dashboard.
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
           {paymentMethod === 'credit' && (
             <div className="space-y-3">
               <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
@@ -1352,7 +1429,30 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
             </div>
           )}
 
-
+          {/* Unready items warning — blocks payment */}
+          {hasUnreadyItems && paymentMethod !== 'run_tab' && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+              <p className="text-red-400 font-semibold text-sm mb-2">⚠️ Items not yet ready</p>
+              <p className="text-gray-400 text-xs mb-2">
+                These items have not been marked ready/delivered by the station. Payment is blocked
+                until all items are prepared and served:
+              </p>
+              <div className="space-y-1">
+                {unreadyItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                    <p className="text-red-300 text-xs font-medium">
+                      {item.quantity}x{' '}
+                      {item.menu_items?.name ||
+                        (item as unknown as { modifier_notes?: string }).modifier_notes ||
+                        'Item'}
+                      <span className="text-gray-500 ml-1 capitalize">({item.destination})</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Tip section — only for non-credit, non-tab payments */}
           {paymentMethod !== 'credit' && paymentMethod !== 'run_tab' && (
