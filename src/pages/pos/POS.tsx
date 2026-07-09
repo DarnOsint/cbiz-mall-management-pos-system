@@ -996,7 +996,7 @@ export default function POS() {
   }
 
   useEffect(() => {
-    if (isWaitron && posTab !== 'tables') setPosTab('tables')
+    if (isWaitron && posTab !== 'tables' && posTab !== 'deliveries') setPosTab('tables')
   }, [isWaitron, posTab])
 
   if (loading)
