@@ -18,6 +18,7 @@ import {
   X,
   Search,
   Bike,
+  CheckCircle2,
   DollarSign,
 } from 'lucide-react'
 import TableGrid from './TableGrid'
@@ -434,13 +435,16 @@ export default function POS() {
 
   const fetchDeliveries = async () => {
     setDeliveriesLoading(true)
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
     const { data } = await supabase
       .from('orders')
       .select(
         `id, created_at, status, order_type, total_amount, customer_name, customer_phone, delivery_area, delivery_status, delivery_fee, notes, staff_id, boda_operator_id,
         boda_operators(id, name, phone)`
       )
-      .in('delivery_status', ['out_for_delivery', 'pending_delivery'])
+      .not('delivery_status', 'is', null)
+      .gte('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
     if (data) setDeliveries(data as any)
     setDeliveriesLoading(false)
@@ -1168,7 +1172,7 @@ export default function POS() {
                 <div>
                   <h2 className="text-white text-lg font-bold">Delivery Orders</h2>
                   <p className="text-gray-500 text-xs">
-                    Orders out for delivery — mark as paid when rider returns with cash
+                    Today's deliveries — tap to mark as paid when rider returns
                   </p>
                 </div>
                 <button onClick={fetchDeliveries} className="text-gray-500 hover:text-white p-2">
@@ -1182,92 +1186,179 @@ export default function POS() {
               ) : deliveries.length === 0 ? (
                 <div className="text-center py-16">
                   <Bike size={32} className="text-gray-700 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No pending deliveries</p>
+                  <p className="text-gray-500 text-sm">No deliveries today</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {deliveries.map((order) => {
-                    const rider = order.boda_operators as { name?: string; phone?: string } | null
-                    const pmRaw = (order.payment_method || '').toLowerCase()
+                <div className="space-y-4">
+                  {(() => {
+                    const active = deliveries.filter(
+                      (o) => o.delivery_status === 'out_for_delivery'
+                    )
+                    const completed = deliveries.filter((o) => o.delivery_status === 'paid')
                     return (
-                      <div
-                        key={order.id}
-                        className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
-                      >
-                        <div className="px-4 py-3 flex items-center justify-between">
+                      <>
+                        {active.length > 0 && (
                           <div>
-                            <p className="text-white font-semibold text-sm">
-                              {order.customer_name || 'Customer'}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-gray-500 text-xs">
-                                {new Date(order.created_at).toLocaleTimeString('en-NG', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                })}
-                              </span>
-                              <span className="text-gray-700 text-xs">|</span>
-                              <span className="text-blue-400 text-xs capitalize">
-                                {order.delivery_status === 'out_for_delivery'
-                                  ? 'Out for delivery'
-                                  : order.delivery_status}
-                              </span>
+                            <h3 className="text-amber-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+                              Active — {active.length}
+                            </h3>
+                            <div className="space-y-3">
+                              {active.map((order) => {
+                                const rider = order.boda_operators as {
+                                  name?: string
+                                  phone?: string
+                                } | null
+                                return (
+                                  <div
+                                    key={order.id}
+                                    className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
+                                  >
+                                    <div className="px-4 py-3 flex items-center justify-between">
+                                      <div>
+                                        <p className="text-white font-semibold text-sm">
+                                          {order.customer_name || 'Customer'}
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span className="text-gray-500 text-xs">
+                                            {new Date(order.created_at).toLocaleTimeString(
+                                              'en-NG',
+                                              { hour: '2-digit', minute: '2-digit', hour12: true }
+                                            )}
+                                          </span>
+                                          <span className="text-gray-700 text-xs">|</span>
+                                          <span className="text-blue-400 text-xs">
+                                            Out for delivery
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <p className="text-amber-400 font-bold text-sm">
+                                        {formatPrice(order.total_amount || 0)}
+                                      </p>
+                                    </div>
+                                    <div className="px-4 pb-3 space-y-1">
+                                      {order.customer_phone && (
+                                        <a
+                                          href={`tel:${order.customer_phone}`}
+                                          className="text-gray-400 text-xs hover:text-amber-400 transition-colors flex items-center gap-1"
+                                        >
+                                          <Phone size={11} />
+                                          <span className="text-gray-600">Phone:</span>{' '}
+                                          {order.customer_phone}
+                                        </a>
+                                      )}
+                                      {order.delivery_area && (
+                                        <p className="text-gray-400 text-xs">
+                                          <span className="text-gray-600">Delivery to:</span>{' '}
+                                          {order.delivery_area}
+                                        </p>
+                                      )}
+                                      {rider?.name && (
+                                        <p className="text-gray-400 text-xs">
+                                          <span className="text-gray-600">Rider:</span> {rider.name}{' '}
+                                          {rider.phone ? (
+                                            <a
+                                              href={`tel:${rider.phone}`}
+                                              className="text-amber-400 hover:text-amber-300 underline transition-colors"
+                                            >
+                                              {rider.phone}
+                                            </a>
+                                          ) : (
+                                            ''
+                                          )}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="px-4 py-3 bg-gray-950 border-t border-gray-800">
+                                      <button
+                                        onClick={() => markDeliveryPaid(order.id)}
+                                        disabled={payingDelivery === order.id}
+                                        className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-colors"
+                                      >
+                                        <DollarSign size={15} />
+                                        {payingDelivery === order.id
+                                          ? 'Recording...'
+                                          : 'Mark as Paid — Cash Received'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-amber-400 font-bold text-sm">
-                              {formatPrice(order.total_amount || 0)}
-                            </p>
+                        )}
+                        {completed.length > 0 && (
+                          <div>
+                            <h3 className="text-green-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                              <CheckCircle2 size={12} />
+                              Completed — {completed.length}
+                            </h3>
+                            <div className="space-y-2">
+                              {completed.map((order) => {
+                                const rider = order.boda_operators as {
+                                  name?: string
+                                  phone?: string
+                                } | null
+                                return (
+                                  <div
+                                    key={order.id}
+                                    className="bg-gray-900/50 border border-gray-800/50 rounded-2xl overflow-hidden opacity-70"
+                                  >
+                                    <div className="px-4 py-3 flex items-center justify-between">
+                                      <div>
+                                        <p className="text-white font-semibold text-sm">
+                                          {order.customer_name || 'Customer'}
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span className="text-gray-500 text-xs">
+                                            {new Date(order.created_at).toLocaleTimeString(
+                                              'en-NG',
+                                              { hour: '2-digit', minute: '2-digit', hour12: true }
+                                            )}
+                                          </span>
+                                          <span className="text-gray-700 text-xs">|</span>
+                                          <span className="text-green-400 text-xs flex items-center gap-1">
+                                            <CheckCircle2 size={10} /> Paid
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <p className="text-gray-400 font-bold text-sm">
+                                        {formatPrice(order.total_amount || 0)}
+                                      </p>
+                                    </div>
+                                    <div className="px-4 pb-3 space-y-1">
+                                      {order.customer_phone && (
+                                        <p className="text-gray-500 text-xs">
+                                          <span className="text-gray-600">Phone:</span>{' '}
+                                          {order.customer_phone}
+                                        </p>
+                                      )}
+                                      {order.delivery_area && (
+                                        <p className="text-gray-500 text-xs">
+                                          <span className="text-gray-600">Delivery to:</span>{' '}
+                                          {order.delivery_area}
+                                        </p>
+                                      )}
+                                      {rider?.name && (
+                                        <p className="text-gray-500 text-xs">
+                                          <span className="text-gray-600">Rider:</span> {rider.name}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                        <div className="px-4 pb-3 space-y-1">
-                          {order.customer_phone && (
-                            <a
-                              href={`tel:${order.customer_phone}`}
-                              className="text-gray-400 text-xs hover:text-amber-400 transition-colors flex items-center gap-1"
-                            >
-                              <Phone size={11} />
-                              <span className="text-gray-600">Phone:</span> {order.customer_phone}
-                            </a>
-                          )}
-                          {order.delivery_area && (
-                            <p className="text-gray-400 text-xs">
-                              <span className="text-gray-600">Delivery to:</span>{' '}
-                              {order.delivery_area}
-                            </p>
-                          )}
-                          {rider?.name && (
-                            <p className="text-gray-400 text-xs">
-                              <span className="text-gray-600">Rider:</span> {rider.name}{' '}
-                              {rider.phone ? (
-                                <a
-                                  href={`tel:${rider.phone}`}
-                                  className="text-amber-400 hover:text-amber-300 underline transition-colors"
-                                >
-                                  {rider.phone}
-                                </a>
-                              ) : (
-                                ''
-                              )}
-                            </p>
-                          )}
-                        </div>
-                        <div className="px-4 py-3 bg-gray-950 border-t border-gray-800">
-                          <button
-                            onClick={() => markDeliveryPaid(order.id)}
-                            disabled={payingDelivery === order.id}
-                            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-colors"
-                          >
-                            <DollarSign size={15} />
-                            {payingDelivery === order.id
-                              ? 'Recording...'
-                              : 'Mark as Paid — Cash Received'}
-                          </button>
-                        </div>
-                      </div>
+                        )}
+                        {active.length === 0 && completed.length === 0 && (
+                          <div className="text-center py-8">
+                            <p className="text-gray-500 text-sm">No deliveries today</p>
+                          </div>
+                        )}
+                      </>
                     )
-                  })}
+                  })()}
                 </div>
               )}
             </div>
