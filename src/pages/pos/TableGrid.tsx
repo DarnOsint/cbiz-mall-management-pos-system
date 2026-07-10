@@ -5,7 +5,6 @@ import {
   type TableLayout,
   type ZoneBounds,
   ZONE_COLORS,
-  ZONE_FILL_OCCUPIED,
   DEFAULT_ZONE_COLOR,
   CANVAS_W,
   CANVAS_H,
@@ -42,13 +41,13 @@ interface TableGridProps {
 
 const BYPASS_ROLES = ['owner', 'manager']
 
-const ZONE_COLOR_PALETTE: { bg: string; border: string; text: string; dot: string; fill: string; occupied: string }[] = [
-  { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-500', fill: '#3b82f6', occupied: '#3b82f6' },
-  { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', dot: 'bg-green-500', fill: '#22c55e', occupied: '#22c55e' },
-  { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', dot: 'bg-purple-500', fill: '#a855f7', occupied: '#a855f7' },
-  { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-500', fill: '#f59e0b', occupied: '#f59e0b' },
-  { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-400', dot: 'bg-rose-500', fill: '#f43f5e', occupied: '#f43f5e' },
-  { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', dot: 'bg-cyan-500', fill: '#06b6d4', occupied: '#06b6d4' },
+const ZONE_COLOR_PALETTE: { bg: string; border: string; text: string; dot: string; fill: string }[] = [
+  { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-500', fill: '#3b82f6' },
+  { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', dot: 'bg-green-500', fill: '#22c55e' },
+  { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', dot: 'bg-purple-500', fill: '#a855f7' },
+  { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-500', fill: '#f59e0b' },
+  { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-400', dot: 'bg-rose-500', fill: '#f43f5e' },
+  { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', dot: 'bg-cyan-500', fill: '#06b6d4' },
 ]
 
 export default function TableGrid({
@@ -206,7 +205,7 @@ export default function TableGrid({
               servingStaffId !== currentStaffId &&
               !canBypass
             const isClickable = isAssigned && !isOtherWaitronTable
-            const occupiedFill = ZONE_FILL_OCCUPIED[zoneName] || ZONE_COLOR_PALETTE[zoneColorIndex[zoneName] ?? 0]?.occupied || tc.stroke
+            const occupiedFill = '#ef4444'
 
             // Position relative to zone bounding box
             const relX = (layout.x - bbox.x) * zoneScale
@@ -387,11 +386,9 @@ export default function TableGrid({
   // Fallback: original grid view (no floor plan saved yet)
   const categoryColors: Record<string, { bg: string; border: string; text: string; dot: string }> =
     {}
-  const occupiedColors: Record<string, string> = {}
   for (const [zone, idx] of Object.entries(zoneColorIndex)) {
     const p = ZONE_COLOR_PALETTE[idx]
     categoryColors[zone] = { bg: p.bg, border: p.border, text: p.text, dot: p.dot }
-    occupiedColors[zone] = p.occupied
   }
 
   const fallbackZones = visibleCategories.filter((c) => c !== 'All')
@@ -439,7 +436,6 @@ export default function TableGrid({
                   const isSelected = selectedTable?.id === table.id
                   const isAssigned =
                     assignedTableIds === null || assignedTableIds.includes(table.id)
-                  const occupiedColor = occupiedColors[category]
                   const servingStaffId = tableStaffMap[table.id]
                   const canBypass = currentRole && BYPASS_ROLES.includes(currentRole)
                   const isOtherWaitronTable =
@@ -468,7 +464,7 @@ export default function TableGrid({
                         ${isSelected ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-gray-950' : ''}
                         ${
                           isOccupied
-                            ? `${occupiedColor} border-transparent text-white`
+                            ? 'bg-red-500 border-red-500 text-white'
                             : `${colors?.bg} ${colors?.border} hover:border-opacity-60`
                         }
                       `}
