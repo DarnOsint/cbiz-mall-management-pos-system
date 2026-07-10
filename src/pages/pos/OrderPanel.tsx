@@ -43,6 +43,7 @@ interface OrderItemLocal {
 interface Props {
   table: Table
   menuItems: MenuItem[]
+  zonePrices?: Record<string, number>
   onPlaceOrder: (payload: {
     table: Table
     items: OrderItemLocal[]
@@ -69,6 +70,7 @@ interface Props {
 export default function OrderPanel({
   table,
   menuItems,
+  zonePrices,
   onPlaceOrder,
   onClose,
   paymentInProgress = false,
@@ -210,13 +212,19 @@ export default function OrderPanel({
     )
     .filter((item) => !menuSearch || item.name.toLowerCase().includes(menuSearch.toLowerCase()))
 
+  const getItemPrice = (item: MenuItem | OrderItemLocal): number => {
+    if (zonePrices && item.id in zonePrices) return zonePrices[item.id]
+    return (item as MenuItem).price || (item as OrderItemLocal).price
+  }
+
   const addItem = (item: MenuItem | OrderItemLocal) => {
+    const itemPrice = getItemPrice(item)
     setOrderItems((prev) => {
       const newEntry = prev.find((i) => i.id === item.id && !i._existing)
       if (newEntry)
         return prev.map((i) =>
           i.id === item.id && !i._existing
-            ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.price }
+            ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * itemPrice }
             : i
         )
       return [
@@ -224,17 +232,17 @@ export default function OrderPanel({
         {
           id: item.id,
           name: item.name,
-          price: (item as MenuItem).price || (item as OrderItemLocal).price,
+          price: itemPrice,
           quantity: 1,
-          total: (item as MenuItem).price || (item as OrderItemLocal).price,
+          total: itemPrice,
           menu_categories: (
             item as unknown as { menu_categories?: { name?: string; destination?: string } | null }
           ).menu_categories,
           _existing: false,
           _newId: crypto.randomUUID(),
           menu_item_id: item.id,
-          unit_price: (item as MenuItem).price,
-          total_price: (item as MenuItem).price,
+          unit_price: itemPrice,
+          total_price: itemPrice,
           order_id: '',
         },
       ]
@@ -675,7 +683,9 @@ export default function OrderPanel({
                     >
                       <p className="text-white text-sm font-medium">{item.name}</p>
                       <p className="text-amber-400 text-sm font-bold mt-1">
-                        {formatPrice(item.price)}
+                        {zonePrices && item.id in zonePrices
+                          ? formatPrice(zonePrices[item.id])
+                          : formatPrice(item.price)}
                       </p>
                     </button>
                   )

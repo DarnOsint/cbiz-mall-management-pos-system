@@ -143,10 +143,14 @@ function DesktopMenuBrowser({
   menuItems,
   onAddItem,
   menuError,
+  zonePriceMap,
+  currentZoneId,
 }: {
   menuItems: MenuItem[]
   onAddItem: (item: MenuItem) => void
   menuError?: string | null
+  zonePriceMap: Record<string, Record<string, number>>
+  currentZoneId?: string | null
 }) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
@@ -228,7 +232,9 @@ function DesktopMenuBrowser({
                       {item.name}
                     </p>
                     <p className="text-amber-400 text-sm font-bold mt-1">
-                      {formatPrice(item.price)}
+                      {currentZoneId && zonePriceMap[item.id]?.[currentZoneId]
+                        ? formatPrice(zonePriceMap[item.id][currentZoneId])
+                        : formatPrice(item.price)}
                     </p>
                   </div>
                 </button>
@@ -250,6 +256,7 @@ export default function POS() {
   const [tables, setTables] = useState<Table[]>([])
   const [menuItems, setMenuItems] = useState<MenuItemWithZone[]>([])
   const [menuError, setMenuError] = useState<string | null>(null)
+  const [zonePriceMap, setZonePriceMap] = useState<Record<string, Record<string, number>>>({})
   const [selectedTable, setSelectedTable] = useState<Table | null>(null)
   const [pendingTable, setPendingTable] = useState<Table | null>(null)
   const [pendingCovers, setPendingCovers] = useState<number | null>(null)
@@ -595,7 +602,7 @@ export default function POS() {
       d.setDate(d.getDate() - 1)
       return d.toLocaleDateString('en-CA')
     })()
-    const [menuRes, invRes, chillerRes, chillerPrevRes] = await Promise.all([
+    const [menuRes, invRes, chillerRes, chillerPrevRes, zonePricesRes] = await Promise.all([
       supabase
         .from('menu_items')
         .select(
@@ -612,6 +619,7 @@ export default function POS() {
         .select('item_name, opening_qty, received_qty, sold_qty, void_qty, closing_qty')
         .eq('date', prevBusinessDate)
         .order('item_name'),
+      supabase.from('menu_item_zone_prices').select('menu_item_id, category_id, price'),
     ])
     if (menuRes.error) {
       const err = menuRes.error as Record<string, unknown>
@@ -683,6 +691,18 @@ export default function POS() {
             : (invMap[item.id] ?? null),
       }))
     )
+    if (zonePricesRes.data) {
+      const map: Record<string, Record<string, number>> = {}
+      for (const zp of zonePricesRes.data as Array<{
+        menu_item_id: string
+        category_id: string
+        price: number
+      }>) {
+        if (!map[zp.menu_item_id]) map[zp.menu_item_id] = {}
+        map[zp.menu_item_id][zp.category_id] = zp.price
+      }
+      setZonePriceMap(map)
+    }
     if (!navigator.onLine) {
       const cached = await localGetAll<any>('menu_items')
       if (cached.length > 0) {
@@ -1159,6 +1179,8 @@ export default function POS() {
                   onAddItem={(item) => {
                     orderPanelAddItemRef.current?.(item)
                   }}
+                  zonePriceMap={zonePriceMap}
+                  currentZoneId={selectedTable?.category_id}
                 />
               </div>
             )}
@@ -1500,6 +1522,7 @@ export default function POS() {
             <OrderPanel
               table={selectedTable}
               menuItems={menuItems as MenuItem[]}
+              zonePrices={zonePriceMap[selectedTable.category_id] ?? {}}
               paymentInProgress={showPayment}
               profile={profile}
               onPlaceOrder={handlePlaceOrder}
@@ -1522,6 +1545,7 @@ export default function POS() {
             <OrderPanel
               table={selectedTable}
               menuItems={menuItems as MenuItem[]}
+              zonePrices={zonePriceMap[selectedTable.category_id] ?? {}}
               paymentInProgress={showPayment}
               profile={profile}
               onPlaceOrder={handlePlaceOrder}

@@ -21,6 +21,10 @@ interface MenuItem {
   category_id: string
   menu_categories?: MenuCategory | null
 }
+interface TableZone {
+  id: string
+  name: string
+}
 interface ItemForm {
   name: string
   category_id: string
@@ -61,14 +65,23 @@ export default function MenuManagement({ onBack }: Props) {
     is_available: true,
   })
   const [catForm, setCatForm] = useState<CatForm>({ name: '', destination: 'bar' })
+  const [zones, setZones] = useState<TableZone[]>([])
+  const [zonePrices, setZonePrices] = useState<Record<string, string>>({})
+  const [itemZonePrices, setItemZonePrices] = useState<Set<string>>(new Set())
 
   const fetchAll = useCallback(async () => {
-    const [itemsRes, catsRes] = await Promise.all([
+    const [itemsRes, catsRes, zonesRes, zpRes] = await Promise.all([
       supabase.from('menu_items').select('*, menu_categories(id, name)').order('name'),
       supabase.from('menu_categories').select('*').order('name'),
+      supabase.from('table_categories').select('id, name').eq('is_active', true).order('name'),
+      supabase.from('menu_item_zone_prices').select('menu_item_id'),
     ])
     if (itemsRes.data) setItems(itemsRes.data)
     if (catsRes.data) setCategories(catsRes.data)
+    if (zonesRes.data) setZones(zonesRes.data)
+    if (zpRes.data) {
+      setItemZonePrices(new Set(zpRes.data.map((r: { menu_item_id: string }) => r.menu_item_id)))
+    }
     setLoading(false)
   }, [])
 
@@ -86,9 +99,10 @@ export default function MenuManagement({ onBack }: Props) {
       image_url: '',
       is_available: true,
     })
+    setZonePrices({})
     setShowItemModal(true)
   }
-  const openEditItem = (item: MenuItem) => {
+  const openEditItem = async (item: MenuItem) => {
     setEditingItem(item)
     setItemForm({
       name: item.name,
@@ -98,6 +112,17 @@ export default function MenuManagement({ onBack }: Props) {
       image_url: item.image_url || '',
       is_available: item.is_available,
     })
+    const { data: zpData } = await supabase
+      .from('menu_item_zone_prices')
+      .select('category_id, price')
+      .eq('menu_item_id', item.id)
+    const zpMap: Record<string, string> = {}
+    if (zpData) {
+      for (const zp of zpData) {
+        zpMap[zp.category_id] = String(zp.price)
+      }
+    }
+    setZonePrices(zpMap)
     setShowItemModal(true)
   }
 
@@ -154,10 +179,12 @@ export default function MenuManagement({ onBack }: Props) {
       image_url: itemForm.image_url || null,
       is_available: itemForm.is_available,
     }
+    let savedItemId: string | undefined
     try {
       if (editingItem) {
         const { error } = await supabase.from('menu_items').update(payload).eq('id', editingItem.id)
         if (error) throw error
+        savedItemId = editingItem.id
         audit({
           action: 'MENU_ITEM_UPDATED',
           entity: 'menu_items',
@@ -173,6 +200,7 @@ export default function MenuManagement({ onBack }: Props) {
           .select('id')
           .single()
         if (error) throw error
+        savedItemId = inserted?.id
         audit({
           action: 'MENU_ITEM_CREATED',
           entity: 'menu_items',
@@ -198,6 +226,23 @@ export default function MenuManagement({ onBack }: Props) {
               is_active: true,
             })
           }
+        }
+      }
+      if (!savedItemId) return toast.error('Error', 'Failed to determine item ID')
+      const itemId = savedItemId
+      const zonePriceRows = Object.entries(zonePrices)
+        .filter(([, price]) => price !== '' && parseFloat(price) > 0)
+        .map(([categoryId, price]) => ({
+          menu_item_id: itemId,
+          category_id: categoryId,
+          price: parseFloat(price),
+        }))
+      if (zonePriceRows.length > 0) {
+        const { error: zpError } = await supabase.from('menu_item_zone_prices').upsert(zonePriceRows, {
+          onConflict: 'menu_item_id, category_id',
+        })
+        if (zpError) {
+          console.warn('Zone price upsert error:', zpError.message)
         }
       }
       await fetchAll()
@@ -392,6 +437,9 @@ export default function MenuManagement({ onBack }: Props) {
                       </div>
                       <h3 className="text-white font-medium text-sm truncate">{item.name}</h3>
                       <p className="text-amber-400 font-bold text-sm">{formatPrice(item.price)}</p>
+                      {itemZonePrices.has(item.id) && (
+                        <span className="text-xs text-purple-400">Zone pricing set</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
@@ -506,6 +554,33 @@ export default function MenuManagement({ onBack }: Props) {
                     placeholder="0"
                   />
                 </div>
+
+                {zones.length > 0 && (
+                  <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-gray-400 text-xs uppercase tracking-wide font-semibold">
+                        Zone Prices (optional)
+                      </label>
+                      <span className="text-gray-500 text-[10px]">Leave blank to use base price</span>
+                    </div>
+                    {zones.map((zone) => (
+                      <div key={zone.id} className="flex items-center gap-3">
+                        <label className="text-gray-300 text-sm w-20 shrink-0">{zone.name}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={zonePrices[zone.id] ?? ''}
+                          onChange={(e) =>
+                            setZonePrices((prev) => ({ ...prev, [zone.id]: e.target.value }))
+                          }
+                          className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                          placeholder={itemForm.price ? `Same as base (${itemForm.price})` : '0'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div>
                   <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
                     Description

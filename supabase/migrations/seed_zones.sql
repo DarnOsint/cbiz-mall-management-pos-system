@@ -7,4 +7,5 @@ DELETE FROM table_categories;
 
 INSERT INTO table_categories (name, hire_fee, min_spend) VALUES
   ('Inside', 0, 0),
-  ('Outside', 0, 0);
+  ('Outside', 0, 0),
+  ('VIP', 25000, 50000);
