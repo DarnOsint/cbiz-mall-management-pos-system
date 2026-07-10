@@ -174,6 +174,12 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const total = subtotal
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
+  useEffect(() => {
+    if (paymentMethod === 'cash' && total > 0 && !cashTendered) {
+      setCashTendered(String(total))
+    }
+  }, [paymentMethod, total])
+
   const requestReturn = async (itemId: string) => {
     const item = (order?.order_items || []).find((i) => i.id === itemId)
     if (!item) return
