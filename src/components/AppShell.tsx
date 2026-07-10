@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { requestPushPermission } from '../hooks/usePushNotifications'
@@ -45,7 +45,6 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
 }
 
 const BARE_ROLES = ['kitchen', 'bar', 'waitron']
-const ZONES = ['Inside', 'Outside']
 
 interface TableRow {
   id: string
@@ -78,6 +77,13 @@ function NavButton({
 
 function TableWidget({ tables }: { tables: TableRow[] }) {
   const [collapsed, setCollapsed] = useState(true)
+  const zoneNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const t of tables) {
+      if (t.table_categories?.name) names.add(t.table_categories.name)
+    }
+    return Array.from(names).sort()
+  }, [tables])
   const occupiedCount = tables.filter((t) => t.status === 'occupied').length
   const freeCount = tables.filter((t) => t.status === 'available').length
 
@@ -109,7 +115,7 @@ function TableWidget({ tables }: { tables: TableRow[] }) {
       {!collapsed && (
         <>
           <div className="mt-2 max-h-32 overflow-y-auto pr-1">
-            {ZONES.map((zone) => {
+            {zoneNames.map((zone) => {
               const zone_tables = tables.filter((t) => t.table_categories?.name === zone)
               if (!zone_tables.length) return null
               return (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Users, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -42,7 +42,14 @@ interface TableGridProps {
 
 const BYPASS_ROLES = ['owner', 'manager']
 
-const ALL_CATEGORIES = ['All', 'Inside', 'Outside'] as const
+const ZONE_COLOR_PALETTE: { bg: string; border: string; text: string; dot: string; fill: string; occupied: string }[] = [
+  { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', dot: 'bg-blue-500', fill: '#3b82f6', occupied: '#3b82f6' },
+  { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', dot: 'bg-green-500', fill: '#22c55e', occupied: '#22c55e' },
+  { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', dot: 'bg-purple-500', fill: '#a855f7', occupied: '#a855f7' },
+  { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', dot: 'bg-amber-500', fill: '#f59e0b', occupied: '#f59e0b' },
+  { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-400', dot: 'bg-rose-500', fill: '#f43f5e', occupied: '#f43f5e' },
+  { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', dot: 'bg-cyan-500', fill: '#06b6d4', occupied: '#06b6d4' },
+]
 
 export default function TableGrid({
   tables,
@@ -55,10 +62,25 @@ export default function TableGrid({
   currentStaffId = null,
   currentRole = null,
 }: TableGridProps & { defaultCategory?: string }) {
+  const uniqueZones = useMemo(() => {
+    const names = new Set<string>()
+    for (const t of tables) {
+      if (t.table_categories?.name) names.add(t.table_categories.name)
+    }
+    return ['All', ...Array.from(names).sort()]
+  }, [tables])
+
+  const zoneColorIndex = useMemo(() => {
+    const zones = uniqueZones.filter((c) => c !== 'All')
+    const map: Record<string, number> = {}
+    zones.forEach((z, i) => { map[z] = i % ZONE_COLOR_PALETTE.length })
+    return map
+  }, [uniqueZones])
+
   // null = unrestricted (owner/manager), array = restricted to those zones only
   const visibleCategories: string[] =
     assignedZoneNames === null
-      ? [...ALL_CATEGORIES]
+      ? uniqueZones
       : assignedZoneNames.length === 0
         ? [] // no zones assigned — show nothing
         : assignedZoneNames.length === 1
@@ -126,7 +148,9 @@ export default function TableGrid({
     const sections = zoneBounds[zoneName]
     if (!sections || sections.length === 0) return null
     const bbox = getZoneBoundingBox(sections)
-    const c = ZONE_COLORS[zoneName] || DEFAULT_ZONE_COLOR
+    const c = ZONE_COLORS[zoneName] || (zoneColorIndex[zoneName] !== undefined
+      ? { fill: `${ZONE_COLOR_PALETTE[zoneColorIndex[zoneName]].fill}15`, stroke: ZONE_COLOR_PALETTE[zoneColorIndex[zoneName]].fill, text: ZONE_COLOR_PALETTE[zoneColorIndex[zoneName]].fill }
+      : DEFAULT_ZONE_COLOR)
     const occupiedCount = zoneTables.filter((t) => t.status === 'occupied').length
 
     return (
@@ -182,7 +206,7 @@ export default function TableGrid({
               servingStaffId !== currentStaffId &&
               !canBypass
             const isClickable = isAssigned && !isOtherWaitronTable
-            const occupiedFill = ZONE_FILL_OCCUPIED[zoneName] || tc.stroke
+            const occupiedFill = ZONE_FILL_OCCUPIED[zoneName] || ZONE_COLOR_PALETTE[zoneColorIndex[zoneName] ?? 0]?.occupied || tc.stroke
 
             // Position relative to zone bounding box
             const relX = (layout.x - bbox.x) * zoneScale
@@ -362,24 +386,14 @@ export default function TableGrid({
 
   // Fallback: original grid view (no floor plan saved yet)
   const categoryColors: Record<string, { bg: string; border: string; text: string; dot: string }> =
-    {
-      Inside: {
-        bg: 'bg-blue-500/10',
-        border: 'border-blue-500/30',
-        text: 'text-blue-400',
-        dot: 'bg-blue-500',
-      },
-      Outside: {
-        bg: 'bg-green-500/10',
-        border: 'border-green-500/30',
-        text: 'text-green-400',
-        dot: 'bg-green-500',
-      },
-    }
-  const occupiedColors: Record<string, string> = {
-    Inside: 'bg-blue-500',
-    Outside: 'bg-green-500',
+    {}
+  const occupiedColors: Record<string, string> = {}
+  for (const [zone, idx] of Object.entries(zoneColorIndex)) {
+    const p = ZONE_COLOR_PALETTE[idx]
+    categoryColors[zone] = { bg: p.bg, border: p.border, text: p.text, dot: p.dot }
+    occupiedColors[zone] = p.occupied
   }
+
   const fallbackZones = visibleCategories.filter((c) => c !== 'All')
   const grouped = fallbackZones.reduce<Record<string, Table[]>>((acc, cat) => {
     acc[cat] = filtered.filter((t) => t.table_categories?.name === cat)
