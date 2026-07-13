@@ -1,10 +1,11 @@
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, BarChart2, Settings, Users } from 'lucide-react'
+import { BookOpen, BarChart2, Settings, Users, Building2 } from 'lucide-react'
 
 const ACTIONS = [
   { label: 'Accounting', icon: BookOpen, color: 'bg-green-600', path: '/accounting' },
   { label: 'Reports', icon: BarChart2, color: 'bg-indigo-500', path: '/reports' },
   { label: 'Back Office', icon: Settings, color: 'bg-amber-500', path: '/backoffice' },
+  { label: 'Mall', icon: Building2, color: 'bg-purple-600', path: '/mallmanagement' },
   { label: 'Management', icon: Users, color: 'bg-blue-500', path: '/management' },
 ]
 

@@ -261,6 +261,7 @@ export interface MallShop {
   tenant_phone: string | null
   monthly_rent: number
   is_active: boolean
+  is_occupied: boolean
   created_at: string
   updated_at: string
 }

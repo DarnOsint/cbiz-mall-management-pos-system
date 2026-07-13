@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS mall_shops (
   tenant_phone text,
   monthly_rent numeric(12,2) NOT NULL DEFAULT 0,
   is_active boolean DEFAULT true,
+  is_occupied boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );

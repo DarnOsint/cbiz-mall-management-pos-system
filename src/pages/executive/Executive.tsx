@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { HelpTooltip } from '../../components/HelpTooltip'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Building2 } from 'lucide-react'
 import { useVisibilityInterval } from '../../hooks/useVisibilityInterval'
 
 import StatCards from './exec/StatCards'
@@ -12,6 +12,7 @@ import QuickActions from './exec/QuickActions'
 import RecentOrders from './exec/RecentOrders'
 
 import type { PostgrestFilterBuilder } from '@supabase/postgrest-js'
+import type { MallShop, MallRentPayment } from '../../types'
 
 interface Stats {
   revenue: number
@@ -106,6 +107,11 @@ export default function Executive() {
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
   const [trendData, setTrendData] = useState<TrendDay[]>([])
   const [loading, setLoading] = useState(true)
+  const [mallSummary, setMallSummary] = useState({
+    totalShops: 0, occupiedShops: 0, vacantShops: 0,
+    overdueCount: 0, paidCount: 0, totalRentDue: 0
+  })
+
   const [cvData, setCvData] = useState({
     occupancy: 0,
     todayAlerts: [] as Record<string, unknown>[],
@@ -123,6 +129,34 @@ export default function Executive() {
   const fetchStats = useCallback(async () => {
     void supabase.rpc('free_orphaned_tables')
     const { sessionStart, sessionEnd, sessionStartIso } = getSessionWindow()
+
+    supabase.from('mall_shops').select('*, mall_rent_payments(*)').then(({ data }) => {
+      if (!data) return
+      const shops = data as unknown as (MallShop & { mall_rent_payments: MallRentPayment[] })[]
+      const now = new Date()
+      let overdue = 0, paid = 0
+      for (const shop of shops) {
+        if (!shop.is_occupied) continue
+        const totalMonths = shop.mall_rent_payments.reduce((s, p) => s + p.months_paid, 0)
+        if (totalMonths <= 0) { overdue++; continue }
+        const lastPaid = new Date(shop.mall_rent_payments.reduce((latest, p) =>
+          new Date(p.paid_at) > new Date(latest.paid_at) ? p : latest
+        , shop.mall_rent_payments[0]).paid_at)
+        const monthsPassed = (now.getFullYear() - lastPaid.getFullYear()) * 12 + (now.getMonth() - lastPaid.getMonth())
+        const remaining = totalMonths - monthsPassed - 1
+        const daysInto = now.getDate() - lastPaid.getDate()
+        const daysLeft = remaining * 30 + (30 - daysInto)
+        if (daysLeft >= 14) paid++
+        else overdue++
+      }
+      setMallSummary({
+        totalShops: shops.length, occupiedShops: shops.filter(s => s.is_occupied).length,
+        vacantShops: shops.filter(s => !s.is_occupied).length,
+        overdueCount: overdue, paidCount: paid,
+        totalRentDue: shops.reduce((s, shop) => s + (shop.is_occupied ? shop.monthly_rent : 0), 0)
+      })
+    })
+
     const [ordersRes, tablesRes, stockRes, recentRes, revenueRes, trendRes, itemsRes] =
       await Promise.all([
         supabase.from('orders').select('id').eq('status', 'open'),
@@ -351,6 +385,43 @@ export default function Executive() {
 
       <div className="p-4 md:p-6">
         <StatCards stats={stats} />
+
+        {/* Mall Summary */}
+        {mallSummary.totalShops > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 size={16} className="text-purple-400" />
+              <h3 className="text-white font-semibold text-sm md:text-base">Mall Overview</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
+                <p className="text-gray-500 text-xs">Total Shops</p>
+                <p className="text-white text-lg font-bold mt-1">{mallSummary.totalShops}</p>
+              </div>
+              <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
+                <p className="text-gray-500 text-xs">Occupied</p>
+                <p className="text-green-400 text-lg font-bold mt-1">{mallSummary.occupiedShops}</p>
+              </div>
+              <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
+                <p className="text-gray-500 text-xs">Vacant</p>
+                <p className="text-gray-400 text-lg font-bold mt-1">{mallSummary.vacantShops}</p>
+              </div>
+              <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
+                <p className="text-gray-500 text-xs">Rent Paid</p>
+                <p className="text-green-400 text-lg font-bold mt-1">{mallSummary.paidCount}</p>
+              </div>
+              <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
+                <p className="text-gray-500 text-xs">Overdue</p>
+                <p className="text-red-400 text-lg font-bold mt-1">{mallSummary.overdueCount}</p>
+              </div>
+              <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
+                <p className="text-gray-500 text-xs">Total Rent/mo</p>
+                <p className="text-amber-400 text-lg font-bold mt-1">₦{mallSummary.totalRentDue.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <RevenueChart trendData={trendData} />
         <QuickActions />
         <RecentOrders
