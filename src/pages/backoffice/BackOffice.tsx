@@ -10,6 +10,7 @@ import {
   ChefHat,
   Map,
   Bike,
+  Building2,
 } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import StaffManagement from './StaffManagement'
@@ -21,6 +22,7 @@ import KitchenStock from './KitchenStock'
 import FloorPlan from './FloorPlan'
 import BarChillerStock from './BarChillerStock'
 import DeliveryOperators from './DeliveryOperators'
+import MallManagement from './MallManagement'
 
 import { useNavigate } from 'react-router-dom'
 import type { Role } from '../../types'
@@ -110,6 +112,14 @@ export default function BackOffice() {
       roles: ['owner', 'manager'],
     },
     {
+      id: 'mall',
+      label: 'Mall Management',
+      desc: 'Shop floor plan, rent tracking & tenant management',
+      icon: Building2,
+      color: 'bg-purple-600',
+      roles: ['owner', 'manager'],
+    },
+    {
       id: 'qrcards',
       label: 'QR Zone Cards',
       desc: 'Print one QR code per zone (pricing only)',
@@ -157,6 +167,8 @@ export default function BackOffice() {
 
   if (activeSection === 'delivery')
     return <DeliveryOperators onBack={() => setActiveSection(null)} />
+  if (activeSection === 'mall')
+    return <MallManagement onBack={() => setActiveSection(null)} />
 
   return (
     <div className="min-h-full bg-gray-950">

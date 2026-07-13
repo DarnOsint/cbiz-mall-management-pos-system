@@ -241,6 +241,40 @@ export interface ReceiptData {
 
 // ─── Audit helper params ──────────────────────────────────────────────────
 
+export interface MallFloor {
+  id: string
+  name: string
+  floor_number: number
+  created_at: string
+}
+
+export interface MallShop {
+  id: string
+  shop_number: string
+  shop_name: string
+  floor_id: string
+  pos_x: number
+  pos_y: number
+  width: number
+  height: number
+  tenant_name: string | null
+  tenant_phone: string | null
+  monthly_rent: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface MallRentPayment {
+  id: string
+  shop_id: string
+  months_paid: number
+  amount_paid: number
+  paid_at: string
+  notes: string | null
+  created_at: string
+}
+
 export interface AuditParams {
   action: string
   entity: string

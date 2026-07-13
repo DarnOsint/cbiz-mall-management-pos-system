@@ -27,6 +27,7 @@ const Reports = lazy(() => import('./pages/reports/Reports'))
 // Back office
 const BackOffice = lazy(() => import('./pages/backoffice/BackOffice'))
 const QRTableCards = lazy(() => import('./pages/backoffice/QRTableCards'))
+const MallManagement = lazy(() => import('./pages/backoffice/MallManagement'))
 // Misc
 const SupervisorDashboard = lazy(() => import('./pages/supervisor/SupervisorDashboard'))
 const MonthEnd = lazy(() => import('./pages/monthend/MonthEnd'))
@@ -182,6 +183,18 @@ function AppRoutes() {
                 <RoleGuard allowed={['owner', 'manager', 'executive'] as Role[]}>
                   <EB title="QR cards error">
                     <QRTableCards />
+                  </EB>
+                </RoleGuard>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mallmanagement"
+            element={
+              <PrivateRoute>
+                <RoleGuard allowed={['owner', 'manager']}>
+                  <EB title="Mall management error">
+                    <MallManagement />
                   </EB>
                 </RoleGuard>
               </PrivateRoute>
