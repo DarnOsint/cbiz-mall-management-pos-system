@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { LayoutDashboard, MoreHorizontal } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, Shield } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 
 import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
-import VoidsTab from './mgmt/VoidsTab'
 
 const sessionWindow = () => {
   const now = new Date()
@@ -35,7 +34,8 @@ const activityWindow = (dateStr: string) => {
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'others', label: 'Others', icon: MoreHorizontal },
+  { id: 'orders', label: 'Orders', icon: ShoppingBag },
+  { id: 'activity', label: 'Activity Log', icon: Shield },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -47,7 +47,6 @@ interface Stats {
 export default function Management() {
   useAuth()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
-  const [othersSubTab, setOthersSubTab] = useState<'orders' | 'voids' | 'activity'>('orders')
 
   const [activityDate, setActivityDate] = useState(() => new Date().toISOString().slice(0, 10))
   const activityRange = useMemo(() => {
@@ -143,10 +142,14 @@ export default function Management() {
         "Live dashboard: open orders and today's revenue — all updating in real time.",
     },
     {
-      id: 'mgmt-others',
-      title: 'Others',
-      description:
-        'Orders, voids, and activity log — all audit and operational sub-tabs in one place.',
+      id: 'mgmt-orders',
+      title: 'Orders',
+      description: 'View and manage open orders.',
+    },
+    {
+      id: 'mgmt-activity',
+      title: 'Activity Log',
+      description: 'Full audit trail of all actions, filterable by date.',
     },
   ]
 
@@ -176,70 +179,41 @@ export default function Management() {
       {/* Tab content */}
       <div className="p-4">
         {activeTab === 'overview' && (
-          <OverviewTab stats={stats} onTabChange={(id) => {
-            setActiveTab('others')
-            if (id === 'orders') setOthersSubTab('orders')
-          }} />
+          <OverviewTab stats={stats} onTabChange={(id) => setActiveTab(id as TabId)} />
         )}
-        {activeTab === 'others' && (
+        {activeTab === 'orders' && <OpenOrdersTab />}
+        {activeTab === 'activity' && (
           <div>
-            {/* Sub-tabs */}
-            <div className="flex gap-2 mb-4">
-              {[
-                { id: 'orders' as const, label: 'Orders' },
-                { id: 'voids' as const, label: 'Voids' },
-                { id: 'activity' as const, label: 'Activity Log' },
-              ].map((st) => (
-                <button
-                  key={st.id}
-                  onClick={() => setOthersSubTab(st.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    othersSubTab === st.id
-                      ? 'bg-amber-500 text-black'
-                      : 'bg-gray-800 text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="date"
+                value={activityDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setActivityDate(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              />
+              <button
+                onClick={() => setActivityDate(new Date().toISOString().slice(0, 10))}
+                className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                  activityDate === new Date().toISOString().slice(0, 10)
+                    ? 'bg-amber-500 text-black'
+                    : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => {
+                  const d = new Date(activityDate)
+                  d.setDate(d.getDate() - 1)
+                  setActivityDate(d.toISOString().slice(0, 10))
+                }}
+                className="px-3 py-2 rounded-xl text-xs bg-gray-800 text-gray-400 hover:text-white transition-colors"
+              >
+                Previous Day
+              </button>
             </div>
-
-            {othersSubTab === 'orders' && <OpenOrdersTab />}
-            {othersSubTab === 'voids' && <VoidsTab />}
-            {othersSubTab === 'activity' && (
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="date"
-                    value={activityDate}
-                    max={new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setActivityDate(e.target.value)}
-                    className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                  />
-                  <button
-                    onClick={() => setActivityDate(new Date().toISOString().slice(0, 10))}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-                      activityDate === new Date().toISOString().slice(0, 10)
-                        ? 'bg-amber-500 text-black'
-                        : 'bg-gray-800 text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    Today
-                  </button>
-                  <button
-                    onClick={() => {
-                      const d = new Date(activityDate)
-                      d.setDate(d.getDate() - 1)
-                      setActivityDate(d.toISOString().slice(0, 10))
-                    }}
-                    className="px-3 py-2 rounded-xl text-xs bg-gray-800 text-gray-400 hover:text-white transition-colors"
-                  >
-                    Previous Day
-                  </button>
-                </div>
-                <ActivityLogTab dateRange={activityRange} />
-              </div>
-            )}
+            <ActivityLogTab dateRange={activityRange} />
           </div>
         )}
       </div>
