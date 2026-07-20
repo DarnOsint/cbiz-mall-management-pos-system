@@ -15,9 +15,7 @@ import type { MallShop, MallRentPayment } from '../../types'
 
 interface Stats {
   revenue: number
-  openOrders: number
   lowStock: number
-  staffOnDuty: number
 }
 interface TrendDay {
   day: string
@@ -52,7 +50,7 @@ const HELP_TIPS = [
     id: 'exec-kpis',
     title: 'Live KPI Cards',
     description:
-      "Real-time metrics: today's revenue, open orders, low stock count, and staff on duty. All cards refresh every 30 seconds and instantly on any database change.",
+      "Real-time metrics: today's revenue and low stock count. All cards refresh every 30 seconds and instantly on any database change.",
   },
   {
     id: 'exec-lowstock',
@@ -86,9 +84,7 @@ export default function Executive() {
 
   const [stats, setStats] = useState<Stats>({
     revenue: 0,
-    openOrders: 0,
     lowStock: 0,
-    staffOnDuty: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
   const [trendData, setTrendData] = useState<TrendDay[]>([])
@@ -134,9 +130,8 @@ export default function Executive() {
       })
     })
 
-    const [ordersRes, stockRes, recentRes, revenueRes, trendRes, staffRes] =
+    const [stockRes, recentRes, revenueRes, trendRes] =
       await Promise.all([
-        supabase.from('orders').select('id').eq('status', 'open'),
         supabase.from('inventory').select('id, current_stock, minimum_stock').eq('is_active', true),
         supabase
           .from('orders')
@@ -162,10 +157,6 @@ export default function Executive() {
           .eq('status', 'paid')
           .gte('closed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order('closed_at', { ascending: true }),
-        supabase
-          .from('staff_shifts')
-          .select('id')
-          .is('clock_out', null),
       ])
     setStats({
       revenue: (revenueRes.data || []).reduce((s: number, o: any) => {
@@ -179,9 +170,7 @@ export default function Executive() {
           .reduce((ss: number, i: any) => ss + (i.total_price || 0), 0)
         return s + net
       }, 0),
-      openOrders: ordersRes.data?.length || 0,
       lowStock: stockRes.data?.filter((i) => i.current_stock <= i.minimum_stock).length || 0,
-      staffOnDuty: staffRes.data?.length || 0,
     })
     setRecentOrders((recentRes.data || []) as Record<string, unknown>[])
     const dayMap: Record<string, TrendDay> = {}

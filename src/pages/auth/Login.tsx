@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { verifyPinServer, verifyPbkdf2 } from '../../lib/pinHash'
 
-import { Eye, EyeOff, Delete, UtensilsCrossed } from 'lucide-react'
+import { Eye, EyeOff, Delete, ShoppingBag } from 'lucide-react'
 import type { Profile, Role } from '../../types'
 
 const EMAIL_MAX = 5
@@ -325,10 +325,9 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 mb-4">
-            <UtensilsCrossed size={40} className="text-gray-950" />
+            <ShoppingBag size={40} className="text-gray-950" />
           </div>
-          <h1 className="text-3xl font-bold text-amber-400">C.Biz</h1>
-          <p className="text-gray-300 mt-1">Restaurant Operating System</p>
+          <h1 className="text-3xl font-bold text-amber-400">C.Biz POS</h1>
         </div>
 
         {sessionExpired && (
@@ -381,7 +380,7 @@ export default function Login() {
           {mode === 'email' && (
             <>
               <h2 className="text-xl font-semibold text-white mb-2">Sign in</h2>
-              <p className="text-gray-500 text-sm mb-6">For managers, owners and accountants</p>
+              <p className="text-gray-500 text-sm mb-6">For managers and owners</p>
               {emailLocked ? (
                 <LockedOut mode="email" time={emailRem} />
               ) : (
@@ -433,7 +432,7 @@ export default function Login() {
             <>
               <h2 className="text-xl font-semibold text-white mb-2">Enter PIN</h2>
               <p className="text-gray-500 text-sm mb-6">
-                For waitrons, kitchen, bar and grill staff
+                For staff members
               </p>
               {pinLocked ? (
                 <LockedOut mode="pin" time={pinRem} />

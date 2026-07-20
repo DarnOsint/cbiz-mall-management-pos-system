@@ -1,12 +1,9 @@
-import { TrendingUp, ShoppingBag, Package, Users } from 'lucide-react'
-import { formatPrice } from '../../../lib/currency'
+import { TrendingUp, Package } from 'lucide-react'
 import PriceDisplay from '../../../components/PriceDisplay'
 
 interface Stats {
   revenue: number
-  openOrders: number
   lowStock: number
-  staffOnDuty: number
 }
 
 interface Props {
@@ -25,20 +22,6 @@ export default function StatCards({ stats }: Props) {
       bg: 'bg-green-400/10',
     },
     {
-      label: 'Open Orders',
-      value: stats.openOrders.toString(),
-      icon: ShoppingBag,
-      color: 'text-amber-400',
-      bg: 'bg-amber-400/10',
-    },
-    {
-      label: 'Staff On Duty',
-      value: stats.staffOnDuty.toString(),
-      icon: Users,
-      color: 'text-blue-400',
-      bg: 'bg-blue-400/10',
-    },
-    {
       label: 'Low Stock Items',
       value: stats.lowStock.toString(),
       icon: Package,
@@ -47,7 +30,7 @@ export default function StatCards({ stats }: Props) {
     },
   ]
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-8">
       {cards.map((c) => (
         <div key={c.label} className="bg-gray-900 rounded-2xl p-4 md:p-5 border border-gray-800">
           <div className={`inline-flex p-2 rounded-lg ${c.bg} mb-3`}>
