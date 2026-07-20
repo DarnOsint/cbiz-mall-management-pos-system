@@ -103,7 +103,7 @@ const MONTHS = [
 
 export default function MonthEnd() {
   const { profile } = useAuth()
-  const isReadOnly = profile?.role === 'auditor'
+  const isReadOnly = profile?.role === 'cashier'
   const toast = useToast()
   const [periods, setPeriods] = useState<PeriodClose[]>([])
   const [loading, setLoading] = useState(true)

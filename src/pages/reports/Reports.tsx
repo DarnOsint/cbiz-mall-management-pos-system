@@ -1533,7 +1533,7 @@ export default function Reports() {
               <p className="text-gray-500 text-xs">
                 C.Biz · {report.period} Report · Generated {report.generatedAt}
               </p>
-              <p className="text-gray-600 text-xs mt-1">Powered by C.BizOS</p>
+              <p className="text-gray-600 text-xs mt-1">Powered by C.Biz POS</p>
             </div>
           </div>
         )}

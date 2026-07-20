@@ -1,5 +1,5 @@
 @echo off
-REM Celebiz POS Print Service — Windows Startup
+REM C.Biz POS Print Service — Windows Startup
 REM Copy this file to the print-service folder on your POS machine.
 REM Run it at startup (Windows key + R → shell:startup → add shortcut to this file).
 REM
@@ -24,7 +24,7 @@ if not exist "node_modules" (
 
 echo.
 echo ============================================
-echo   Celebiz POS — starting app + print service
+echo   C.Biz POS — starting app + print service
 echo ============================================
 echo.
 

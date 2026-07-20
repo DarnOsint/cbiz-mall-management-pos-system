@@ -11,17 +11,13 @@ import RevenueChart from './exec/RevenueChart'
 import QuickActions from './exec/QuickActions'
 import RecentOrders from './exec/RecentOrders'
 
-import type { PostgrestFilterBuilder } from '@supabase/postgrest-js'
 import type { MallShop, MallRentPayment } from '../../types'
 
 interface Stats {
   revenue: number
   openOrders: number
-  occupiedTables: number
-  totalTables: number
   lowStock: number
-  foodItems: number
-  drinkItems: number
+  staffOnDuty: number
 }
 interface TrendDay {
   day: string
@@ -34,7 +30,6 @@ function getGreeting() {
   return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening'
 }
 
-// Accounting session: 08:00 WAT previous day → 08:00 WAT current day
 function getSessionWindow() {
   const now = new Date()
   const lagosNow = new Date(
@@ -57,25 +52,19 @@ const HELP_TIPS = [
     id: 'exec-kpis',
     title: 'Live KPI Cards',
     description:
-      "Five real-time metrics: today's revenue, open orders, occupied tables, staff on duty, and low stock count. All cards refresh every 30 seconds and instantly on any database change. Staff on duty is deduplicated — one person always counts as one even if clocked in multiple times.",
-  },
-  {
-    id: 'exec-bank',
-    title: 'Bank Transfer Details',
-    description:
-      'Set the venue bank name, account number, and account name. These details appear on the POS payment screen whenever a customer selects Bank Transfer — your waitron can show it to the customer for instant transfer.',
+      "Real-time metrics: today's revenue, open orders, low stock count, and staff on duty. All cards refresh every 30 seconds and instantly on any database change.",
   },
   {
     id: 'exec-lowstock',
     title: 'Low Stock Alert',
     description:
-      'A red button appears when any inventory item is at or below its minimum threshold. Tap it to jump to Inventory in Back Office to restock. The count updates in real time.',
+      'A red button appears when any inventory item is at or below its minimum threshold. Tap it to jump to Inventory in Back Office to restock.',
   },
   {
     id: 'exec-recentorders',
     title: "Today's Orders Feed",
     description:
-      "Shows today's orders — table name, assigned waitron, time, amount, and status badge (open = amber, paid = green). Paid orders from previous days no longer appear here. Tap Full Report to go to detailed Reports.",
+      "Shows today's orders — time, amount, and status badge (open = amber, paid = green). Tap Full Report to go to detailed Reports.",
   },
   {
     id: 'exec-quickactions',
@@ -87,7 +76,7 @@ const HELP_TIPS = [
     id: 'exec-peak',
     title: 'Peak Hour',
     description:
-      'Shows the hour of the day that generated the most revenue over the last 7 days. Use this to plan staffing — ensure your best waitrons are on during peak.',
+      'Shows the hour of the day that generated the most revenue over the last 7 days. Use this to plan staffing.',
   },
 ]
 
@@ -98,11 +87,8 @@ export default function Executive() {
   const [stats, setStats] = useState<Stats>({
     revenue: 0,
     openOrders: 0,
-    occupiedTables: 0,
-    totalTables: 0,
     lowStock: 0,
-    foodItems: 0,
-    drinkItems: 0,
+    staffOnDuty: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
   const [trendData, setTrendData] = useState<TrendDay[]>([])
@@ -112,14 +98,6 @@ export default function Executive() {
     overdueCount: 0, paidCount: 0, totalRentDue: 0
   })
 
-  const [cvData, setCvData] = useState({
-    occupancy: 0,
-    todayAlerts: [] as Record<string, unknown>[],
-    zoneHeatmaps: [] as Record<string, unknown>[],
-    tillEvents: [] as Record<string, unknown>[],
-    shelfAlerts: [] as Record<string, unknown>[],
-  })
-
   const statsRefreshTimer = useRef<number | null>(null)
   const statsRefreshInFlight = useRef(false)
   const lastStatsFetchAt = useRef(0)
@@ -127,7 +105,6 @@ export default function Executive() {
   const isVisible = () => document.visibilityState === 'visible'
 
   const fetchStats = useCallback(async () => {
-    void supabase.rpc('free_orphaned_tables')
     const { sessionStart, sessionEnd, sessionStartIso } = getSessionWindow()
 
     supabase.from('mall_shops').select('*, mall_rent_payments(*)').then(({ data }) => {
@@ -157,15 +134,14 @@ export default function Executive() {
       })
     })
 
-    const [ordersRes, tablesRes, stockRes, recentRes, revenueRes, trendRes, itemsRes] =
+    const [ordersRes, stockRes, recentRes, revenueRes, trendRes, staffRes] =
       await Promise.all([
         supabase.from('orders').select('id').eq('status', 'open'),
-        supabase.from('tables').select('status'),
         supabase.from('inventory').select('id, current_stock, minimum_stock').eq('is_active', true),
         supabase
           .from('orders')
           .select(
-            'id, total_amount, status, order_type, created_at, tables(name), profiles(full_name)'
+            'id, total_amount, status, order_type, created_at, profiles(full_name)'
           )
           .gte('created_at', sessionStartIso)
           .order('created_at', { ascending: false })
@@ -187,27 +163,10 @@ export default function Executive() {
           .gte('closed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .order('closed_at', { ascending: true }),
         supabase
-          .from('order_items')
-          .select('quantity, destination, status, return_requested, return_accepted')
-          .gte('created_at', sessionStartIso)
-          .lt('created_at', sessionEnd.toISOString()),
+          .from('staff_shifts')
+          .select('id')
+          .is('clock_out', null),
       ])
-    const activeItems = (itemsRes.data || []).filter(
-      (i: any) =>
-        !i.return_requested &&
-        !i.return_accepted &&
-        (i.status || '').toLowerCase() !== 'cancelled'
-    )
-    const foodItems = activeItems
-      .filter((i: any) => (i.destination || '').toLowerCase() === 'kitchen')
-      .reduce((s: number, i: any) => s + (i.quantity || 0), 0)
-    const drinkItems = activeItems
-      .filter(
-        (i: any) =>
-          (i.destination || '').toLowerCase() === 'bar' ||
-          (i.destination || '').toLowerCase() === 'mixologist'
-      )
-      .reduce((s: number, i: any) => s + (i.quantity || 0), 0)
     setStats({
       revenue: (revenueRes.data || []).reduce((s: number, o: any) => {
         const net = (o.order_items || [])
@@ -221,11 +180,8 @@ export default function Executive() {
         return s + net
       }, 0),
       openOrders: ordersRes.data?.length || 0,
-      occupiedTables: tablesRes.data?.filter((t) => t.status === 'occupied').length || 0,
-      totalTables: tablesRes.data?.length || 0,
       lowStock: stockRes.data?.filter((i) => i.current_stock <= i.minimum_stock).length || 0,
-      foodItems,
-      drinkItems,
+      staffOnDuty: staffRes.data?.length || 0,
     })
     setRecentOrders((recentRes.data || []) as Record<string, unknown>[])
     const dayMap: Record<string, TrendDay> = {}
@@ -273,51 +229,6 @@ export default function Executive() {
     [fetchStats]
   )
 
-  const fetchCvData = useCallback(async () => {
-    const { sessionStartIso } = getSessionWindow()
-    const [occupancyRes, alertsRes, heatmapRes, tillRes, shelfRes] = await Promise.all([
-      supabase
-        .from('cv_people_counts')
-        .select('occupancy')
-        .order('created_at', { ascending: false })
-        .limit(1),
-      supabase
-        .from('cv_alerts')
-        .select('id, camera_id, alert_type, description, severity, created_at')
-        .eq('resolved', false)
-        .gte('created_at', sessionStartIso)
-        .order('created_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('cv_zone_heatmaps')
-        .select('zone_label, person_count, avg_dwell_seconds')
-        .gte('created_at', sessionStartIso)
-        .order('person_count', { ascending: false })
-        .limit(10),
-      supabase
-        .from('cv_till_events')
-        .select('id, alert_type, created_at')
-        .neq('alert_type', 'normal')
-        .gte('created_at', sessionStartIso)
-        .order('created_at', { ascending: false })
-        .limit(10),
-      supabase
-        .from('cv_shelf_events')
-        .select('id, drink_name, alert_level, created_at')
-        .neq('alert_level', 'normal')
-        .gte('created_at', sessionStartIso)
-        .order('created_at', { ascending: false })
-        .limit(10),
-    ])
-    setCvData({
-      occupancy: occupancyRes.data?.[0]?.occupancy || 0,
-      todayAlerts: (alertsRes.data || []) as Record<string, unknown>[],
-      zoneHeatmaps: (heatmapRes.data || []) as Record<string, unknown>[],
-      tillEvents: (tillRes.data || []) as Record<string, unknown>[],
-      shelfAlerts: (shelfRes.data || []) as Record<string, unknown>[],
-    })
-  }, [])
-
   useEffect(() => {
     scheduleFetchStats(0)
     supabase
@@ -331,9 +242,6 @@ export default function Executive() {
     const ch = supabase
       .channel('executive-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
-        scheduleFetchStats(8000)
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, () =>
         scheduleFetchStats(8000)
       )
       .subscribe()
@@ -356,14 +264,6 @@ export default function Executive() {
     const h = parseInt(peak[0])
     return `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
   })()
-
-  const resolveAlert = async (id: string) => {
-    await supabase.from('cv_alerts').update({ resolved: true }).eq('id', id)
-    setCvData((prev) => ({
-      ...prev,
-      todayAlerts: prev.todayAlerts.filter((a) => (a as Record<string, string>).id !== id),
-    }))
-  }
 
   return (
     <div className="min-h-full bg-gray-950">

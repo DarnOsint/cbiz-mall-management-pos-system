@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { requestPushPermission } from '../hooks/usePushNotifications'
-import { supabase } from '../lib/supabase'
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -10,15 +9,12 @@ import {
   Package,
   Settings,
   LogOut,
-  UtensilsCrossed,
   BellOff,
   Bell,
   CalendarDays,
   Users,
-  BookOpen,
   Menu,
   X,
-  ChevronDown,
   Building2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -45,15 +41,9 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Mall', icon: Building2, path: '/mallmanagement' },
     { label: 'Month End', icon: CalendarDays, path: '/month-end' },
   ],
-}
-
-const BARE_ROLES = ['kitchen', 'bar', 'waitron']
-
-interface TableRow {
-  id: string
-  name: string
-  status: string
-  table_categories?: { name: string } | null
+  cashier: [
+    { label: 'POS', icon: ShoppingBag, path: '/pos' },
+  ],
 }
 
 function NavButton({
@@ -78,85 +68,6 @@ function NavButton({
   )
 }
 
-function TableWidget({ tables }: { tables: TableRow[] }) {
-  const [collapsed, setCollapsed] = useState(true)
-  const zoneNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const t of tables) {
-      if (t.table_categories?.name) names.add(t.table_categories.name)
-    }
-    return Array.from(names).sort()
-  }, [tables])
-  const occupiedCount = tables.filter((t) => t.status === 'occupied').length
-  const freeCount = tables.filter((t) => t.status === 'available').length
-
-  return (
-    <div className="px-3 py-2 border-b border-gray-800">
-      <button
-        type="button"
-        onClick={() => setCollapsed((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 px-1"
-        title={collapsed ? 'Show tables' : 'Hide tables'}
-      >
-        <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Tables</p>
-        <div className="flex items-center gap-2 text-[10px] text-gray-500">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-amber-500 inline-block" />
-            {occupiedCount}
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-gray-700 inline-block" />
-            {freeCount}
-          </span>
-          <ChevronDown
-            size={14}
-            className={`text-gray-600 transition-transform ${collapsed ? '' : 'rotate-180'}`}
-          />
-        </div>
-      </button>
-
-      {!collapsed && (
-        <>
-          <div className="mt-2 max-h-32 overflow-y-auto pr-1">
-            {zoneNames.map((zone) => {
-              const zone_tables = tables.filter((t) => t.table_categories?.name === zone)
-              if (!zone_tables.length) return null
-              return (
-                <div key={zone} className="mb-2">
-                  <p className="text-gray-600 text-[9px] uppercase tracking-wider px-0.5 mb-1">
-                    {zone}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {zone_tables.map((t) => (
-                      <div
-                        key={t.id}
-                        title={`${t.name} — ${t.status}`}
-                        className={`w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-bold cursor-default
-                    ${t.status === 'occupied' ? 'bg-amber-500 text-black' : t.status === 'reserved' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-400'}`}
-                      >
-                        {t.name?.replace(/[^0-9]/g, '') || '·'}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          <div className="flex items-center gap-3 mt-2 px-1">
-            <span className="flex items-center gap-1 text-[10px] text-gray-500">
-              <span className="w-2 h-2 rounded-sm bg-amber-500 inline-block" /> {occupiedCount}{' '}
-              occupied
-            </span>
-            <span className="flex items-center gap-1 text-[10px] text-gray-500">
-              <span className="w-2 h-2 rounded-sm bg-gray-700 inline-block" /> {freeCount} free
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth()
   const role = profile?.role || ''
@@ -172,42 +83,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const granted = await requestPushPermission(profile.id)
     setNotifPermission(granted ? 'granted' : 'denied')
   }
-  const [tables, setTables] = useState<TableRow[]>([])
 
   useEffect(() => {
-    if (!['owner', 'manager'].includes(role)) return
-    const fetchTables = async () => {
-      const { data } = await supabase
-        .from('tables')
-        .select('id, name, status, category_id, table_categories(name)')
-        .order('name')
-      if (data) setTables(data as unknown as TableRow[])
-    }
-    fetchTables()
-    const ch = supabase
-      .channel('shell-tables')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, fetchTables)
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
-  }, [role])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawerOpen(false)
   }, [location.pathname])
 
   if (!profile) return <>{children}</>
 
   const navItems = NAV_ITEMS[role] || []
-
-  if (BARE_ROLES.includes(role))
-    return (
-      <div className="flex flex-col min-h-screen bg-gray-950">
-        <div className="flex-1">{children}</div>
-      </div>
-    )
 
   return (
     <div className="app-shell-root flex flex-col h-screen bg-gray-950 overflow-hidden">
@@ -216,11 +99,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="app-shell-sidebar hidden lg:flex flex-col w-56 xl:w-64 bg-gray-900 border-r border-gray-800 flex-shrink-0">
           <div className="px-4 py-4 border-b border-gray-800 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-              <UtensilsCrossed size={16} className="text-black" />
+              <ShoppingBag size={16} className="text-black" />
             </div>
             <div className="min-w-0">
-              <p className="text-white font-bold text-sm truncate">C.Biz</p>
-              <p className="text-gray-400 text-xs">C.BizOS</p>
+              <p className="text-white font-bold text-sm truncate">C.Biz POS</p>
+              <p className="text-gray-400 text-xs">Mall Management</p>
             </div>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -233,9 +116,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               />
             ))}
           </nav>
-          {['owner', 'manager'].includes(role) && tables.length > 0 && (
-            <TableWidget tables={tables} />
-          )}
           <div className="px-3 py-3 border-t border-gray-800 space-y-2">
             {notifPermission !== 'granted' && (
               <button
@@ -269,7 +149,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Tablet icon sidebar */}
         <aside className="app-shell-sidebar hidden md:flex lg:hidden flex-col w-16 bg-gray-900 border-r border-gray-800 flex-shrink-0 items-center py-4 gap-2">
           <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center mb-2">
-            <UtensilsCrossed size={16} className="text-black" />
+            <ShoppingBag size={16} className="text-black" />
           </div>
           {navItems.map((item) => {
             const Icon = item.icon
@@ -300,9 +180,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="app-shell-topbar md:hidden flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800 sticky top-0 z-30">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center">
-                <UtensilsCrossed size={13} className="text-black" />
+                <ShoppingBag size={13} className="text-black" />
               </div>
-              <span className="text-white font-bold text-sm">C.Biz</span>
+              <span className="text-white font-bold text-sm">C.Biz POS</span>
             </div>
             <div className="flex items-center gap-2">
               {navItems.length > 1 && (
@@ -357,7 +237,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 })}
               </nav>
             </div>
-            {/* end scrollable nav */}
             <div className="px-3 pb-6 space-y-2 flex-shrink-0 border-t border-gray-800 pt-3">
               {notifPermission !== 'granted' && (
                 <button

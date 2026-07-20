@@ -63,7 +63,7 @@ export default function PrinterSettingsTab() {
       ip: '',
       port: 9100,
       copies: 1,
-      types: ['customer', 'waiter'],
+      types: ['customer', 'internal'],
     }
     savePrinters([...printers, newPrinter])
   }

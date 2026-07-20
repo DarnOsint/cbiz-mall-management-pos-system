@@ -3,8 +3,6 @@ import { supabase } from '../../lib/supabase'
 import { audit } from '../../lib/audit'
 import { formatPrice } from '../../lib/currency'
 import { useAuth } from '../../context/AuthContext'
-import { sendPushToStaff } from '../../hooks/usePushNotifications'
-import { offlineUpdateNoReturn } from '../../lib/offlineWrite'
 import {
   X,
   Banknote,
@@ -12,34 +10,27 @@ import {
   Smartphone,
   CheckCircle,
   Clock,
-  Beer,
   Printer,
 } from 'lucide-react'
 import ReceiptModal from './ReceiptModal'
 import { queuePrintJob } from '../../lib/printService'
-import type { Table, Profile } from '../../types'
+import type { Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
 interface OrderItemExtended {
   id: string
   order_id?: string
-  menu_item_id?: string
+  item_id?: string
   quantity: number
   unit_price?: number
   total_price: number
   status?: string
-  destination?: string
   modifier_notes?: string | null
-  extra_charge?: number
   created_at?: string
-  menu_items?: { name: string } | null
-  return_requested?: boolean
-  return_accepted?: boolean
-  return_reason?: string | null
+  items?: { name: string; price: number } | null
 }
 interface OrderExtended {
   id: string
-  table_id?: string | null
   total_amount: number
   payment_method?: string | null
   status: string
@@ -50,7 +41,6 @@ interface OrderExtended {
   order_items?: OrderItemExtended[]
   customer_name?: string
   customer_phone?: string
-  tables?: { name: string } | null
   profiles?: { full_name: string } | null
 }
 interface SplitPayment {
@@ -62,12 +52,11 @@ interface SplitPayment {
 }
 interface Props {
   order: OrderExtended
-  table: Table
   onSuccess: () => void
   onClose: () => void
 }
 
-export default function PaymentModal({ order: orderProp, table, onSuccess, onClose }: Props) {
+export default function PaymentModal({ order: orderProp, onSuccess, onClose }: Props) {
   const [order, setOrder] = useState(orderProp)
   // Sync when parent refreshes the order (realtime DB update)
   useEffect(() => {
@@ -79,7 +68,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const refreshOrder = async () => {
     const { data } = await supabase
       .from('orders')
-      .select('*, order_items(*, menu_items(name, price, menu_categories(name, destination)))')
+      .select('*, order_items(*, items(name, price))')
       .eq('id', order.id)
       .single()
     if (data) {
@@ -133,9 +122,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const [itemAssignments, setItemAssignments] = useState<Record<string, number>>({})
   const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([])
   const [currentSplitPerson, setCurrentSplitPerson] = useState(0)
-  const [returningItemId, setReturningItemId] = useState<string | null>(null)
-  const [returnReason, setReturnReason] = useState('')
-  const [returnQty, setReturnQty] = useState(1)
+
   const [splitPayMethod, setSplitPayMethod] = useState('cash')
   const [splitCash, setSplitCash] = useState('')
   const [bankAccounts, setBankAccounts] = useState<
@@ -160,16 +147,8 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
       })
   })
 
-  const billableItems = (order?.order_items || []).filter(
-    (i) => !i.return_requested && !i.return_accepted
-  )
-  const returnedItems = (order?.order_items || []).filter(
-    (i) => i.return_requested || i.return_accepted
-  )
-  // Calculate subtotal from items directly — never trust stored total_amount alone
-  // (stored total may not be updated yet after a bar return acceptance)
+  const billableItems = (order?.order_items || [])
   const activeItemsTotal = billableItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
-  const returnedTotal = returnedItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
   const subtotal = activeItemsTotal
   const total = subtotal
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
@@ -179,208 +158,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
       setCashTendered(String(total))
     }
   }, [paymentMethod, total])
-
-  const requestReturn = async (itemId: string) => {
-    const item = (order?.order_items || []).find((i) => i.id === itemId)
-    if (!item) return
-    const reason = returnReason || 'No reason given'
-    const qtyToReturn = Math.min(returnQty, item.quantity)
-    const unitPrice = item.quantity > 0 ? (item.total_price || 0) / item.quantity : 0
-    const isPartial = qtyToReturn < item.quantity
-    const itemDest =
-      (item as unknown as { menu_items?: { menu_categories?: { destination?: string } } })
-        .menu_items?.menu_categories?.destination ||
-      item.destination ||
-      'bar'
-
-    // Kitchen and griller orders cannot be returned
-    if (itemDest === 'kitchen' || itemDest === 'griller') {
-      toast.error('Cannot Return', 'Kitchen and grill orders are final and cannot be returned.')
-      return
-    }
-
-    // Check station mode — if printer-only (no screen), auto-accept since nobody is there to approve
-    let autoAccept = false
-    if (itemDest === 'kitchen' || itemDest === 'griller') {
-      const { data: modeRow } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('id', 'station_modes')
-        .single()
-      if (modeRow?.value) {
-        try {
-          const modes = JSON.parse(modeRow.value)
-          if (modes[itemDest] === 'printer') autoAccept = true
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-
-    if (isPartial) {
-      // Split: reduce original item quantity, create a new row for the returned portion
-      const remainQty = item.quantity - qtyToReturn
-      await supabase
-        .from('order_items')
-        .update({
-          quantity: remainQty,
-          total_price: Math.round(unitPrice * remainQty),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', itemId)
-
-      // Create new row for the returned portion
-      const newId = crypto.randomUUID()
-      await supabase.from('order_items').insert({
-        id: newId,
-        order_id: order.id,
-        menu_item_id: (item as any).menu_item_id || null,
-        quantity: qtyToReturn,
-        unit_price: unitPrice,
-        total_price: Math.round(unitPrice * qtyToReturn),
-        status: item.status,
-        destination: item.destination,
-        modifier_notes: (item as any).modifier_notes || null,
-        extra_charge: 0,
-        created_at: (item as any).created_at || new Date().toISOString(),
-        return_requested: true,
-        return_reason: reason,
-        return_requested_at: new Date().toISOString(),
-        ...(autoAccept
-          ? { return_accepted: true, return_accepted_at: new Date().toISOString() }
-          : {}),
-      })
-
-      // Log to returns_log with the new split row ID
-      await supabase.from('returns_log').insert({
-        order_id: order.id,
-        order_item_id: newId,
-        item_name:
-          item.menu_items?.name ||
-          (item as unknown as { modifier_notes?: string }).modifier_notes ||
-          'Item',
-        quantity: qtyToReturn,
-        item_total: Math.round(unitPrice * qtyToReturn),
-        table_name: table?.name ?? null,
-        waitron_id: profile?.id ?? null,
-        waitron_name: profile?.full_name ?? null,
-        return_reason: reason,
-        status: autoAccept ? 'bar_accepted' : 'pending',
-        requested_at: new Date().toISOString(),
-        ...(autoAccept ? { resolved_at: new Date().toISOString() } : {}),
-      })
-    } else {
-      // Full return — mark entire item
-      await supabase
-        .from('order_items')
-        .update({
-          return_requested: true,
-          return_reason: reason,
-          return_requested_at: new Date().toISOString(),
-          ...(autoAccept
-            ? { return_accepted: true, return_accepted_at: new Date().toISOString() }
-            : {}),
-        })
-        .eq('id', itemId)
-
-      await supabase
-        .from('returns_log')
-        .delete()
-        .eq('order_item_id', itemId)
-        .eq('status', 'pending')
-
-      // Log to returns_log for manager/accountant review
-      await supabase.from('returns_log').insert({
-        order_id: order.id,
-        order_item_id: itemId,
-        item_name:
-          item.menu_items?.name ||
-          (item as unknown as { modifier_notes?: string }).modifier_notes ||
-          'Item',
-        quantity: item.quantity,
-        item_total: item.total_price || 0,
-        table_name: table?.name ?? null,
-        waitron_id: profile?.id ?? null,
-        waitron_name: profile?.full_name ?? null,
-        return_reason: reason,
-        status: autoAccept ? 'bar_accepted' : 'pending',
-        requested_at: new Date().toISOString(),
-        ...(autoAccept ? { resolved_at: new Date().toISOString() } : {}),
-      })
-    }
-
-    // Notify bar staff about the return request (for bar items that aren't auto-accepted)
-    if (!autoAccept && itemDest === 'bar') {
-      const { data: barStaff } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'bar')
-        .eq('is_active', true)
-      if (barStaff) {
-        const itemName =
-          item.menu_items?.name ||
-          (item as unknown as { modifier_notes?: string }).modifier_notes ||
-          'Item'
-        for (const staff of barStaff) {
-          sendPushToStaff(
-            staff.id,
-            '↩ Return Requested',
-            `${qtyToReturn}x ${itemName} — ${table?.name || 'Table'} — Reason: ${reason}`
-          ).catch(() => {})
-        }
-      }
-    }
-
-    // If auto-accepted, recalculate order total immediately
-    if (autoAccept) {
-      const { data: remaining } = await supabase
-        .from('order_items')
-        .select('total_price, return_accepted')
-        .eq('order_id', order.id)
-      const newTotal = (remaining || [])
-        .filter((r: { return_accepted?: boolean }) => !r.return_accepted)
-        .reduce((s: number, r: { total_price: number }) => s + (r.total_price || 0), 0)
-      await supabase
-        .from('orders')
-        .update({ total_amount: newTotal, updated_at: new Date().toISOString() })
-        .eq('id', order.id)
-      toast.success(
-        'Auto-accepted',
-        `${itemDest === 'kitchen' ? 'Kitchen' : 'Grill'} station is printer-only — return auto-accepted, awaiting manager approval`
-      )
-    }
-
-    setReturningItemId(null)
-    setReturnReason('')
-    await refreshOrder()
-  }
-
-  const cancelReturn = async (itemId: string) => {
-    // Only cancel if barman hasn't already accepted — check returns_log status first
-    const { data: logEntry } = await supabase
-      .from('returns_log')
-      .select('status')
-      .eq('order_item_id', itemId)
-      .order('requested_at', { ascending: false })
-      .limit(1)
-      .single()
-    if (logEntry?.status === 'accepted') {
-      toast.error('Cannot cancel', 'Bar has already accepted this return')
-      return
-    }
-    await supabase
-      .from('order_items')
-      .update({
-        return_requested: false,
-        return_accepted: false,
-        return_reason: null,
-        return_requested_at: null,
-      })
-      .eq('id', itemId)
-    // Remove pending log entry
-    await supabase.from('returns_log').delete().eq('order_item_id', itemId).eq('status', 'pending')
-    await refreshOrder()
-  }
 
   const canProcess = () => {
     if (processing) return false
@@ -400,7 +177,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     const result = await queuePrintJob(
       order as unknown as import('../../types').Order,
       'customer',
-      table,
       billableItems as unknown as import('../../types').OrderItem[],
       profile?.full_name || 'Staff'
     )
@@ -416,7 +192,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   const getPersonItems = (idx: number) =>
     orderItems.filter((item) => itemAssignments[item.id] === idx)
   const getPersonTotal = (idx: number) =>
-    getPersonItems(idx).reduce((s, i) => s + (i.total_price || 0) + (i.extra_charge || 0), 0)
+    getPersonItems(idx).reduce((s, i) => s + (i.total_price || 0), 0)
   const unassignedItems = orderItems.filter((item) => itemAssignments[item.id] === undefined)
   const allAssigned = unassignedItems.length === 0
 
@@ -434,7 +210,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
       person: currentSplitPerson + 1,
       total: personTotal,
       method: splitPayMethod,
-      items: getPersonItems(currentSplitPerson).map((i) => i.menu_items?.name || 'Item'),
+      items: getPersonItems(currentSplitPerson).map((i) => i.items?.name || i.modifier_notes || 'Item'),
       change: splitPayMethod === 'cash' ? parseFloat(splitCash) - personTotal : 0,
     }
     const updatedPayments = [...splitPayments, newPayment]
@@ -444,37 +220,13 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     const allPeople = Array.from({ length: numPeople }, (_, i) => i + 1)
     if (allPeople.every((p) => paidPeople.includes(p))) {
       const primaryMethod = updatedPayments[0].method
-      if (!navigator.onLine) {
-        const closedAt = new Date().toISOString()
-        await offlineUpdateNoReturn('orders', order.id, {
-          status: 'paid',
-          payment_method: primaryMethod,
-          closed_at: closedAt,
-          total_amount: total,
-          notes:
-            (order.notes || '') +
-            ' [Split: ' +
-            updatedPayments.map((p) => 'P' + p.person + '=' + p.method).join(', ') +
-            ']',
-        } as any)
-        // Do not auto-deliver station items on payment.
-        // Stations (kitchen/grill/bar/mixologist/etc) control readiness, and waitron can mark served.
-        await offlineUpdateNoReturn('tables', table.id, {
-          status: 'available',
-          assigned_staff: null,
-        } as any)
-        setPaidOrder({ ...order, payment_method: 'split' })
-        setSuccess(true)
-        setShowReceipt(true)
-        toast.success('Offline Payment', 'Saved offline. Will sync when internet returns.')
-        return
-      }
       await supabase
         .from('orders')
         .update({
           status: 'paid',
           payment_method: primaryMethod,
           closed_at: new Date().toISOString(),
+          total_amount: total,
           notes:
             (order.notes || '') +
             ' [Split: ' +
@@ -482,11 +234,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
             ']',
         })
         .eq('id', order.id)
-      // Do not auto-deliver station items on payment. Stations manage acceptance/ready.
-      await supabase
-        .from('tables')
-        .update({ status: 'available', assigned_staff: null })
-        .eq('id', table.id)
       await audit({
         action: 'ORDER_PAID',
         entity: 'order',
@@ -510,63 +257,17 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   }
 
   const processPayment = async () => {
-    if (paymentMethod === 'run_tab') {
-      onClose()
-      return
-    }
     setProcessing(true)
     try {
-      if (!navigator.onLine) {
-        if (paymentMethod === 'credit') {
-          toast.error('Offline', 'Credit payments require internet. Use cash/card/transfer.')
-          return
-        }
-
-        const resolvedMethod =
-          paymentMethod === 'transfer'
-            ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
-            : paymentMethod === 'cash+transfer'
-              ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-              : paymentMethod === 'cash+card'
-                ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                : paymentMethod
-
-        const closedAt = new Date().toISOString()
-        await offlineUpdateNoReturn('orders', order.id, {
-          status: 'paid',
-          payment_method: resolvedMethod,
-          closed_at: closedAt,
-          total_amount: total,
-        } as any)
-
-        // Do not auto-deliver station items on payment.
-        await offlineUpdateNoReturn('tables', table.id, {
-          status: 'available',
-          assigned_staff: null,
-        } as any)
-
-        setPaidOrder({ ...order, payment_method: resolvedMethod } as typeof order)
-        setSuccess(true)
-        setShowReceipt(true)
-        toast.success('Offline Payment', 'Saved offline. Will sync when internet returns.')
-        return
-      }
-
       // Verify total against server-side order_items sum before processing
-      // Excludes returned/return-requested items from the billable total
       const { data: serverItems } = await supabase
         .from('order_items')
-        .select('total_price, return_requested, return_accepted')
+        .select('total_price')
         .eq('order_id', order.id)
       if (serverItems && serverItems.length > 0) {
         const serverTotal = serverItems
-          .filter(
-            (i: { return_requested?: boolean; return_accepted?: boolean }) =>
-              !i.return_requested && !i.return_accepted
-          )
           .reduce((s: number, i: { total_price: number }) => s + (i.total_price || 0), 0)
         if (Math.abs(serverTotal - total) > 1) {
-          // Update order total to reflect actual billable amount
           await supabase.from('orders').update({ total_amount: serverTotal }).eq('id', order.id)
           setOrder({ ...order, total_amount: serverTotal })
         }
@@ -586,13 +287,8 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
         if (creditOrderErr) throw creditOrderErr
         await supabase
           .from('order_items')
-          .update({ status: 'delivered' })
+          .update({ status: 'completed' })
           .eq('order_id', order.id)
-          .neq('destination', 'bar')
-        await supabase
-          .from('tables')
-          .update({ status: 'available', assigned_staff: null })
-          .eq('id', table.id)
         // Deduplicate debtors — match by phone first, then name
         const { data: existingDebtors } = await (debtorPhone
           ? supabase
@@ -621,7 +317,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           status: 'outstanding',
           is_active: true,
           due_date: dueDate || null,
-          notes: `Credit order — ${table?.name || 'Counter'} — by ${profile?.full_name || 'Staff'}`,
+          notes: `Credit order — Counter — by ${profile?.full_name || 'Staff'}`,
           recorded_by: profile?.id,
           recorded_by_name: profile?.full_name,
         })
@@ -657,11 +353,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
         })
         .eq('id', order.id)
       if (orderErr) throw orderErr
-      // Do not auto-deliver station items on payment. Stations manage acceptance/ready.
-      await supabase
-        .from('tables')
-        .update({ status: 'available', assigned_staff: null })
-        .eq('id', table.id)
       await audit({
         action: 'ORDER_PAID',
         entity: 'order',
@@ -677,8 +368,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           order_id: order.id,
           waitron_id: profile.id,
           waitron_name: profile.full_name,
-          table_id: table.id,
-          table_name: table.name,
           order_total: total,
           amount_received: parseFloat(amountReceived) || total + tipVal,
           tip_amount: tipVal,
@@ -715,7 +404,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
   ]
   const paymentMethods = [
     { id: 'cash', label: 'Cash', icon: Banknote, color: 'text-green-400' },
-    { id: 'run_tab', label: 'Run Tab', icon: Beer, color: 'text-amber-400' },
     { id: 'credit', label: 'Pay Later (Debt)', icon: Clock, color: 'text-red-400' },
   ]
 
@@ -725,7 +413,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
         <div className="bg-gray-950 rounded-2xl w-full max-w-lg border border-gray-800 flex flex-col max-h-[95vh]">
           <div className="flex items-center justify-between p-4 border-b border-gray-800">
             <div>
-              <h3 className="text-white font-bold">Split Bill — {table?.name}</h3>
+              <h3 className="text-white font-bold">Split Bill</h3>
               <p className="text-gray-400 text-xs">Total: {formatPrice(total)}</p>
             </div>
             <button onClick={() => setSplitMode(false)} className="text-gray-400 hover:text-white">
@@ -766,12 +454,12 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-white text-sm font-medium">
-                        {item.menu_items?.name ||
-                          (item as unknown as { modifier_notes?: string }).modifier_notes ||
+                        {item.items?.name ||
+                          item.modifier_notes ||
                           'Item'}
                       </p>
                       <p className="text-gray-500 text-xs">
-                        {formatPrice((item.total_price || 0) + (item.extra_charge || 0))}
+                        {formatPrice(item.total_price || 0)}
                       </p>
                     </div>
                     {itemAssignments[item.id] !== undefined && (
@@ -824,7 +512,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {paymentMethods
-                    .filter((m) => m.id !== 'credit' && m.id !== 'run_tab')
+                    .filter((m) => m.id !== 'credit')
                     .map((m) => (
                       <button
                         key={m.id}
@@ -865,7 +553,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
             <CheckCircle size={32} className="text-green-400" />
           </div>
           <h3 className="text-white text-xl font-bold mb-1">Payment Successful!</h3>
-          <p className="text-gray-400 text-sm mb-1">{table.name} is now free</p>
+          <p className="text-gray-400 text-sm mb-1">Order complete</p>
           <p className="text-gray-500 text-xs capitalize">
             {paymentMethod === 'credit'
               ? 'Recorded as debt'
@@ -901,7 +589,6 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
     return (
       <ReceiptModal
         order={paidOrder as unknown as import('../../types').Order}
-        table={table}
         items={billableItems as import('../../types').OrderItem[]}
         staffName={profile?.full_name || 'Staff'}
         tipAmount={parseFloat(tipAmount) || 0}
@@ -919,7 +606,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
         <div className="flex flex-col gap-3 p-5 border-b border-gray-800 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-white font-bold text-lg">Process Payment</h3>
-            <p className="text-gray-400 text-sm">{table.name}</p>
+            <p className="text-gray-400 text-sm">Order #{(order.id || '').slice(0, 8).toUpperCase()}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -943,7 +630,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
               {billableItems.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm">
                   <span className="text-gray-300">
-                    {item.quantity}x {item.menu_items?.name}
+                    {item.quantity}x {item.items?.name || item.modifier_notes || 'Item'}
                   </span>
                   <span className="text-gray-400">{formatPrice(item.total_price || 0)}</span>
                 </div>
@@ -1176,172 +863,8 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
             </div>
           )}
 
-          {/* Returned items section — all destinations */}
-          {(order?.order_items || []).length > 0 && (
-            <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
-              <p className="text-gray-300 font-semibold text-sm mb-3">↩ Returned Items</p>
-              {['bar', 'mixologist'].map((dest) => {
-                const destItems = returnedItems.filter((i) => {
-                  const itemDest =
-                    (
-                      i as unknown as {
-                        menu_items?: { menu_categories?: { destination?: string } }
-                      }
-                    ).menu_items?.menu_categories?.destination || i.destination
-                  return itemDest === dest
-                })
-                if (destItems.length === 0) return null
-                const destLabel = dest === 'bar' ? 'Bar' : dest === 'kitchen' ? 'Kitchen' : 'Grill'
-                return (
-                  <div key={dest} className="mb-3 last:mb-0">
-                    <p className="text-gray-500 text-xs uppercase tracking-wider mb-1.5">
-                      {destLabel}
-                    </p>
-                    <div className="space-y-2">
-                      {destItems.map((item) => {
-                        const isReturned = item.return_accepted
-                        const isPending = item.return_requested && !item.return_accepted
-                        const isRequesting = returningItemId === item.id
-                        return (
-                          <div
-                            key={item.id}
-                            className={`rounded-lg px-3 py-2 flex items-center justify-between gap-2 ${isReturned ? 'bg-red-500/10 border border-red-500/20' : isPending ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800'}`}
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-sm font-medium truncate ${isReturned ? 'line-through text-gray-500' : 'text-white'}`}
-                              >
-                                {item.quantity}x{' '}
-                                {item.menu_items?.name ||
-                                  (item as unknown as { modifier_notes?: string }).modifier_notes ||
-                                  'Item'}
-                              </p>
-                              {isPending && (
-                                <p className="text-amber-400 text-xs">
-                                  ⏳ Awaiting {destLabel.toLowerCase()} confirmation...
-                                </p>
-                              )}
-                              {isReturned && (
-                                <p className="text-green-400 text-xs">
-                                  ✓ Bar accepted — awaiting management approval
-                                </p>
-                              )}
-                              {item.return_reason && (isPending || isReturned) && (
-                                <p className="text-gray-500 text-xs italic">
-                                  "{item.return_reason}"
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {!isReturned && !isPending && !isRequesting && (
-                                <button
-                                  onClick={() => {
-                                    setReturningItemId(item.id)
-                                    setReturnQty(1)
-                                    setReturnReason('')
-                                  }}
-                                  className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 py-1 rounded-lg transition-colors"
-                                >
-                                  Return
-                                </button>
-                              )}
-                              {isPending && (
-                                <button
-                                  onClick={() => cancelReturn(item.id)}
-                                  className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-400 px-2 py-1 rounded-lg transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                              )}
-                              {isReturned && (
-                                <span className="text-red-400 text-xs font-bold">
-                                  -N{(item.total_price || 0).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-              {/* Inline return form with quantity selector */}
-              {returningItemId &&
-                (() => {
-                  const retItem = (order?.order_items || []).find((i) => i.id === returningItemId)
-                  const maxQty = retItem?.quantity || 1
-                  return (
-                    <div className="mt-3 space-y-2 bg-red-500/5 border border-red-500/20 rounded-xl p-3">
-                      <p className="text-white text-sm font-semibold">
-                        Return: {retItem?.menu_items?.name || 'Item'}
-                      </p>
-                      {maxQty > 1 && (
-                        <div className="flex items-center gap-3">
-                          <span className="text-gray-400 text-xs">Qty to return:</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => setReturnQty(Math.max(1, returnQty - 1))}
-                              className="w-8 h-8 rounded-lg bg-gray-700 text-white text-sm flex items-center justify-center hover:bg-gray-600"
-                            >
-                              -
-                            </button>
-                            <span className="w-10 text-center text-white font-bold">
-                              {returnQty}
-                            </span>
-                            <button
-                              onClick={() => setReturnQty(Math.min(maxQty, returnQty + 1))}
-                              className="w-8 h-8 rounded-lg bg-gray-700 text-white text-sm flex items-center justify-center hover:bg-gray-600"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <span className="text-gray-500 text-xs">of {maxQty}</span>
-                        </div>
-                      )}
-                      <input
-                        value={returnReason}
-                        onChange={(e) => setReturnReason(e.target.value)}
-                        placeholder="Reason for return (optional)..."
-                        className="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-red-400"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            requestReturn(returningItemId)
-                            setReturningItemId(null)
-                            setReturnReason('')
-                            setReturnQty(1)
-                          }}
-                          className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-semibold py-2 rounded-lg transition-colors"
-                        >
-                          Return {returnQty} item{returnQty > 1 ? 's' : ''}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setReturningItemId(null)
-                            setReturnReason('')
-                            setReturnQty(1)
-                          }}
-                          className="bg-gray-700 hover:bg-gray-600 text-gray-400 text-sm px-3 py-2 rounded-lg transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })()}
-              {returnedTotal > 0 && (
-                <div className="mt-3 pt-2 border-t border-gray-700 flex justify-between text-sm">
-                  <span className="text-gray-400">Returns deducted:</span>
-                  <span className="text-red-400 font-bold">-N{returnedTotal.toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tip section — only for non-credit, non-tab payments */}
-          {paymentMethod !== 'credit' && paymentMethod !== 'run_tab' && (
+          {/* Tip section — only for non-credit payments */}
+          {paymentMethod !== 'credit' && (
             <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-green-400 text-sm font-semibold">💚 Tip Recording</p>
@@ -1395,9 +918,7 @@ export default function PaymentModal({ order: orderProp, table, onSuccess, onClo
           >
             {processing
               ? 'Processing...'
-              : paymentMethod === 'run_tab'
-                ? 'Run Tab — Continue Ordering'
-                : paymentMethod === 'credit'
+              : paymentMethod === 'credit'
                   ? `Record ${formatPrice(total)} as Debt`
                   : `Confirm ${formatPrice(total)} Payment`}
           </button>

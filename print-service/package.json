@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Local ESC/POS print service for Celebiz POS network thermal printers",
+  "description": "Local ESC/POS print service for C.Biz POS network thermal printers",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

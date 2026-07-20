@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { createPDF, addTable, savePDF } from '../../lib/pdfExport'
 import ReceiptModal from '../pos/ReceiptModal'
 import type { LedgerEntry, PayoutRow } from './types'
-import type { Order, OrderItem, Table } from '../../types'
+import type { Order, OrderItem } from '../../types'
 import { getNetOrderAmount, getValidOrderItemCount, getValidOrderItems } from './orderAmounts'
 import { formatPrice } from '../../lib/currency'
 
@@ -12,7 +12,6 @@ type LedgerFilterMode = 'prev-day' | 'single' | 'range'
 
 type LedgerOrder = Order & {
   profiles?: { full_name: string } | null
-  tables?: Table | { id?: string; name: string } | null
   order_items?: OrderItem[]
 }
 
@@ -54,7 +53,7 @@ function buildReceiptLikeRef(orderId: string) {
 }
 
 function buildEntryDescription(order: LedgerOrder) {
-  const base = order.tables?.name || order.order_type || 'Sale'
+  const base = order.customer_name || order.order_type || 'Sale'
   return (order.payment_method === 'credit' ? '[Pay Later] ' : '') + base
 }
 
@@ -100,7 +99,7 @@ export default function LedgerTab({ dateRange }: Props) {
       supabase
         .from('orders')
         .select(
-          'id, created_at, closed_at, status, payment_method, order_type, total_amount, staff_id, profiles(full_name), tables(id, name), order_items(id, quantity, total_price, extra_charge, status, destination, modifier_notes, return_requested, return_accepted, menu_items(name, price))'
+          'id, created_at, closed_at, status, payment_method, order_type, total_amount, staff_id, customer_name, profiles(full_name), order_items(id, quantity, total_price, status, modifier_notes, return_requested, return_accepted, items(name, price))'
         )
         .eq('status', 'paid')
         .gte('created_at', activePeriod.start)
@@ -174,7 +173,7 @@ export default function LedgerTab({ dateRange }: Props) {
         const orderItems =
           entry.source === 'order'
             ? (entry.order.order_items || [])
-                .map((item) => item.menu_items?.name || item.modifier_notes || '')
+                .map((item) => item.items?.name || item.modifier_notes || '')
                 .join(' ')
                 .toLowerCase()
             : ''
@@ -505,7 +504,7 @@ export default function LedgerTab({ dateRange }: Props) {
                       <div>
                         <p className="text-gray-500 text-xs">Order Taken</p>
                         <p className="text-white text-sm font-medium">
-                          {selectedEntry.order.tables?.name || selectedEntry.order.order_type}
+                          {selectedEntry.order.customer_name || selectedEntry.order.order_type}
                         </p>
                       </div>
                       <div>
@@ -580,7 +579,6 @@ export default function LedgerTab({ dateRange }: Props) {
       {receiptOrder && (
         <ReceiptModal
           order={receiptOrder}
-          table={(receiptOrder.tables as Table | null) ?? null}
           items={receiptOrder.order_items || []}
           staffName={receiptOrder.profiles?.full_name || 'Staff'}
           autoPrint={false}

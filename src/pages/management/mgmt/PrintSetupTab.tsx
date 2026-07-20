@@ -90,14 +90,14 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 if not exist "node_modules" call npm install
-echo Starting Celebiz POS + Print Service...
+echo Starting C.Biz POS + Print Service...
 start http://localhost:5173
 npm start`
     const blob = new Blob([content], { type: 'application/bat' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'start-celebiz.bat'
+    a.download = 'start-cbiz-pos.bat'
     a.click()
     URL.revokeObjectURL(url)
   }

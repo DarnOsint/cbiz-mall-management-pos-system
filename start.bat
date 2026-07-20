@@ -1,5 +1,5 @@
 @echo off
-REM Celebiz POS — One-click startup (Windows)
+REM C.Biz POS — One-click startup (Windows)
 REM Starts both the web app and the ESC/POS print service.
 
 cd /d "%~dp0"
@@ -18,7 +18,7 @@ if not exist "node_modules" (
 
 echo.
 echo ============================================
-echo   Celebiz POS — starting...
+echo   C.Biz POS — starting...
 echo   App:  http://localhost:5173
 echo   Print: http://127.0.0.1:9101
 echo ============================================

@@ -17,17 +17,16 @@ import type { OrderItem } from '../types'
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
-function makeItem(id: string, total_price: number, extra_charge = 0): OrderItem {
+function makeItem(id: string, total_price: number): OrderItem {
   return {
     id,
     order_id: 'order-1',
-    menu_item_id: 'menu-1',
+    item_id: 'menu-1',
+    name: 'Item',
     quantity: 1,
     unit_price: total_price,
     total_price,
-    extra_charge,
     status: 'pending',
-    destination: 'bar',
     created_at: new Date().toISOString(),
   }
 }
@@ -114,7 +113,7 @@ describe('split bill helpers', () => {
   const items = [
     makeItem('item-1', 500),
     makeItem('item-2', 1000),
-    makeItem('item-3', 750, 100),
+    makeItem('item-3', 750),
     makeItem('item-4', 300),
   ]
 
@@ -135,10 +134,9 @@ describe('split bill helpers', () => {
     expect(person1[0].id).toBe('item-3')
   })
 
-  it('getPersonTotal sums total_price + extra_charge', () => {
+  it('getPersonTotal sums total_price', () => {
     expect(getPersonTotal(items, assignments, 0)).toBe(1500)
-    // item-3: 750 + 100 = 850
-    expect(getPersonTotal(items, assignments, 1)).toBe(850)
+    expect(getPersonTotal(items, assignments, 1)).toBe(750)
   })
 
   it('getPersonTotal returns 0 for empty person', () => {

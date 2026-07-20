@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatPrice } from '../../lib/currency'
 import { X, Printer, Download, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react'
-import type { Order, OrderItem, Table } from '../../types'
+import type { Order, OrderItem } from '../../types'
 import { queuePrintJob, getPrintServiceUrl } from '../../lib/printService'
 import { useToast } from '../../context/ToastContext'
 
 interface Props {
   order: Order
-  table: Table | null
   items: OrderItem[]
   staffName: string
   tipAmount?: number
@@ -41,7 +40,6 @@ function PrintStatusBadge({ status, label }: { status?: string; label: string })
 
 export default function ReceiptModal({
   order,
-  table,
   items,
   staffName,
   tipAmount = 0,
@@ -50,13 +48,13 @@ export default function ReceiptModal({
   onClose,
 }: Props) {
   const toast = useToast()
-  const [printing, setPrinting] = useState<'idle' | 'customer' | 'waiter' | 'both' | 'done'>('idle')
+  const [printing, setPrinting] = useState<'idle' | 'customer' | 'internal' | 'both' | 'done'>('idle')
   const [printStatus, setPrintStatus] = useState<{
     customer?: 'pending' | 'success' | 'failed'
-    waiter?: 'pending' | 'success' | 'failed'
+    internal?: 'pending' | 'success' | 'failed'
     error?: string
   }>({})
-  const [activeTab, setActiveTab] = useState<'customer' | 'waiter'>('customer')
+  const [activeTab, setActiveTab] = useState<'customer' | 'internal'>('customer')
   const [retrying, setRetrying] = useState(false)
   const [printServiceStatus, setPrintServiceStatus] = useState<'checking' | 'online' | 'offline'>(
     'checking'
@@ -115,12 +113,11 @@ export default function ReceiptModal({
 
   const handleThermalPrint = async () => {
     setPrinting('both')
-    setPrintStatus({ customer: 'pending', waiter: 'pending' })
+    setPrintStatus({ customer: 'pending', internal: 'pending' })
 
     const customerResult = await queuePrintJob(
       order,
       'customer',
-      table,
       items,
       staffName,
       tipAmount,
@@ -138,8 +135,7 @@ export default function ReceiptModal({
 
     const waiterResult = await queuePrintJob(
       order,
-      'waiter',
-      table,
+      'internal',
       items,
       staffName,
       tipAmount,
@@ -148,16 +144,16 @@ export default function ReceiptModal({
 
     setPrintStatus((prev) => ({
       ...prev,
-      waiter: waiterResult.success ? 'success' : 'failed',
+      internal: waiterResult.success ? 'success' : 'failed',
       error: waiterResult.error || prev.error,
     }))
 
     if (customerResult.success && waiterResult.success) {
-      toast.success('Printed', 'Customer receipt + waiter copy sent to printer')
+      toast.success('Printed', 'Customer receipt + internal copy sent to printer')
     } else if (customerResult.success) {
-      toast.warning('Partial Print', 'Customer receipt printed but waiter copy failed')
+      toast.warning('Partial Print', 'Customer receipt printed but internal copy failed')
     } else if (waiterResult.success) {
-      toast.warning('Partial Print', 'Waiter copy printed but customer receipt failed')
+      toast.warning('Partial Print', 'Internal copy printed but customer receipt failed')
     } else {
       toast.error('Print Failed', customerResult.error || 'Could not reach print service')
     }
@@ -174,12 +170,11 @@ export default function ReceiptModal({
     void handleThermalPrint()
   }, [])
 
-  const handleReprint = async (type: 'customer' | 'waiter') => {
+  const handleReprint = async (type: 'customer' | 'internal') => {
     setRetrying(true)
     const result = await queuePrintJob(
       order,
       type,
-      table,
       items,
       staffName,
       tipAmount,
@@ -189,25 +184,25 @@ export default function ReceiptModal({
     if (result.success) {
       toast.success(
         'Reprinted',
-        `${type === 'customer' ? 'Customer receipt' : 'Waiter copy'} sent to printer`
+        `${type === 'customer' ? 'Customer receipt' : 'Internal copy'} sent to printer`
       )
     } else {
       toast.error('Reprint Failed', result.error || 'Could not reach print service')
     }
   }
 
-  const handleDownload = (type: 'customer' | 'waiter') => {
+  const handleDownload = (type: 'customer' | 'internal') => {
     const html = buildMonoReceipt(type)
     const blob = new Blob([html], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${type === 'customer' ? 'receipt' : 'waiter-copy'}-${orderRef}.html`
+    a.download = `${type === 'customer' ? 'receipt' : 'internal-copy'}-${orderRef}.html`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const buildMonoReceipt = (type: 'customer' | 'waiter') => {
+  const buildMonoReceipt = (type: 'customer' | 'internal') => {
     const W = 40
     const fmtRow = (left: string, right: string) => {
       const l = left.substring(0, W - right.length - 1)
@@ -246,7 +241,8 @@ export default function ReceiptModal({
     const grouped = new Map<string, { qty: number; total: number }>()
     activeItems.forEach((item) => {
       const name =
-        (item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+        (item as unknown as { items?: { name: string } }).items?.name ||
+        (item as unknown as { name?: string }).name ||
         (item as unknown as { modifier_notes?: string }).modifier_notes ||
         'Item'
       const existing = grouped.get(name)
@@ -266,7 +262,8 @@ export default function ReceiptModal({
     const returnedGrouped = new Map<string, number>()
     returnedItemsLocal.forEach((item) => {
       const name =
-        (item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+        (item as unknown as { items?: { name: string } }).items?.name ||
+        (item as unknown as { name?: string }).name ||
         (item as unknown as { modifier_notes?: string }).modifier_notes ||
         'Item'
       returnedGrouped.set(name, (returnedGrouped.get(name) || 0) + (item.quantity || 1))
@@ -293,18 +290,16 @@ export default function ReceiptModal({
           ]
         : []
 
-    if (type === 'waiter') {
+    if (type === 'internal') {
       const lines = [
         '',
-        centre('CELEBIZ'),
-        centre('Lounge & Restaurant'),
-        centre('-- WAITER COPY --'),
+        centre('C.Biz POS'),
+        centre('-- INTERNAL COPY --'),
         divider,
         fmtRow('Ref:', orderRef),
-        fmtRow('Table:', table?.name ?? 'N/A'),
         fmtRow('Date:', formatDate(order.created_at)),
         fmtRow('Time:', formatTime(order.created_at)),
-        fmtRow('Served by:', staffName || 'Staff'),
+        fmtRow('Staff:', staffName || 'Staff'),
         fmtRow('Payment:', pmLabel),
         divider,
         fmtRow('ITEM', 'AMOUNT'),
@@ -331,14 +326,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 
     const customerLines = [
       '',
-      centre('CELEBIZ'),
-      centre('Lounge & Restaurant'),
+      centre('C.Biz POS'),
       divider,
       fmtRow('Ref:', orderRef),
-      fmtRow('Table:', table?.name ?? 'N/A'),
       fmtRow('Date:', formatDate(order.created_at)),
       fmtRow('Time:', formatTime(order.created_at)),
-      fmtRow('Served by:', staffName || 'Staff'),
+      fmtRow('Staff:', staffName || 'Staff'),
       fmtRow('Payment:', pmLabel),
       divider,
       fmtRow('ITEM', 'AMOUNT'),
@@ -404,11 +397,11 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-4">
               <PrintStatusBadge status={printStatus.customer} label="Customer" />
-              <PrintStatusBadge status={printStatus.waiter} label="Waiter Copy" />
+              <PrintStatusBadge status={printStatus.internal} label="Internal Copy" />
             </div>
             <div className="flex items-center gap-2">
               {printing === 'done' &&
-                (printStatus.customer === 'failed' || printStatus.waiter === 'failed') && (
+                (printStatus.customer === 'failed' || printStatus.internal === 'failed') && (
                   <button
                     onClick={() => handleReprint('customer')}
                     disabled={retrying}
@@ -444,11 +437,11 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 <Printer size={15} /> {retrying ? 'Printing...' : 'Reprint Customer Copy'}
               </button>
               <button
-                onClick={() => handleReprint('waiter')}
+                onClick={() => handleReprint('internal')}
                 disabled={retrying}
                 className="flex-1 flex items-center justify-center gap-2 bg-amber-500 text-black font-semibold py-3 rounded-xl hover:bg-amber-400 disabled:opacity-50 transition-colors text-sm"
               >
-                <Printer size={15} /> Reprint Waiter Copy
+                <Printer size={15} /> Reprint Internal Copy
               </button>
             </div>
           </div>
@@ -462,10 +455,10 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             Customer Copy
           </button>
           <button
-            onClick={() => setActiveTab('waiter')}
-            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'waiter' ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`}
+            onClick={() => setActiveTab('internal')}
+            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'internal' ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`}
           >
-            Waiter Copy
+            Internal Copy
           </button>
         </div>
 
@@ -506,9 +499,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
               >
                 <div style={{ textAlign: 'center', marginBottom: '8px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
-                    CELEBIZ
+                    C.Biz POS
                   </div>
-                  <div style={{ fontSize: '11px', marginTop: '2px' }}>Lounge & Restaurant</div>
                   <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
                     — — — — — — — — — — — —
                   </div>
@@ -519,13 +511,14 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     ['Date', formatDate(order.created_at)],
                     ['Time', formatTime(order.created_at)],
                     [
-                      'Table',
-                      table?.name ||
-                        (order.order_type === 'takeaway'
-                          ? `Takeaway${(order as unknown as { customer_name?: string }).customer_name ? ` — ${(order as unknown as { customer_name: string }).customer_name}` : ''}`
-                          : 'Counter'),
+                      'Type',
+                      order.order_type === 'return'
+                        ? 'Return'
+                        : (order as unknown as { customer_name?: string }).customer_name
+                          ? `Takeaway — ${(order as unknown as { customer_name: string }).customer_name}`
+                          : 'Counter',
                     ],
-                    ['Served by', staffName],
+                    ['Staff', staffName],
                     ['Payment', paymentLabel[order.payment_method!] || order.payment_method],
                   ].map(([label, value]) => (
                     <div
@@ -570,7 +563,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     }}
                   >
                     <span style={{ flex: 1, paddingRight: '4px', wordBreak: 'break-word' }}>
-                      {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                      {(item as unknown as { items?: { name: string } }).items?.name ||
+                        (item as unknown as { name?: string }).name ||
                         item.id}
                     </span>
                     <span style={{ width: '24px', textAlign: 'center' }}>{item.quantity}</span>
@@ -691,22 +685,22 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             </div>
           </div>
 
-          {/* Waiter Copy */}
-          <div className={`${activeTab === 'waiter' ? 'flex' : 'hidden'} md:flex flex-1 flex-col`}>
+          {/* Internal Copy */}
+          <div className={`${activeTab === 'internal' ? 'flex' : 'hidden'} md:flex flex-1 flex-col`}>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
               <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Waiter Copy
+                Internal Copy
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => handleReprint('waiter')}
+                  onClick={() => handleReprint('internal')}
                   disabled={retrying}
                   className="flex items-center gap-1 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
                   <Printer size={12} /> Reprint
                 </button>
                 <button
-                  onClick={() => handleDownload('waiter')}
+                  onClick={() => handleDownload('internal')}
                   className="flex items-center gap-1 text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   <Download size={12} /> Save
@@ -736,11 +730,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     ['Date', formatDate(order.created_at)],
                     ['Time', formatTime(order.created_at)],
                     [
-                      'Table',
-                      table?.name ||
-                        (order.order_type === 'takeaway'
-                          ? `Takeaway${(order as unknown as { customer_name?: string }).customer_name ? ` — ${(order as unknown as { customer_name: string }).customer_name}` : ''}`
-                          : 'Counter'),
+                      'Type',
+                      order.order_type === 'return'
+                        ? 'Return'
+                        : (order as unknown as { customer_name?: string }).customer_name
+                          ? `Takeaway — ${(order as unknown as { customer_name: string }).customer_name}`
+                          : 'Counter',
                     ],
                     ['Staff', staffName],
                     ['Payment', paymentLabel[order.payment_method!] || order.payment_method],
@@ -774,7 +769,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     }}
                   >
                     <span style={{ flex: 1 }}>
-                      {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                      {(item as unknown as { items?: { name: string } }).items?.name ||
+                        (item as unknown as { name?: string }).name ||
                         item.id}
                     </span>
                     <span style={{ fontWeight: 'bold' }}>x{item.quantity}</span>

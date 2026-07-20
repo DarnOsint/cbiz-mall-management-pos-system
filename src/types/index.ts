@@ -1,10 +1,9 @@
 // ─── Core domain types ────────────────────────────────────────────────────
 
-export type Role = 'owner' | 'manager' | 'waitron' | 'kitchen' | 'bar'
+export type Role = 'owner' | 'manager' | 'cashier'
 
-export type OrderStatus = 'open' | 'paid' | 'voided' | 'pending'
-export type OrderType = 'table' | 'cash_sale' | 'takeaway'
-export type DeliveryStatus = 'pending_delivery' | 'out_for_delivery' | 'delivered' | 'paid'
+export type OrderStatus = 'open' | 'paid' | 'voided' | 'cancelled'
+export type OrderType = 'sale' | 'return'
 export type PaymentMethod =
   | 'cash'
   | 'bank_pos'
@@ -13,9 +12,8 @@ export type PaymentMethod =
   | 'card'
   | 'transfer'
   | 'split'
-export type ItemDestination = 'kitchen' | 'bar'
-export type ItemStatus = 'pending' | 'preparing' | 'ready' | 'delivered'
-export type TableStatus = 'available' | 'occupied' | 'reserved'
+export type ItemStatus = 'pending' | 'completed' | 'cancelled'
+
 // ─── Database row types ────────────────────────────────────────────────────
 
 export interface Profile {
@@ -29,93 +27,60 @@ export interface Profile {
   created_at: string
 }
 
-export interface TableCategory {
+export interface ItemCategory {
   id: string
   name: string
-  hire_fee?: number | null
+  sort_order?: number
+  is_active?: boolean
+  created_at?: string
 }
 
-export interface Table {
+export interface Item {
   id: string
   name: string
-  status: TableStatus
-  category_id: string
-  assigned_staff?: string | null
-  capacity?: number
-  table_categories?: TableCategory
-}
-
-export interface MenuCategory {
-  id: string
-  name: string
-  destination: ItemDestination
-}
-
-export interface MenuItem {
-  id: string
-  name: string
+  description?: string | null
+  sku?: string | null
   price: number
+  cost_price?: number | null
+  category_id?: string | null
+  image_url?: string | null
+  is_active: boolean
   is_available: boolean
-  category_id: string
-  menu_categories?: MenuCategory
-  current_stock?: number | null
-  hasZonePrice?: boolean
+  stock_quantity: number
+  low_stock_threshold: number
+  sort_order?: number
+  created_at?: string
+  updated_at?: string
+  item_categories?: ItemCategory
 }
 
 export interface OrderItem {
   id: string
   order_id: string
-  menu_item_id: string
+  item_id: string
+  name: string
   quantity: number
   unit_price: number
   total_price: number
   status?: ItemStatus
-  destination?: ItemDestination
   modifier_notes?: string | null
-  extra_charge?: number
   created_at: string
-  menu_items?:
-    | (Pick<MenuItem, 'name' | 'price'> & { menu_categories?: MenuCategory })
-    | { name: string; price?: number; menu_categories?: MenuCategory }
-    | null
-}
-
-export interface BodaOperator {
-  id: string
-  name: string
-  phone: string
-  service_area?: string | null
-  is_active: boolean
-  created_at: string
-  updated_at: string
+  items?: Pick<Item, 'name' | 'price'> | null
 }
 
 export interface Order {
   id: string
-  table_id?: string | null
   staff_id?: string | null
   order_type: OrderType
   status: OrderStatus
   total_amount: number
   notes?: string | null
-  covers?: number | null
   payment_method?: PaymentMethod | null
   customer_name?: string | null
-  customer_phone?: string | null
-  boda_operator_id?: string | null
-  delivery_area?: string | null
-  delivery_status?: DeliveryStatus | null
-  delivery_fee?: number
-  payment_received_at?: string | null
   created_at: string
   closed_at?: string | null
   updated_at?: string | null
-  tables?:
-    | Pick<Table, 'id' | 'name'>
-    | { name: string; table_categories?: { name: string } | null }
-    | null
   order_items?: OrderItem[]
-  boda_operators?: Pick<BodaOperator, 'id' | 'name' | 'phone'> | null
 }
 
 export interface TillSession {
@@ -147,13 +112,12 @@ export interface Payout {
 export interface InventoryItem {
   id: string
   item_name: string
-  category: string
+  category?: string
   unit: string
   current_stock: number
   minimum_stock: number
   cost_price?: number
   selling_price?: number
-  menu_item_id?: string | null
   is_active: boolean
 }
 
@@ -177,14 +141,9 @@ export interface Setting {
   updated_at: string
 }
 
-export interface SyncStatus {
-  status: 'online' | 'offline' | 'syncing' | 'partial'
-  pending: number
-}
-
 // ─── Print queue types ──────────────────────────────────────────────────────
 
-export type PrintJobType = 'customer' | 'waiter' | 'kitchen' | 'bar'
+export type PrintJobType = 'customer' | 'internal'
 export type PrintJobStatus = 'pending' | 'printing' | 'printed' | 'failed' | 'cancelled'
 
 export interface PrinterConfig {
@@ -239,7 +198,7 @@ export interface ReceiptData {
   qrUrl?: string
 }
 
-// ─── Audit helper params ──────────────────────────────────────────────────
+// ─── Mall management types ──────────────────────────────────────────────────
 
 export interface MallFloor {
   id: string
@@ -275,6 +234,8 @@ export interface MallRentPayment {
   notes: string | null
   created_at: string
 }
+
+// ─── Audit helper params ──────────────────────────────────────────────────
 
 export interface AuditParams {
   action: string

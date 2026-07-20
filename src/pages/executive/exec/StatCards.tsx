@@ -1,15 +1,12 @@
-import { TrendingUp, ShoppingBag, LayoutDashboard, Package, UtensilsCrossed, Wine } from 'lucide-react'
+import { TrendingUp, ShoppingBag, Package, Users } from 'lucide-react'
 import { formatPrice } from '../../../lib/currency'
 import PriceDisplay from '../../../components/PriceDisplay'
 
 interface Stats {
   revenue: number
   openOrders: number
-  occupiedTables: number
-  totalTables: number
   lowStock: number
-  foodItems: number
-  drinkItems: number
+  staffOnDuty: number
 }
 
 interface Props {
@@ -28,20 +25,6 @@ export default function StatCards({ stats }: Props) {
       bg: 'bg-green-400/10',
     },
     {
-      label: 'Food Items Sold',
-      value: stats.foodItems.toString(),
-      icon: UtensilsCrossed,
-      color: 'text-orange-400',
-      bg: 'bg-orange-400/10',
-    },
-    {
-      label: 'Drink Items Sold',
-      value: stats.drinkItems.toString(),
-      icon: Wine,
-      color: 'text-sky-400',
-      bg: 'bg-sky-400/10',
-    },
-    {
       label: 'Open Orders',
       value: stats.openOrders.toString(),
       icon: ShoppingBag,
@@ -49,9 +32,9 @@ export default function StatCards({ stats }: Props) {
       bg: 'bg-amber-400/10',
     },
     {
-      label: 'Occupied Tables',
-      value: `${stats.occupiedTables}/${stats.totalTables}`,
-      icon: LayoutDashboard,
+      label: 'Staff On Duty',
+      value: stats.staffOnDuty.toString(),
+      icon: Users,
       color: 'text-blue-400',
       bg: 'bg-blue-400/10',
     },

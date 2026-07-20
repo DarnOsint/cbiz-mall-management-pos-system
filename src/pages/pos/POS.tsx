@@ -2,1068 +2,231 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
-import type { ItemDestination } from '../../types'
-import { HelpTooltip } from '../../components/HelpTooltip'
 import { audit } from '../../lib/audit'
 import { useAuth } from '../../context/AuthContext'
-import { sendPushToStaff, usePushNotifications } from '../../hooks/usePushNotifications'
 import {
   LogOut,
-  UtensilsCrossed,
+  ShoppingCart,
   RefreshCw,
   ShoppingBag,
-  Phone,
-  History,
-  Printer,
-  X,
   Search,
-  Bike,
-  CheckCircle2,
-  DollarSign,
+  X,
 } from 'lucide-react'
-import TableGrid from './TableGrid'
-import CoversModal from './CoversModal'
 import OrderPanel from './OrderPanel'
 import ReceiptModal from './ReceiptModal'
 import PaymentModal from './PaymentModal'
 import CashSaleModal from './CashSaleModal'
-import CustomerOrderAlerts from '../../components/CustomerOrderAlerts'
-import WaiterCalls from '../management/WaiterCalls'
-
-import type { Table, MenuItem, Order, OrderItem, Profile, BodaOperator } from '../../types'
+import type { Item, ItemCategory, Order, OrderItem, Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
-import { localBulkPut, localGetAll } from '../../lib/db'
-import { offlineInsertNoReturn, offlineUpdateNoReturn } from '../../lib/offlineWrite'
-import { useVisibilityInterval } from '../../hooks/useVisibilityInterval'
 
-const normalizeDestination = (
-  dest?: string | null,
-  name?: string,
-  catName?: string
-): ItemDestination => {
-  const lowerName = (name || '').toLowerCase()
-  const lowerCat = (catName || '').toLowerCase()
-  const isMixologistItem =
-    lowerName.includes('cocktail') ||
-    lowerName.includes('mocktail') ||
-    lowerName.includes('chapman') ||
-    lowerName.includes('sunrise') ||
-    lowerName.includes('colada') ||
-    lowerName.includes('mojito') ||
-    lowerName.includes('milkshake') ||
-    lowerName.includes('shake') ||
-    lowerName.includes('smoothie') ||
-    lowerName.includes('fruit punch') ||
-    lowerName.includes('punch') ||
-    lowerCat.includes('chapman') ||
-    lowerCat.includes('sunrise') ||
-    lowerCat.includes('colada') ||
-    lowerCat.includes('mojito') ||
-    lowerCat.includes('cocktail') ||
-    lowerCat.includes('mocktail') ||
-    lowerCat.includes('milkshake') ||
-    lowerCat.includes('smoothie') ||
-    lowerCat.includes('punch')
-  if (isMixologistItem) return 'mixologist'
-
-  const d = (dest || '').trim().toLowerCase()
-  if (d === 'kitchen' || d === 'griller' || d === 'grill' || d === 'grilling') return 'kitchen'
-  if (d === 'shisha' || d === 'hookah' || d === 'games' || d === 'game' || d === 'games_master')
-    return 'bar'
-  if (d === 'mixologist' || d === 'cocktail' || d === 'cocktails') return 'bar'
-  if (d === 'bar') return 'bar'
-  return 'bar'
-}
-
-const currentBusinessDateWAT = () => {
-  const wat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
-  if (wat.getHours() < 23) wat.setDate(wat.getDate() - 1)
-  return wat.toLocaleDateString('en-CA')
-}
-
-interface MenuItemWithZone extends MenuItem {
-  current_stock?: number | null
-}
-
-interface HistoryOrder {
-  id: string
-  total_amount: number
-  payment_method?: string | null
-  status: string
-  order_type: string
-  created_at: string
-  closed_at?: string | null
-  customer_name?: string | null
-  staff_id?: string | null
-  table_id?: string | null
-  notes?: string | null
-  tables?: { name: string } | null
-  order_items?: (OrderItem & { menu_items?: { name: string } | null })[]
-}
-
-interface OrderPayload {
-  table: Table
-  items: {
-    id: string
-    name: string
-    price: number
-    quantity: number
-    total: number
-    menu_categories?: { name?: string; destination?: string } | null
-    modifier_notes?: string
-    extra_charge?: number
-  }[]
-  notes: string
-  total: number
-}
-
-interface BarIssueLogRow {
-  id: string
-  issue_date: string
-  order_id: string
-  order_item_id: string
-  table_id?: string | null
-  table_name?: string | null
-  waitron_id?: string | null
-  waitron_name?: string | null
-  menu_item_id?: string | null
-  item_name: string
+interface CartEntry {
+  item: Item
   quantity: number
-  unit_price: number
-  total_price: number
-  station: 'bar'
-  source: 'pos_order'
-  recorded_by?: string | null
-  recorded_by_name?: string | null
-  created_at: string
 }
 
-/** Desktop menu browser — shown in the left 3/4 when a table is selected */
-function DesktopMenuBrowser({
-  menuItems,
-  onAddItem,
-  menuError,
-  zonePriceMap,
-  currentZoneId,
-}: {
-  menuItems: MenuItem[]
-  onAddItem: (item: MenuItem) => void
-  menuError?: string | null
-  zonePriceMap: Record<string, Record<string, number>>
-  currentZoneId?: string | null
-}) {
-  const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState('All')
-  const categories = [
-    'All',
-    ...new Set(
-      menuItems
-        .map((i) => (i as unknown as { menu_categories?: { name?: string } }).menu_categories?.name)
-        .filter(Boolean) as string[]
-    ),
-  ]
-  const filtered = menuItems.filter((item) => {
-    const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase())
-    const matchCat =
-      activeCategory === 'All' ||
-      (item as unknown as { menu_categories?: { name?: string } }).menu_categories?.name ===
-        activeCategory
-    return matchSearch && matchCat
-  })
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex gap-1.5 px-4 py-2.5 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === cat ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-      <div className="flex px-4 py-2 border-b border-gray-800 shrink-0">
-        <div className="flex items-center gap-2 flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-amber-500 transition-colors">
-          <Search size={16} className="text-gray-500 shrink-0" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search menu…"
-            className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="text-gray-500 hover:text-white">
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mb-4">
-              <span className="text-2xl">🍽</span>
-            </div>
-            <p className="text-gray-400 font-semibold mb-1">No menu items found</p>
-            {menuError ? (
-              <div className="text-red-400 text-xs max-w-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {menuError}
-              </div>
-            ) : (
-              <p className="text-gray-600 text-xs max-w-xs">
-                {menuItems.length === 0
-                  ? 'Run the seed SQL in Supabase dashboard → SQL Editor to populate the menu.'
-                  : 'Try a different search or category filter.'}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-            {filtered.map((item) => {
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onAddItem(item)}
-                  className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50"
-                >
-                  <div className="p-3">
-                    <p className="text-white text-sm font-medium leading-tight truncate">
-                      {item.name}
-                    </p>
-                    <p className="text-amber-400 text-sm font-bold mt-1">
-                      {currentZoneId && zonePriceMap[item.id]?.[currentZoneId]
-                        ? formatPrice(zonePriceMap[item.id][currentZoneId])
-                        : formatPrice(item.price)}
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+interface ActiveOrderWithItems extends Order {
+  order_items?: (OrderItem & {
+    items?: Pick<Item, 'name' | 'price'> | null
+  })[]
 }
 
 export default function POS() {
   const { profile, signOut } = useAuth()
   const toast = useToast()
-  usePushNotifications(profile?.id)
-  const isWaitron = profile?.role === 'waitron'
 
-  const [tables, setTables] = useState<Table[]>([])
-  const [menuItems, setMenuItems] = useState<MenuItemWithZone[]>([])
+  const [items, setItems] = useState<Item[]>([])
   const [menuError, setMenuError] = useState<string | null>(null)
-  const [zonePriceMap, setZonePriceMap] = useState<Record<string, Record<string, number>>>({})
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null)
-  const [pendingTable, setPendingTable] = useState<Table | null>(null)
-  const [pendingCovers, setPendingCovers] = useState<number | null>(null)
+  const [categories, setCategories] = useState<ItemCategory[]>([])
+  const [activeCategory, setActiveCategory] = useState('All')
+  const [search, setSearch] = useState('')
+  const [cart, setCart] = useState<CartEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeOrder, setActiveOrder] = useState<
-    | (Order & {
-        order_items?: (OrderItem & {
-          menu_items?: {
-            name: string
-            price: number
-            menu_categories?: { name?: string; destination?: string } | null
-          } | null
-        })[]
-      })
-    | null
-  >(null)
-  const [assignedTableIds, setAssignedTableIds] = useState<string[] | null>(null)
-  const [assignedZoneNames, setAssignedZoneNames] = useState<string[] | null>(null)
-  const [defaultZone, setDefaultZone] = useState<string>('All')
-  const [posTab, setPosTab] = useState<'tables' | 'history' | 'deliveries'>('tables')
+  const [notes, setNotes] = useState('')
 
-  const [orderHistory, setOrderHistory] = useState<HistoryOrder[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [reprintOrder, setReprintOrder] = useState<HistoryOrder | null>(null)
   const [showPayment, setShowPayment] = useState(false)
+  const [activeOrder, setActiveOrder] = useState<ActiveOrderWithItems | null>(null)
   const [showCashSale, setShowCashSale] = useState(false)
-  const [cashSaleType, setCashSaleType] = useState<'cash' | 'takeaway'>('cash')
-  const [deliveries, setDeliveries] = useState<
-    (Order & { boda_operators?: Pick<BodaOperator, 'id' | 'name' | 'phone'> | null })[]
-  >([])
-  const [deliveriesLoading, setDeliveriesLoading] = useState(false)
-  const [payingDelivery, setPayingDelivery] = useState<string | null>(null)
+  const [reprintOrder, setReprintOrder] = useState<Order | null>(null)
+  const [mobileView, setMobileView] = useState<'items' | 'cart'>('items')
+
+  const placingOrderRef = useRef(false)
 
   useEffect(() => {
-    fetchTables()
-    fetchMenu()
-    const channel = supabase
-      .channel('tables-channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, () => {
-        fetchTables()
-        // Don't re-check clock-in on table updates — causes mid-session logout flicker
-      })
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    fetchItems()
   }, [])
 
-  // Realtime: refresh active order when order_items or orders change
-  // This catches manager DB edits, bar return acceptances, etc.
-  useEffect(() => {
-    const current = activeOrderRef.current
-    if (!current?.id) return
-
-    const refreshActiveOrder = () => {
-      const cur = activeOrderRef.current
-      if (!cur?.id) return
-      supabase
-        .from('orders')
-        .select(
-          `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, total_amount,
-           order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-             menu_items(name, price, menu_categories(name, destination)))`
-        )
-        .eq('id', cur.id)
-        .single()
-        .then(({ data }) => {
-          if (data) setActiveOrder(data as any)
-        })
-    }
-
-    const ch = supabase
-      .channel(`active-order-sync-${current.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items', filter: `order_id=eq.${current.id}` },
-        refreshActiveOrder
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${current.id}` },
-        refreshActiveOrder
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(ch)
-    }
-  }, [activeOrder?.id])
-
-  // Safety net polling: only while tab is active and an order is open.
-  useVisibilityInterval(
-    () => {
-      const cur = activeOrderRef.current
-      if (!cur?.id) return
-      supabase
-        .from('orders')
-        .select(
-          `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, total_amount,
-        order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-          menu_items(name, price, menu_categories(name, destination)))`
-        )
-        .eq('id', cur.id)
-        .single()
-        .then(({ data }) => {
-          if (data) setActiveOrder(data as any)
-        })
-    },
-    15_000,
-    [activeOrder?.id]
-  )
-
-  useEffect(() => {
-    if (!profile) return
-    setAssignedTableIds(null)
-    setAssignedZoneNames(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id])
-
-  const activeOrderRef = useRef<typeof activeOrder>(null)
-  useEffect(() => {
-    activeOrderRef.current = activeOrder
-  }, [activeOrder])
-
-  const fullRefresh = () => {
-    fetchTables()
-    const current = activeOrderRef.current
-    if (current) {
-      supabase
-        .from('orders')
-        .select(
-          `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, total_amount,
-           order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-             menu_items(name, price, menu_categories(name, destination)))`
-        )
-        .eq('id', current.id)
-        .single()
-        .then(({ data }) => {
-          if (data) setActiveOrder(data as any)
-        })
-    }
-  }
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') fullRefresh()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const fetchHistory = async () => {
-    setHistoryLoading(true)
-    // Session window: 11pm previous day → 11pm today WAT
-    const now = new Date()
-    const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
-    const windowStart = new Date(lagosNow)
-    windowStart.setHours(23, 0, 0, 0)
-    if (lagosNow.getHours() < 23) windowStart.setDate(windowStart.getDate() - 1)
-    const { data } = await supabase
-      .from('orders')
-      .select(
-        `id, closed_at, payment_method, order_type, status, customer_name,
-        tables(name),
-        order_items(id, menu_item_id, quantity, total_price, status, return_requested, return_accepted, destination, modifier_notes, extra_charge, created_at,
-          menu_items(name))`
-      )
-      .eq('status', 'paid')
-      .eq('staff_id', profile?.id)
-      .gte('closed_at', windowStart.toISOString())
-      .order('closed_at', { ascending: false })
-      .limit(60)
-    setOrderHistory(
-      (data || []).map((o: any) => ({
-        ...o,
-        total_amount: o.total_amount ?? 0,
-        created_at: o.created_at ?? '',
-      })) as HistoryOrder[]
-    )
-    setHistoryLoading(false)
-  }
-
-  const fetchDeliveries = async () => {
-    setDeliveriesLoading(true)
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const { data } = await supabase
-      .from('orders')
-      .select(
-        `id, created_at, status, order_type, total_amount, customer_name, customer_phone, delivery_area, delivery_status, delivery_fee, notes, staff_id, boda_operator_id,
-        boda_operators(id, name, phone)`
-      )
-      .not('delivery_status', 'is', null)
-      .gte('created_at', todayStart.toISOString())
-      .order('created_at', { ascending: false })
-    if (data) setDeliveries(data as any)
-    setDeliveriesLoading(false)
-  }
-
-  const markDeliveryPaid = async (orderId: string) => {
-    if (payingDelivery) return
-    setPayingDelivery(orderId)
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          delivery_status: 'paid',
-          payment_received_at: new Date().toISOString(),
-          status: 'paid',
-          closed_at: new Date().toISOString(),
-          payment_method: 'cash',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId)
-      if (error) throw error
-      await audit({
-        action: 'DELIVERY_PAID',
-        entity: 'order',
-        entityId: orderId,
-        entityName: 'Delivery order',
-        newValue: { status: 'paid', delivery_status: 'paid' },
-        performer: profile as Profile,
-      })
-      toast.success('Payment Recorded', 'Delivery payment received')
-      await fetchDeliveries()
-    } catch (err) {
-      toast.error('Error', (err as Error).message)
-    } finally {
-      setPayingDelivery(null)
-    }
-  }
-
-  const [tableStaffMap, setTableStaffMap] = useState<Record<string, string>>({})
-
-  const logBarIssues = async (
-    sourceItems: OrderPayload['items'],
-    persistedRows: Array<{
-      id: string
-      order_id: string
-      menu_item_id?: string | null
-      quantity: number
-      unit_price: number
-      total_price: number
-      destination?: string | null
-      modifier_notes?: string | null
-      created_at: string
-    }>,
-    table: Table,
-    orderId: string
-  ) => {
-    const issueDate = currentBusinessDateWAT()
-    const rows: BarIssueLogRow[] = []
-
-    for (let i = 0; i < Math.min(sourceItems.length, persistedRows.length); i++) {
-      const source = sourceItems[i]
-      const persisted = persistedRows[i]
-      const station = normalizeDestination(
-        source.menu_categories?.destination ?? '',
-        source.name,
-        source.menu_categories?.name
-      )
-      if (station !== 'bar') continue
-      if (!persisted.menu_item_id) continue
-
-      rows.push({
-        id: crypto.randomUUID(),
-        issue_date: issueDate,
-        order_id: orderId,
-        order_item_id: persisted.id,
-        table_id: table.id,
-        table_name: table.name,
-        waitron_id: profile?.id ?? null,
-        waitron_name: profile?.full_name ?? null,
-        menu_item_id: persisted.menu_item_id ?? null,
-        item_name: source.name,
-        quantity: persisted.quantity,
-        unit_price: persisted.unit_price || 0,
-        total_price: persisted.total_price || 0,
-        station: 'bar',
-        source: 'pos_order',
-        recorded_by: profile?.id ?? null,
-        recorded_by_name: profile?.full_name ?? null,
-        created_at: persisted.created_at,
-      })
-    }
-
-    if (rows.length === 0) return
-
-    const { error } = await supabase
-      .from('bar_issue_log')
-      .upsert(rows, { onConflict: 'order_item_id' })
+  const fetchItems = async () => {
+    setLoading(true)
+    setMenuError(null)
+    const { data, error } = await supabase
+      .from('items')
+      .select('*, item_categories(name, id, sort_order, is_active)')
+      .eq('is_active', true)
+      .order('sort_order', { nullsFirst: false })
+      .order('name')
     if (error) {
-      console.warn('bar_issue_log insert failed:', error.message)
+      setMenuError(error.message)
+      setLoading(false)
+      return
     }
-  }
-
-  const fetchTables = async () => {
-    const [tablesRes, openOrdersRes] = await Promise.all([
-      supabase
-        .from('tables')
-        .select(
-          'id, name, status, category_id, capacity, assigned_staff, table_categories(id, name, hire_fee)'
-        )
-        .order('name'),
-      supabase
-        .from('orders')
-        .select('table_id, staff_id')
-        .eq('status', 'open')
-        .not('table_id', 'is', null),
-    ])
-    if (!tablesRes.error) {
-      setTables(
-        (tablesRes.data || []).map((t: any) => ({
-          ...t,
-          table_categories: Array.isArray(t.table_categories)
-            ? t.table_categories[0]
-            : t.table_categories,
-        }))
-      )
-      if (tablesRes.data) {
-        void localBulkPut('tables', tablesRes.data as Array<{ id: string }>)
+    if (data) {
+      setItems(data as Item[])
+      const catMap = new Map<string, ItemCategory>()
+      for (const item of data) {
+        const cat = (item as any).item_categories as ItemCategory | undefined
+        if (cat && cat.id && !catMap.has(cat.id)) {
+          catMap.set(cat.id, cat)
+        }
       }
-    } else if (!navigator.onLine) {
-      const cached = await localGetAll<any>('tables')
-      if (cached.length > 0) setTables(cached as any)
-    }
-    // Build map: table_id → staff_id (who is serving each occupied table)
-    if (!openOrdersRes.error && openOrdersRes.data) {
-      const map: Record<string, string> = {}
-      for (const o of openOrdersRes.data) {
-        if (o.table_id && o.staff_id) map[o.table_id] = o.staff_id
-      }
-      setTableStaffMap(map)
+      setCategories(Array.from(catMap.values()).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
     }
     setLoading(false)
   }
 
-  const fetchMenu = async () => {
-    const businessDate = currentBusinessDateWAT()
-    const prevBusinessDate = (() => {
-      const d = new Date(businessDate + 'T00:00:00+01:00')
-      d.setDate(d.getDate() - 1)
-      return d.toLocaleDateString('en-CA')
-    })()
-    const [menuRes, invRes, chillerRes, chillerPrevRes, zonePricesRes] = await Promise.all([
-      supabase
-        .from('menu_items')
-        .select(
-          'id, name, price, description, image_url, is_available, category_id, menu_categories(name, destination)'
-        )
-        .order('name'),
-      supabase
-        .from('inventory')
-        .select('menu_item_id, item_name, current_stock')
-        .eq('is_active', true),
-      supabase.from('bar_chiller_stock').select('item_name, closing_qty').eq('date', businessDate),
-      supabase
-        .from('bar_chiller_stock')
-        .select('item_name, opening_qty, received_qty, sold_qty, void_qty, closing_qty')
-        .eq('date', prevBusinessDate)
-        .order('item_name'),
-      supabase.from('menu_item_zone_prices').select('menu_item_id, category_id, price'),
-    ])
-    if (menuRes.error) {
-      const err = menuRes.error as Record<string, unknown>
-      console.error('[POS] menu_items fetch error:', JSON.stringify(err, null, 2))
-      setMenuError(
-        err?.message
-          ? String(err.message)
-          : `Error ${err?.code || '?'}: ${err?.details || JSON.stringify(err)}`
-      )
-      return
-    }
-    if (menuRes.data) {
-      void localBulkPut('menu_items', menuRes.data as Array<{ id: string }>)
-    }
-    const invMap: Record<string, number> = {}
-    const invByName: Record<string, number> = {}
-    if (invRes.data)
-      invRes.data.forEach(
-        (i: { menu_item_id: string | null; item_name: string; current_stock: number }) => {
-          if (i.menu_item_id) invMap[i.menu_item_id] = i.current_stock
-          invByName[i.item_name] = i.current_stock
-        }
-      )
-    const chillerTodayMap: Record<string, number> = {}
-    if (chillerRes.data) {
-      chillerRes.data.forEach((row: { item_name: string; closing_qty: number | null }) => {
-        chillerTodayMap[row.item_name] = row.closing_qty ?? 0
-      })
-    }
-    const chillerCarryMap: Record<string, number> = {}
-    const seen = new Set<string>()
-    if (chillerPrevRes.data) {
-      chillerPrevRes.data.forEach(
-        (row: {
-          item_name: string
-          opening_qty: number | null
-          received_qty: number | null
-          sold_qty: number | null
-          void_qty: number | null
-          closing_qty: number | null
-        }) => {
-          if (seen.has(row.item_name)) return
-          seen.add(row.item_name)
-          const fallbackClosing = Math.max(
-            0,
-            (row.opening_qty || 0) +
-              (row.received_qty || 0) -
-              (row.sold_qty || 0) -
-              (row.void_qty || 0)
-          )
-          chillerCarryMap[row.item_name] = row.closing_qty ?? fallbackClosing
-        }
-      )
-    }
-    setMenuItems(
-      (menuRes.data || []).map((item: any) => ({
-        ...item,
-        current_stock:
-          normalizeDestination(
-            item.menu_categories?.destination,
-            item.name,
-            item.menu_categories?.name
-          ) === 'bar'
-            ? (chillerTodayMap[item.name] ??
-              chillerCarryMap[item.name] ??
-              invByName[item.name] ??
-              invMap[item.id] ??
-              null)
-            : (invMap[item.id] ?? null),
-      }))
-    )
-    if (zonePricesRes.data) {
-      const map: Record<string, Record<string, number>> = {}
-      for (const zp of zonePricesRes.data as Array<{
-        menu_item_id: string
-        category_id: string
-        price: number
-      }>) {
-        if (!map[zp.menu_item_id]) map[zp.menu_item_id] = {}
-        map[zp.menu_item_id][zp.category_id] = zp.price
-      }
-      setZonePriceMap(map)
-    }
-    if (!navigator.onLine) {
-      const cached = await localGetAll<any>('menu_items')
-      if (cached.length > 0) {
-        setMenuItems(
-          cached.map((item: any) => ({
-            ...item,
-            current_stock: item.current_stock ?? null,
-          })) as any
+  const filteredItems = items.filter((item) => {
+    const cat = (item as any).item_categories as ItemCategory | undefined
+    const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase()) || (item.sku && item.sku.toLowerCase().includes(search.toLowerCase()))
+    const matchCat = activeCategory === 'All' || cat?.name === activeCategory
+    return matchSearch && matchCat && item.is_available
+  })
+
+  const addToCart = (item: Item) => {
+    setCart((prev) => {
+      const existing = prev.find((e) => e.item.id === item.id)
+      if (existing) {
+        return prev.map((e) =>
+          e.item.id === item.id ? { ...e, quantity: e.quantity + 1 } : e
         )
       }
-    }
+      return [...prev, { item, quantity: 1 }]
+    })
+    setMobileView('cart')
   }
 
-  const handleSelectTable = async (table: Table) => {
-    if (!navigator.onLine) {
-      // Offline: we can't query existing open orders; allow selecting and creating a new one.
-      setActiveOrder(null)
-      setShowPayment(false)
-      setPendingTable(table)
-      return
-    }
-
-    // Always check DB for open orders — don't trust table.status alone
-    // (table may be 'available' but have an orphaned open order, or vice versa)
-    const { data: openOrders } = await supabase
-      .from('orders')
-      .select(
-        `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, covers, total_amount,
-        order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-          menu_items(name, price, menu_categories(name, destination)))`
+  const updateQuantity = (itemId: string, delta: number) => {
+    setCart((prev) => {
+      const existing = prev.find((e) => e.item.id === itemId)
+      if (!existing) return prev
+      const newQty = existing.quantity + delta
+      if (newQty <= 0) return prev.filter((e) => e.item.id !== itemId)
+      return prev.map((e) =>
+        e.item.id === itemId ? { ...e, quantity: newQty } : e
       )
-      .eq('table_id', table.id)
-      .eq('status', 'open')
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (openOrders && openOrders.length > 0) {
-      // Heal table status if it was wrong
-      if (table.status !== 'occupied') {
-        void supabase.from('tables').update({ status: 'occupied' }).eq('id', table.id)
-      }
-      setActiveOrder(openOrders[0] as any)
-      setSelectedTable(table)
-      setShowPayment(false)
-      return
-    }
-    // No open order — new table, ask for covers
-    setActiveOrder(null)
-    setShowPayment(false)
-    setPendingTable(table)
+    })
   }
 
-  const handleCoversConfirmed = (covers: number) => {
-    if (!pendingTable) return
-    setPendingCovers(covers)
-    setSelectedTable(pendingTable)
-    setPendingTable(null)
+  const removeItem = (itemId: string) => {
+    setCart((prev) => prev.filter((e) => e.item.id !== itemId))
   }
 
-  const handleCoversCancel = () => {
-    setPendingTable(null)
-  }
+  const cartTotal = cart.reduce((sum, e) => sum + e.item.price * e.quantity, 0)
+  const cartItemCount = cart.reduce((sum, e) => sum + e.quantity, 0)
 
-  const orderPanelAddItemRef = useRef<((item: MenuItem) => void) | null>(null)
-  const placingOrderRef = useRef(false)
-  const notifyMixologists = async (tableName: string) => {
-    if (!navigator.onLine) return
-    try {
-      const cacheKey = 'mixologist_staff_cache_v1'
-      const raw = localStorage.getItem(cacheKey)
-      const cached = raw ? (JSON.parse(raw) as { at: number; ids: string[] }) : null
-      let ids = cached?.ids || []
-      if (
-        !cached ||
-        !cached.at ||
-        Date.now() - cached.at > 6 * 60 * 60 * 1000 ||
-        ids.length === 0
-      ) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('role', 'mixologist')
-          .eq('is_active', true)
-          .limit(10)
-        ids = (data || []).map((r: any) => r.id).filter(Boolean)
-        localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), ids }))
-      }
-      await Promise.all(
-        ids.map((id) =>
-          sendPushToStaff(
-            id,
-            '🍸 New Mixologist Order',
-            `${tableName} has new cocktails to accept`,
-            { screen: 'mixologist_kds' }
-          )
-        )
-      )
-    } catch {
-      /* best-effort */
-    }
-  }
-
-  const handlePlaceOrder = async ({ table, items, notes, total }: OrderPayload) => {
-    if (placingOrderRef.current) return
+  const handlePlaceOrder = async () => {
+    if (placingOrderRef.current || cart.length === 0 || !profile) return
     placingOrderRef.current = true
     try {
-      if (activeOrder) {
-        const newTotal = (activeOrder.total_amount || 0) + total
-        await supabase
-          .from('orders')
-          .update({
-            total_amount: newTotal,
-            notes: notes || activeOrder.notes,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', activeOrder.id)
-        const newItems = items.map((item) => {
-          return {
-            id: crypto.randomUUID(),
-            order_id: activeOrder.id,
-            menu_item_id: Object.prototype.hasOwnProperty.call(item, 'menu_item_id')
-              ? (item as unknown as { menu_item_id: string | null }).menu_item_id
-              : item.id,
-            quantity: item.quantity,
-            unit_price: item.price,
-            total_price: item.total,
-            status: 'pending',
-            destination: normalizeDestination(
-              item.menu_categories?.destination,
-              item.name,
-              item.menu_categories?.name
-            ),
-            modifier_notes: item.modifier_notes || null,
-            extra_charge: item.extra_charge || 0,
-            created_at: new Date().toISOString(),
-          }
-        })
-        for (const item of newItems) {
-          const { error } = await supabase.from('order_items').insert(item)
-          if (error) {
-            toast.error('Error', 'Error adding items: ' + error.message)
-            return
-          }
-        }
-        const hasMixo = newItems.some(
-          (i) => String(i.destination || '').toLowerCase() === 'mixologist'
-        )
-        if (hasMixo) void notifyMixologists(table.name)
-        await logBarIssues(items, newItems, table, activeOrder.id)
-        await audit({
-          action: 'ORDER_UPDATED',
-          entity: 'order',
-          entityId: activeOrder.id,
-          entityName: 'Table ' + table.name,
-          newValue: { addedItems: items.length, newTotal },
-          performer: profile as Profile,
-        })
-        const { data: refreshed } = await supabase
-          .from('orders')
-          .select(
-            `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, total_amount,
-            order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-              menu_items(name, price, menu_categories(name, destination)))`
-          )
-          .eq('id', activeOrder.id)
-          .single()
-        if (refreshed) setActiveOrder(refreshed as any)
-        setShowPayment(true)
-        return
-      }
-
-      // Last-chance DB check — prevent duplicate open orders on same table
-      const { data: existingOpen } = await supabase
-        .from('orders')
-        .select(
-          `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, total_amount,
-          order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-            menu_items(name, price, menu_categories(name, destination)))`
-        )
-        .eq('table_id', table.id)
-        .eq('status', 'open')
-        .limit(1)
-      if (existingOpen && existingOpen.length > 0) {
-        setActiveOrder(existingOpen[0] as any)
-        setShowPayment(true)
-        return
-      }
-
       const orderId = crypto.randomUUID()
-      const hireFeeAmt =
-        (table as unknown as { table_categories?: { hire_fee?: number | null } }).table_categories
-          ?.hire_fee || 0
       const orderRecord = {
         id: orderId,
-        table_id: table.id,
-        staff_id: profile!.id,
-        order_type: 'dine-in',
-        status: 'open',
-        total_amount: total + hireFeeAmt,
-        notes,
-        covers: pendingCovers,
+        staff_id: profile.id,
+        order_type: 'sale' as const,
+        status: 'open' as const,
+        total_amount: cartTotal,
+        notes: notes || null,
         created_at: new Date().toISOString(),
       }
-      const { error: orderError } = navigator.onLine
-        ? await supabase.from('orders').insert(orderRecord)
-        : await offlineInsertNoReturn('orders', orderRecord as any)
-      setPendingCovers(null)
+      const { error: orderError } = await supabase.from('orders').insert(orderRecord)
       if (orderError) {
-        console.error('Order error:', orderError)
-        toast.error('Error', 'Error creating order: ' + orderError.message)
+        toast.error('Error', 'Failed to create order: ' + orderError.message)
         return
       }
-      const newOrder = { id: orderId } as Order
-
-      // Auto-add hire fee as first line item if this zone charges one
-      const hireFee = (table as unknown as { table_categories?: { hire_fee?: number | null } })
-        .table_categories?.hire_fee
-      const baseItems =
-        hireFee && hireFee > 0
-          ? [
-              {
-                id: crypto.randomUUID(),
-                order_id: orderId,
-                menu_item_id: null,
-                quantity: 1,
-                unit_price: hireFee,
-                total_price: hireFee,
-                status: 'delivered', // hire fee is charged immediately, not a kitchen item
-                destination: 'bar',
-                modifier_notes: `Zone hire fee — ${table.table_categories?.name || 'Inside'}`,
-                extra_charge: 0,
-                created_at: new Date().toISOString(),
-                is_hire_fee: true,
-              },
-            ]
-          : []
-
-      const orderItemRows = [
-        ...baseItems,
-        ...items.map((item) => {
-          return {
-            id: crypto.randomUUID(),
-            order_id: (newOrder as Order).id,
-            menu_item_id: Object.prototype.hasOwnProperty.call(item, 'menu_item_id')
-              ? (item as unknown as { menu_item_id: string | null }).menu_item_id
-              : item.id,
-            quantity: item.quantity,
-            unit_price: item.price,
-            total_price: item.total,
-            status: 'pending',
-            destination: normalizeDestination(
-              item.menu_categories?.destination,
-              item.name,
-              item.menu_categories?.name
-            ),
-            modifier_notes: item.modifier_notes || null,
-            extra_charge: item.extra_charge || 0,
-            created_at: new Date().toISOString(),
-          }
-        }),
-      ]
-      for (const item of orderItemRows) {
-        const { error } = navigator.onLine
-          ? await supabase.from('order_items').insert(item)
-          : await offlineInsertNoReturn('order_items', item as any)
+      const orderItemRows = cart.map((entry) => ({
+        id: crypto.randomUUID(),
+        order_id: orderId,
+        item_id: entry.item.id,
+        name: entry.item.name,
+        quantity: entry.quantity,
+        unit_price: entry.item.price,
+        total_price: entry.item.price * entry.quantity,
+        status: 'pending' as const,
+        created_at: new Date().toISOString(),
+      }))
+      for (const row of orderItemRows) {
+        const { error } = await supabase.from('order_items').insert(row)
         if (error) {
-          toast.error('Error', 'Error adding items: ' + error.message)
+          toast.error('Error', 'Failed to add item: ' + error.message)
           return
         }
       }
-      const hasMixo = orderItemRows.some(
-        (i) => String((i as any).destination || '').toLowerCase() === 'mixologist'
-      )
-      if (hasMixo) void notifyMixologists(table.name)
-      if (!navigator.onLine) {
-        // Persist occupied state locally and queue update; remote will be updated on sync.
-        void offlineUpdateNoReturn('tables', table.id, { status: 'occupied' } as any)
-      }
-      await logBarIssues(items, orderItemRows.slice(baseItems.length), table, orderId)
       await audit({
         action: 'ORDER_CREATED',
         entity: 'order',
-        entityId: (newOrder as Order).id,
-        entityName: 'Table ' + table.name,
-        newValue: { total, items: items.length, table: table.name },
+        entityId: orderId,
+        entityName: 'Sale',
+        newValue: { total: cartTotal, items: cart.length },
         performer: profile as Profile,
       })
-      await supabase.from('tables').update({ status: 'occupied' }).eq('id', table.id)
-      // Reload the newly created order so PaymentModal has full order_items
       const { data: freshOrder } = await supabase
         .from('orders')
-        .select(
-          `id, created_at, status, table_id, staff_id, order_type, payment_method, customer_name, notes, covers, total_amount,
-          order_items(id, order_id, menu_item_id, quantity, status, destination, modifier_notes, extra_charge, unit_price, total_price, return_requested, return_accepted, return_reason, created_at,
-            menu_items(name, price, menu_categories(name, destination)))`
-        )
-        .eq('id', (newOrder as Order).id)
+        .select('*, order_items(*, items(name, price))')
+        .eq('id', orderId)
         .single()
       if (freshOrder) {
-        setActiveOrder(freshOrder as any)
+        setActiveOrder(freshOrder as ActiveOrderWithItems)
         setShowPayment(true)
       }
-      // Refresh table grid in background — don't await so it doesn't block modal
-      void fetchTables()
     } catch (err) {
-      console.error('handlePlaceOrder error:', err)
       toast.error('Error', 'Order failed: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       placingOrderRef.current = false
     }
   }
 
-  const openCashSale = (type: 'cash' | 'takeaway') => {
-    setCashSaleType(type)
+  const handlePaymentSuccess = () => {
+    setShowPayment(false)
+    setActiveOrder(null)
+    setCart([])
+    setNotes('')
+    setMobileView('items')
+  }
+
+  const openCashSale = () => {
     setShowCashSale(true)
   }
 
-  useEffect(() => {
-    if (isWaitron && posTab !== 'tables' && posTab !== 'deliveries') setPosTab('tables')
-  }, [isWaitron, posTab])
-
-  if (loading)
+  if (loading) {
     return (
       <div className="min-h-full bg-gray-950 flex items-center justify-center">
         <div className="text-amber-500">Loading...</div>
       </div>
     )
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-950 flex flex-col">
-      <WaiterCalls />
-      <CustomerOrderAlerts profile={profile} assignedTableIds={assignedTableIds || []} />
-
-      <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3 sticky top-0 z-40">
+      <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3 shrink-0 z-40">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
-              <UtensilsCrossed size={15} className="text-black" />
+              <ShoppingBag size={15} className="text-black" />
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-white font-bold text-sm">C.Biz</h1>
+              <h1 className="text-white font-bold text-sm">C.Biz POS</h1>
               <p className="text-gray-400 text-xs">Point of Sale</p>
             </div>
-            <span className="sm:hidden text-white font-bold text-sm">POS</span>
+            <span className="sm:hidden text-white font-bold text-sm">C.Biz POS</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => openCashSale('cash')}
+              onClick={() => openCashSale()}
               className="flex items-center gap-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition-colors"
             >
               <ShoppingBag size={13} />
               <span className="hidden sm:inline">Cash Sale</span>
             </button>
             <button
-              onClick={() => openCashSale('takeaway')}
-              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition-colors"
-            >
-              <Phone size={13} />
-              <span className="hidden sm:inline">Takeaway</span>
-            </button>
-            <button
-              onClick={fullRefresh}
+              onClick={fetchItems}
               className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white active:rotate-180 transition-transform duration-300"
             >
               <RefreshCw size={15} />
@@ -1072,59 +235,6 @@ export default function POS() {
               <p className="text-white text-xs">{profile?.full_name}</p>
               <p className="text-amber-500 text-xs capitalize">{profile?.role}</p>
             </div>
-            <HelpTooltip
-              storageKey="pos"
-              tips={[
-                {
-                  id: 'pos-tables',
-                  title: 'Table Grid',
-                  description:
-                    'Your assigned tables are shown here colour-coded by zone. Green = available, amber/coloured = occupied. Tap an occupied table to add more items or proceed to payment. Tables outside your assigned zone are greyed out. Use the zone filter tabs to focus on your area.',
-                },
-                {
-                  id: 'pos-search',
-                  title: 'Menu Search',
-                  description:
-                    'Type any item name in the search bar to filter the menu instantly. Use it together with category tabs — select Drinks first, then type "chap" to find Chapman immediately.',
-                },
-                {
-                  id: 'pos-cashsale',
-                  title: 'Cash Sale',
-                  description:
-                    'For counter walk-ins who pay immediately. No table needed — pick items and process payment on the spot. Inventory is depleted at payment, not at order time.',
-                },
-                {
-                  id: 'pos-takeaway',
-                  title: 'Takeaway',
-                  description:
-                    'For phone-in or walk-in orders to go. Enter the customer name and phone number, select items, and process payment. The order appears on the relevant KDS screens.',
-                },
-                {
-                  id: 'pos-payment',
-                  title: 'Processing Payment',
-                  description:
-                    'Tap Pay on any open order. Choose Cash, Bank POS, Transfer, or Credit (runs a tab). Split Bill divides the order between multiple people, each paying separately. Run Tab keeps the order open to add more items later. Inventory is depleted at the point of payment.',
-                },
-                {
-                  id: 'pos-void',
-                  title: 'Voiding an Item',
-                  description:
-                    'Tap the minus/delete button on any existing order item. A manager PIN is required. Once confirmed, the item is deleted from the database, the order total is reduced, and the KDS ticket is updated. Voids cannot be processed while the payment screen is open.',
-                },
-                {
-                  id: 'pos-split',
-                  title: 'Split Payment',
-                  description:
-                    'Use Split Bill to divide the check between 2–6 people. Assign items to each person, then collect payment from each one in turn using any payment method. All splits must be completed before the order closes.',
-                },
-                {
-                  id: 'pos-credit',
-                  title: 'Credit / Account Payment',
-                  description:
-                    'Selecting Credit creates a debtor record for the customer. If the customer already has an account (matched by phone number), their existing balance is increased rather than creating a duplicate entry.',
-                },
-              ]}
-            />
             <button
               onClick={signOut}
               className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white"
@@ -1135,452 +245,232 @@ export default function POS() {
         </div>
       </nav>
 
-      <div className="flex border-b border-gray-800 bg-gray-900 px-4">
-        {(
-          [
-            ['tables', UtensilsCrossed, 'Tables'],
-            ['deliveries', Bike, 'Deliveries'],
-            ...(isWaitron ? [] : [['history', History, 'My Orders'] as const]),
-          ] as const
-        ).map(([id, Icon, label]) => (
-          <button
-            key={id}
-            onClick={() => {
-              setPosTab(id)
-              if (id === 'history') fetchHistory()
-              if (id === 'deliveries') fetchDeliveries()
-            }}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${posTab === id ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-500 hover:text-white'}`}
-          >
-            <Icon size={13} /> {label}
-          </button>
-        ))}
-      </div>
-
       <div className="flex-1 flex overflow-hidden">
-        {posTab === 'tables' && (
-          <div className={`flex flex-1 flex-col overflow-hidden`}>
-            {!selectedTable ? (
-              <TableGrid
-                tables={tables}
-                onSelectTable={handleSelectTable}
-                selectedTable={selectedTable}
-                assignedTableIds={assignedTableIds}
-                assignedZoneNames={assignedZoneNames}
-                defaultCategory={defaultZone}
-                tableStaffMap={tableStaffMap}
-                currentStaffId={profile?.id || null}
-                currentRole={profile?.role || null}
+        <div className="hidden md:flex flex-1 flex-col overflow-hidden">
+          <div className="flex gap-1.5 px-4 py-2.5 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
+            <button
+              onClick={() => setActiveCategory('All')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === 'All' ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.name)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === cat.name ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+          <div className="flex px-4 py-2 border-b border-gray-800 shrink-0">
+            <div className="flex items-center gap-2 flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-amber-500 transition-colors">
+              <Search size={16} className="text-gray-500 shrink-0" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search items..."
+                className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
               />
+              {search && (
+                <button onClick={() => setSearch('')} className="text-gray-500 hover:text-white">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {filteredItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mb-4">
+                  <ShoppingBag size={24} className="text-gray-600" />
+                </div>
+                <p className="text-gray-400 font-semibold mb-1">No items found</p>
+                {menuError ? (
+                  <div className="text-red-400 text-xs max-w-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {menuError}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-xs max-w-xs">
+                    {items.length === 0
+                      ? 'Add items in the Back Office to get started.'
+                      : 'Try a different search or category.'}
+                  </p>
+                )}
+              </div>
             ) : (
-              <div className="hidden md:flex flex-1 flex-col overflow-hidden">
-                <DesktopMenuBrowser
-                  menuItems={menuItems as MenuItem[]}
-                  onAddItem={(item) => {
-                    orderPanelAddItemRef.current?.(item)
-                  }}
-                  zonePriceMap={zonePriceMap}
-                  currentZoneId={selectedTable?.category_id}
-                />
+              <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                {filteredItems.map((item) => {
+                  const cartEntry = cart.find((e) => e.item.id === item.id)
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => addToCart(item)}
+                      className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50 relative"
+                    >
+                      <div className="p-3">
+                        <p className="text-white text-sm font-medium leading-tight truncate">
+                          {item.name}
+                        </p>
+                        <p className="text-amber-400 text-sm font-bold mt-1">
+                          {formatPrice(item.price)}
+                        </p>
+                        {item.stock_quantity <= item.low_stock_threshold && item.stock_quantity > 0 && (
+                          <p className="text-orange-400 text-[10px] mt-0.5">Low stock</p>
+                        )}
+                        {item.stock_quantity === 0 && (
+                          <p className="text-red-400 text-[10px] mt-0.5">Out of stock</p>
+                        )}
+                      </div>
+                      {cartEntry && (
+                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
+                          {cartEntry.quantity}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {posTab === 'deliveries' && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-lg mx-auto p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-white text-lg font-bold">Delivery Orders</h2>
-                  <p className="text-gray-500 text-xs">
-                    Today's deliveries — tap to mark as paid when rider returns
-                  </p>
-                </div>
-                <button onClick={fetchDeliveries} className="text-gray-500 hover:text-white p-2">
-                  <RefreshCw size={14} />
-                </button>
-              </div>
-              {deliveriesLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <RefreshCw size={20} className="animate-spin text-amber-500" />
-                </div>
-              ) : deliveries.length === 0 ? (
-                <div className="text-center py-16">
-                  <Bike size={32} className="text-gray-700 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No deliveries today</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {(() => {
-                    const active = deliveries.filter(
-                      (o) => o.delivery_status === 'out_for_delivery'
-                    )
-                    const completed = deliveries.filter((o) => o.delivery_status === 'paid')
-                    return (
-                      <>
-                        {active.length > 0 && (
-                          <div>
-                            <h3 className="text-amber-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-                              Active — {active.length}
-                            </h3>
-                            <div className="space-y-3">
-                              {active.map((order) => {
-                                const rider = order.boda_operators as {
-                                  name?: string
-                                  phone?: string
-                                } | null
-                                return (
-                                  <div
-                                    key={order.id}
-                                    className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
-                                  >
-                                    <div className="px-4 py-3 flex items-center justify-between">
-                                      <div>
-                                        <p className="text-white font-semibold text-sm">
-                                          {order.customer_name || 'Customer'}
-                                        </p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <span className="text-gray-500 text-xs">
-                                            {new Date(order.created_at).toLocaleTimeString(
-                                              'en-NG',
-                                              { hour: '2-digit', minute: '2-digit', hour12: true }
-                                            )}
-                                          </span>
-                                          <span className="text-gray-700 text-xs">|</span>
-                                          <span className="text-blue-400 text-xs">
-                                            Out for delivery
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <p className="text-amber-400 font-bold text-sm">
-                                        {formatPrice(order.total_amount || 0)}
-                                      </p>
-                                    </div>
-                                    <div className="px-4 pb-3 space-y-1">
-                                      {order.customer_phone && (
-                                        <a
-                                          href={`tel:${order.customer_phone}`}
-                                          className="text-gray-400 text-xs hover:text-amber-400 transition-colors flex items-center gap-1"
-                                        >
-                                          <Phone size={11} />
-                                          <span className="text-gray-600">Phone:</span>{' '}
-                                          {order.customer_phone}
-                                        </a>
-                                      )}
-                                      {order.delivery_area && (
-                                        <p className="text-gray-400 text-xs">
-                                          <span className="text-gray-600">Delivery to:</span>{' '}
-                                          {order.delivery_area}
-                                        </p>
-                                      )}
-                                      {rider?.name && (
-                                        <p className="text-gray-400 text-xs">
-                                          <span className="text-gray-600">Rider:</span> {rider.name}{' '}
-                                          {rider.phone ? (
-                                            <a
-                                              href={`tel:${rider.phone}`}
-                                              className="text-amber-400 hover:text-amber-300 underline transition-colors"
-                                            >
-                                              {rider.phone}
-                                            </a>
-                                          ) : (
-                                            ''
-                                          )}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div className="px-4 py-3 bg-gray-950 border-t border-gray-800">
-                                      <button
-                                        onClick={() => markDeliveryPaid(order.id)}
-                                        disabled={payingDelivery === order.id}
-                                        className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-colors"
-                                      >
-                                        <DollarSign size={15} />
-                                        {payingDelivery === order.id
-                                          ? 'Recording...'
-                                          : 'Mark as Paid — Cash Received'}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        {completed.length > 0 && (
-                          <div>
-                            <h3 className="text-green-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-                              <CheckCircle2 size={12} />
-                              Completed — {completed.length}
-                            </h3>
-                            <div className="space-y-2">
-                              {completed.map((order) => {
-                                const rider = order.boda_operators as {
-                                  name?: string
-                                  phone?: string
-                                } | null
-                                return (
-                                  <div
-                                    key={order.id}
-                                    className="bg-gray-900/50 border border-gray-800/50 rounded-2xl overflow-hidden opacity-70"
-                                  >
-                                    <div className="px-4 py-3 flex items-center justify-between">
-                                      <div>
-                                        <p className="text-white font-semibold text-sm">
-                                          {order.customer_name || 'Customer'}
-                                        </p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <span className="text-gray-500 text-xs">
-                                            {new Date(order.created_at).toLocaleTimeString(
-                                              'en-NG',
-                                              { hour: '2-digit', minute: '2-digit', hour12: true }
-                                            )}
-                                          </span>
-                                          <span className="text-gray-700 text-xs">|</span>
-                                          <span className="text-green-400 text-xs flex items-center gap-1">
-                                            <CheckCircle2 size={10} /> Paid
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <p className="text-gray-400 font-bold text-sm">
-                                        {formatPrice(order.total_amount || 0)}
-                                      </p>
-                                    </div>
-                                    <div className="px-4 pb-3 space-y-1">
-                                      {order.customer_phone && (
-                                        <p className="text-gray-500 text-xs">
-                                          <span className="text-gray-600">Phone:</span>{' '}
-                                          {order.customer_phone}
-                                        </p>
-                                      )}
-                                      {order.delivery_area && (
-                                        <p className="text-gray-500 text-xs">
-                                          <span className="text-gray-600">Delivery to:</span>{' '}
-                                          {order.delivery_area}
-                                        </p>
-                                      )}
-                                      {rider?.name && (
-                                        <p className="text-gray-500 text-xs">
-                                          <span className="text-gray-600">Rider:</span> {rider.name}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
-                        {active.length === 0 && completed.length === 0 && (
-                          <div className="text-center py-8">
-                            <p className="text-gray-500 text-sm">No deliveries today</p>
-                          </div>
-                        )}
-                      </>
-                    )
-                  })()}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <div className="hidden md:flex w-[340px] min-w-[280px] border-l border-gray-800 flex-col overflow-hidden">
+          <OrderPanel
+            cart={cart}
+            onUpdateQuantity={updateQuantity}
+            onRemoveItem={removeItem}
+            notes={notes}
+            onNotesChange={setNotes}
+            onPlaceOrder={handlePlaceOrder}
+            profile={profile}
+          />
+        </div>
 
-        {posTab === 'history' && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-lg mx-auto p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-white text-lg font-bold">My Orders</h2>
-                  <p className="text-gray-500 text-xs">
-                    Today's closed orders — {orderHistory.length} total
-                  </p>
-                </div>
-                <button onClick={fetchHistory} className="text-gray-500 hover:text-white p-2">
-                  <RefreshCw size={14} />
+        <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+          {mobileView === 'items' ? (
+            <>
+              <div className="flex gap-1.5 px-3 py-2 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
+                <button
+                  onClick={() => setActiveCategory('All')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === 'All' ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                >
+                  All
                 </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.name)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === cat.name ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
               </div>
-              {historyLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <RefreshCw size={20} className="animate-spin text-amber-500" />
+              <div className="flex px-3 py-2 border-b border-gray-800 shrink-0">
+                <div className="flex items-center gap-2 flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-amber-500 transition-colors">
+                  <Search size={16} className="text-gray-500 shrink-0" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search items..."
+                    className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="text-gray-500 hover:text-white">
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
-              ) : orderHistory.length === 0 ? (
-                <div className="text-center py-16">
-                  <History size={32} className="text-gray-700 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No orders closed today</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {orderHistory.map((order) => {
-                    const pmRaw = (order.payment_method || '').toLowerCase()
-                    const pmLabel =
-                      pmRaw === 'cash'
-                        ? 'Cash'
-                        : pmRaw === 'card'
-                          ? 'Bank POS'
-                          : pmRaw === 'credit'
-                            ? 'Credit'
-                            : pmRaw.startsWith('transfer')
-                              ? 'Transfer'
-                              : pmRaw === 'split'
-                                ? 'Split'
-                                : pmRaw || '—'
-                    const activeItems = (order.order_items || []).filter(
-                      (i) =>
-                        !(i as unknown as { return_requested?: boolean }).return_requested &&
-                        !(i as unknown as { return_accepted?: boolean }).return_accepted
-                    )
-                    const itemCount = activeItems.reduce((s, i) => s + (i.quantity || 0), 0)
-                    const displayTotal = activeItems.reduce((s, i) => s + (i.total_price || 0), 0)
-                    return (
-                      <div
-                        key={order.id}
-                        className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
-                      >
-                        {/* Order header */}
-                        <div className="px-4 py-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-white font-semibold text-sm">
-                              {order.tables?.name ||
-                                (order as unknown as { customer_name?: string }).customer_name ||
-                                (order.order_type === 'takeaway' ? 'Takeaway' : 'Cash Sale')}
+              </div>
+              <div className="flex-1 overflow-y-auto p-3">
+                {filteredItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                    <ShoppingBag size={24} className="text-gray-600 mb-3" />
+                    <p className="text-gray-400 text-sm">No items found</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {filteredItems.map((item) => {
+                      const cartEntry = cart.find((e) => e.item.id === item.id)
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => addToCart(item)}
+                          className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50 relative"
+                        >
+                          <div className="p-3">
+                            <p className="text-white text-sm font-medium leading-tight truncate">
+                              {item.name}
                             </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-gray-500 text-xs">
-                                {new Date(
-                                  (order as unknown as { closed_at: string }).closed_at
-                                ).toLocaleTimeString('en-NG', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                })}
-                              </span>
-                              <span className="text-gray-700 text-xs">|</span>
-                              <span className="text-gray-400 text-xs">{pmLabel}</span>
-                              <span className="text-gray-700 text-xs">|</span>
-                              <span className="text-gray-500 text-xs">
-                                {itemCount} item{itemCount !== 1 ? 's' : ''}
-                              </span>
+                            <p className="text-amber-400 text-sm font-bold mt-1">
+                              {formatPrice(item.price)}
+                            </p>
+                          </div>
+                          {cartEntry && (
+                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
+                              {cartEntry.quantity}
                             </div>
-                          </div>
-                          <div className="text-right flex items-center gap-3">
-                            <PriceDisplay
-                              amount={displayTotal}
-                              className="text-amber-400 font-bold"
-                              sspClassName="text-[10px] text-amber-400/50"
-                            />
-                            <button
-                              onClick={() => setReprintOrder(order)}
-                              className="flex items-center gap-1 text-gray-500 hover:text-white text-xs px-2 py-1 bg-gray-800 rounded-lg transition-colors"
-                            >
-                              <Printer size={11} /> Reprint
-                            </button>
-                          </div>
-                        </div>
-                        {/* Item breakdown — only active items (not returned) */}
-                        {activeItems.length > 0 && (
-                          <div className="px-4 py-2.5 bg-gray-950 border-t border-gray-800">
-                            <table className="w-full text-xs">
-                              <tbody>
-                                {activeItems.map((item) => (
-                                  <tr key={item.id}>
-                                    <td className="text-gray-500 py-0.5 pr-2 w-8 text-right">
-                                      {item.quantity}x
-                                    </td>
-                                    <td className="text-gray-300 py-0.5">
-                                      {(item as unknown as { menu_items?: { name: string } })
-                                        .menu_items?.name ||
-                                        (item as unknown as { modifier_notes?: string })
-                                          .modifier_notes ||
-                                        'Item'}
-                                    </td>
-                                    <td className="text-gray-400 py-0.5 text-right pl-2">
-                                      {formatPrice(item.total_price || 0)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              {cart.length > 0 && (
+                <div className="shrink-0 border-t border-gray-800 bg-gray-900 p-3">
+                  <button
+                    onClick={() => setMobileView('cart')}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <ShoppingCart size={16} />
+                    View Cart ({cartItemCount}) — {formatPrice(cartTotal)}
+                  </button>
                 </div>
               )}
+            </>
+          ) : (
+            <div className="flex flex-col h-full overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 shrink-0">
+                <button
+                  onClick={() => setMobileView('items')}
+                  className="text-amber-500 text-sm font-medium"
+                >
+                  ← Items
+                </button>
+                <span className="text-white font-bold text-sm">Cart ({cartItemCount})</span>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <OrderPanel
+                  cart={cart}
+                  onUpdateQuantity={updateQuantity}
+                  onRemoveItem={removeItem}
+                  notes={notes}
+                  onNotesChange={setNotes}
+                  onPlaceOrder={handlePlaceOrder}
+                  profile={profile}
+                />
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Desktop: compact order sidebar (1/4 width) */}
-        {selectedTable && !showPayment && (
-          <div
-            className="hidden md:flex w-1/4 min-w-[280px] max-w-[360px] border-l border-gray-800 flex-col overflow-hidden"
-            style={{ height: '100%' }}
-          >
-            <OrderPanel
-              table={selectedTable}
-              menuItems={menuItems as MenuItem[]}
-              zonePrices={zonePriceMap[selectedTable.category_id] ?? {}}
-              paymentInProgress={showPayment}
-              profile={profile}
-              onPlaceOrder={handlePlaceOrder}
-              activeOrder={activeOrder}
-              compact
-              onRegisterAddItem={(addFn) => {
-                orderPanelAddItemRef.current = addFn
-              }}
-              onClose={() => {
-                setSelectedTable(null)
-                setActiveOrder(null)
-              }}
-            />
-          </div>
-        )}
-
-        {/* Mobile: full-screen overlay */}
-        {selectedTable && !showPayment && (
-          <div className="md:hidden fixed inset-0 z-50 bg-gray-950 flex flex-col overflow-hidden">
-            <OrderPanel
-              table={selectedTable}
-              menuItems={menuItems as MenuItem[]}
-              zonePrices={zonePriceMap[selectedTable.category_id] ?? {}}
-              paymentInProgress={showPayment}
-              profile={profile}
-              onPlaceOrder={handlePlaceOrder}
-              activeOrder={activeOrder}
-              onClose={() => {
-                setSelectedTable(null)
-                setActiveOrder(null)
-              }}
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {showPayment && activeOrder && selectedTable && (
+      {showPayment && activeOrder && (
         <PaymentModal
-          order={activeOrder}
-          table={selectedTable}
-          onSuccess={async () => {
-            setShowPayment(false)
-            setActiveOrder(null)
-            setSelectedTable(null)
-            fetchTables()
-          }}
+          order={activeOrder as any}
+          onSuccess={handlePaymentSuccess}
           onClose={() => {
             setShowPayment(false)
             setActiveOrder(null)
-            setSelectedTable(null)
           }}
         />
       )}
 
       {showCashSale && (
         <CashSaleModal
-          type={cashSaleType}
-          menuItems={menuItems as MenuItem[]}
           staffId={profile!.id}
           onSuccess={() => setShowCashSale(false)}
           onClose={() => setShowCashSale(false)}
@@ -1589,29 +479,11 @@ export default function POS() {
 
       {reprintOrder && (
         <ReceiptModal
-          order={reprintOrder as unknown as import('../../types').Order}
-          table={
-            reprintOrder.tables
-              ? (reprintOrder.tables as unknown as import('../../types').Table)
-              : ({
-                  name:
-                    (reprintOrder as unknown as { customer_name?: string }).customer_name ||
-                    'Cash Sale',
-                } as import('../../types').Table)
-          }
-          items={(reprintOrder.order_items || []) as import('../../types').OrderItem[]}
+          order={reprintOrder}
+          items={(reprintOrder.order_items || []) as OrderItem[]}
           staffName={profile?.full_name || ''}
           autoPrint={false}
           onClose={() => setReprintOrder(null)}
-        />
-      )}
-
-      {/* Covers modal — shown when waitron selects an available table */}
-      {pendingTable && (
-        <CoversModal
-          tableName={pendingTable.name}
-          onConfirm={handleCoversConfirmed}
-          onCancel={handleCoversCancel}
         />
       )}
     </div>

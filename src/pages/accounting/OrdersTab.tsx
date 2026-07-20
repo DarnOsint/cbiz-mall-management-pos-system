@@ -95,7 +95,7 @@ export default function OrdersTab({ orders, orderFilter, onFilterChange }: Props
                       })}
                     </td>
                     <td className="px-4 py-3 text-white text-sm whitespace-nowrap">
-                      {order.tables?.name || order.order_type}
+                      {order.customer_name || order.order_type}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-sm whitespace-nowrap">
                       {(order as Order & { profiles?: { full_name: string } }).profiles

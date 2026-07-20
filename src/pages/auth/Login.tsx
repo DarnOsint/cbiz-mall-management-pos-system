@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { verifyPinServer, verifyPbkdf2 } from '../../lib/pinHash'
-import { cacheCredential, verifyOfflinePassword, verifyOfflinePin } from '../../lib/offlineAuth'
+
 import { Eye, EyeOff, Delete, UtensilsCrossed } from 'lucide-react'
 import type { Profile, Role } from '../../types'
 
@@ -150,30 +150,15 @@ export default function Login() {
     }
     setLoading(true)
     setError(null)
-    const tryOffline = async () => {
-      const offline = await verifyOfflinePassword(email, password)
-      if (!offline) return false
-      setOfflineSession(offline.profile, 'password')
-      resetAttempts('rl_email')
-      setLoading(false)
-      window.location.replace('/dashboard')
-      return true
-    }
 
     if (!navigator.onLine) {
-      const ok = await tryOffline()
-      if (!ok) setError('No offline password cached for this account.')
+      setError('No network connection. Please connect and try again.')
       setLoading(false)
       return
     }
 
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err || !data?.session) {
-      // Network or credential failure — if network-related, attempt offline cache
-      if (err?.message?.toLowerCase().includes('network') || !navigator.onLine) {
-        const ok = await tryOffline()
-        if (ok) return
-      }
       const ns = recordAttempt('rl_email', EMAIL_MAX)
       if (ns.attempts >= EMAIL_MAX) {
         const rem = getRemaining(ns, EMAIL_LOCK_MS)
@@ -189,20 +174,7 @@ export default function Login() {
       return
     }
 
-    // Online success — cache credential for offline reuse
     resetAttempts('rl_email')
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id
-    if (userId) {
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single()
-      if (prof) {
-        try {
-          await cacheCredential(prof as unknown as Profile, 'password', password)
-        } catch (e) {
-          console.warn('cacheCredential(password) failed', e)
-        }
-      }
-    }
 
     void fetch('https://api.ipify.org?format=json')
       .then((r) => r.json())
@@ -235,23 +207,10 @@ export default function Login() {
     setLoading(true)
     setError(null)
 
-    const offlineFallback = async () => {
-      const offline = await verifyOfflinePin(entered)
-      if (!offline) return null
-      setOfflineSession(offline.profile, 'pin')
-      resetAttempts('rl_pin')
-      setLoading(false)
-      window.location.replace('/dashboard')
-      return offline.profile
-    }
-
-    // Offline-first: if no network, try cached credentials immediately
     if (!navigator.onLine) {
-      const offlineProfile = await offlineFallback()
-      if (!offlineProfile) {
-        setError('Offline login needs a prior online login on this POS (PIN not cached yet).')
-        setLoading(false)
-      }
+      setError('No network connection. Please connect and try again.')
+      setPin('')
+      setLoading(false)
       return
     }
 
@@ -295,11 +254,6 @@ export default function Login() {
       | null
 
     if (!profile) {
-      // If server failed due to network, attempt offline cached login
-      if (!navigator.onLine) {
-        const offlineProfile = await offlineFallback()
-        if (offlineProfile) return
-      }
       const ns = recordAttempt('rl_pin', PIN_MAX)
       if (ns.attempts >= PIN_MAX) {
         const rem = getRemaining(ns, PIN_LOCK_MS)
@@ -339,20 +293,6 @@ export default function Login() {
           })
           .select()
       )
-    try {
-      const cacheProfile: Profile = {
-        id: profile.id,
-        full_name: profile.full_name,
-        role: profile.role as Role,
-        email: profile.email,
-        pin: profile.pin,
-        is_active: true,
-        created_at: profile.created_at || new Date().toISOString(),
-      }
-      await cacheCredential(cacheProfile, 'pin', entered)
-    } catch (e) {
-      console.warn('cacheCredential(pin) failed', e)
-    }
     setOfflineSession({ id: profile.id }, 'pin')
     setLoading(false)
     window.location.replace('/dashboard')
@@ -554,7 +494,7 @@ export default function Login() {
             </>
           )}
         </div>
-        <p className="text-center text-gray-600 text-sm mt-6">C.BizOS v1.0 — C.Biz Lounge</p>
+        <p className="text-center text-gray-600 text-sm mt-6">C.Biz POS v1.0</p>
       </div>
     </div>
   )

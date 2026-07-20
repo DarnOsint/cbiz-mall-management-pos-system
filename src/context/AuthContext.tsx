@@ -10,7 +10,6 @@ import {
 import { supabase } from '../lib/supabase'
 import { audit } from '../lib/audit'
 import { setAuditPerformer } from '../lib/auditContext'
-import { getCachedProfileById } from '../lib/offlineAuth'
 import type { Profile } from '../types'
 import type { User } from '@supabase/supabase-js'
 
@@ -89,7 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Auth init ──────────────────────────────────────────────────────────────
 
   const fetchProfile = useCallback(async (userId: string) => {
-    // Retry up to 3 times — handles transient RLS or network errors
     for (let attempt = 0; attempt < 3; attempt++) {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
       if (!error && data) {
@@ -100,7 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (attempt < 2) await new Promise((r) => setTimeout(r, 500))
     }
-    // All retries failed — sign out cleanly rather than leaving broken state
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
@@ -112,8 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function init() {
       const hydratePinSession = async (): Promise<boolean> => {
-        // PIN session — SECURITY: only ID is trusted from localStorage.
-        // Role/name/active status are always re-fetched from the DB to prevent forgery.
         const pinSession = localStorage.getItem('pin_session')
         if (!pinSession) return false
         try {
@@ -122,22 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!(hoursSince < 12 && parsed.id)) {
             localStorage.removeItem('pin_session')
             return false
-          }
-
-          // Offline mode: hydrate profile from cached credentials (device-trust),
-          // so POS/KDS can operate without internet.
-          if (!navigator.onLine) {
-            const cached = await getCachedProfileById(parsed.id)
-            if (cancelled) return true
-            if (!cached) {
-              localStorage.removeItem('pin_session')
-              return false
-            }
-            setProfile(cached)
-            setAuditPerformer(cached)
-            setUser({ id: cached.id, pin_session: true } as unknown as User)
-            setLoading(false)
-            return true
           }
 
           const { data: freshProfile, error } = await supabase
@@ -162,13 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Prefer Supabase (email/password) session if present.
       const {
         data: { session },
       } = await supabase.auth.getSession()
       if (cancelled) return
       if (session?.user) {
-        // If an email session exists, it takes precedence over any lingering PIN session.
         if (localStorage.getItem('pin_session')) {
           localStorage.removeItem('pin_session')
           window.dispatchEvent(new Event('pin_session_updated'))
@@ -178,7 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Otherwise attempt PIN session.
       if (await hydratePinSession()) return
 
       setUser(null)
@@ -192,8 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const pinSession = localStorage.getItem('pin_session')
 
-      // If Supabase session becomes available (SIGNED_IN / TOKEN_REFRESHED),
-      // it should override any PIN session.
       if (session?.user) {
         if (pinSession) {
           localStorage.removeItem('pin_session')
@@ -204,7 +178,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // If Supabase session is cleared but a PIN session exists, keep the PIN session.
       if (pinSession) return
 
       setUser(null)
@@ -213,28 +186,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     const onPinSessionUpdated = () => {
-      // If a PIN login just happened without a page reload, hydrate immediately.
       if (!cancelled) {
         void (async () => {
           await new Promise((r) => setTimeout(r, 0))
-          // Avoid overriding an email session.
           if (localStorage.getItem('pin_session')) {
-            // Re-run init PIN hydration path.
             const pinSession = localStorage.getItem('pin_session')
             if (!pinSession) return
             try {
               const parsed = JSON.parse(pinSession) as { id: string; logged_in_at: string }
               if (!parsed?.id) return
-              if (!navigator.onLine) {
-                const cached = await getCachedProfileById(parsed.id)
-                if (cached) {
-                  setProfile(cached)
-                  setAuditPerformer(cached)
-                  setUser({ id: cached.id, pin_session: true } as unknown as User)
-                  setLoading(false)
-                }
-                return
-              }
               const { data: freshProfile } = await supabase
                 .from('profiles')
                 .select('*')

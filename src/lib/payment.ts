@@ -89,7 +89,7 @@ export function getPersonTotal(
   personIdx: number
 ): number {
   return getPersonItems(orderItems, assignments, personIdx).reduce(
-    (sum, item) => sum + (item.total_price || 0) + (item.extra_charge || 0),
+    (sum, item) => sum + (item.total_price || 0),
     0
   )
 }

@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Order, OrderItem, Table, ReceiptData, PrinterConfig, PrintJob } from '../types'
+import type { Order, OrderItem, ReceiptData, PrinterConfig, PrintJob } from '../types'
 
 const PRINT_SERVICE_URL = `http://127.0.0.1:9101`
 
@@ -36,9 +36,8 @@ function formatCurrency(amount: number): string {
 }
 
 export function buildReceiptData(
-  type: 'customer' | 'waiter' | 'kitchen' | 'bar',
+  type: 'customer' | 'internal',
   order: Order,
-  table: Table | null,
   items: OrderItem[],
   staffName: string,
   tipAmount?: number,
@@ -97,7 +96,7 @@ export function buildReceiptData(
     (sum, i) =>
       sum +
       ((i as unknown as { total_price?: number }).total_price || 0) +
-      ((i as unknown as { extra_charge?: number }).extra_charge || 0),
+      0,
     0
   )
 
@@ -110,18 +109,11 @@ export function buildReceiptData(
     { label: 'Ref', value: orderRef },
     { label: 'Date', value: date },
     { label: 'Time', value: time },
-    {
-      label: 'Table',
-      value:
-        table?.name ||
-        (order.order_type === 'takeaway'
-          ? `Takeaway${order.customer_name ? ` — ${order.customer_name}` : ''}`
-          : 'Counter'),
-    },
+    { label: 'Order', value: order.order_type === 'return' ? 'Return' : 'Counter' },
     { label: 'Served by', value: staffName || 'Staff' },
   ]
 
-  if (type !== 'bar' && type !== 'kitchen') {
+  if (type !== 'internal') {
     header.push({ label: 'Payment', value: pmLabel })
   }
 
@@ -146,18 +138,14 @@ export function buildReceiptData(
 
   const footer =
     type === 'customer'
-      ? ['** PAYMENT CONFIRMED **', '', 'Thank you for visiting Cbiz!', 'Please come again']
-      : type === 'waiter'
-        ? ['-- STAFF RECORD ONLY --', '', 'Thank you']
-        : type === 'kitchen'
-          ? ['** KITCHEN COPY **', '', 'Prepare & serve fresh']
-          : type === 'bar'
-            ? ['** BAR COPY **', '', 'Prepare & serve']
-            : ['Thank you']
+      ? ['** PAYMENT CONFIRMED **', '', 'Thank you for visiting!', 'Please come again']
+      : type === 'internal'
+        ? ['-- INTERNAL COPY --', '', 'Thank you']
+        : ['Thank you']
 
   return {
-    title: 'CELEBIZ',
-    subtitle: 'Lounge & Restaurant',
+    title: 'C.Biz POS',
+    subtitle: '',
     header,
     items: itemsList,
     totals,
@@ -167,8 +155,7 @@ export function buildReceiptData(
 
 export async function queuePrintJob(
   order: Order,
-  type: 'customer' | 'waiter' | 'kitchen' | 'bar',
-  table: Table | null,
+  type: 'customer' | 'internal',
   items: OrderItem[],
   staffName: string,
   tipAmount?: number,
@@ -177,10 +164,10 @@ export async function queuePrintJob(
   const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
 
   const printer = await fetchPrinterConfig(
-    type === 'customer' || type === 'waiter' ? ['customer', 'waiter'] : [type]
+    type === 'customer' || type === 'internal' ? ['customer', 'internal'] : [type]
   )
 
-  const receipt = buildReceiptData(type, order, table, items, staffName, tipAmount, amountReceived)
+  const receipt = buildReceiptData(type, order, items, staffName, tipAmount, amountReceived)
 
   // First, try the local print service directly (fast path)
   if (printer) {
@@ -271,7 +258,7 @@ export async function reprintJob(jobId: string): Promise<{ success: boolean; err
   if (!job) return { success: false, error: 'Print job not found' }
 
   const printer = await fetchPrinterConfig(
-    job.type === 'customer' || job.type === 'waiter' ? ['customer', 'waiter'] : [job.type]
+    job.type === 'customer' || job.type === 'internal' ? ['customer', 'internal'] : [job.type]
   )
 
   if (!printer) return { success: false, error: 'No printer configured for this job type' }
