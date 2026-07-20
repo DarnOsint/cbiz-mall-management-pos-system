@@ -34,11 +34,11 @@ interface Props {
   trendData: TrendPoint[]
   totalPayouts: number
   netRevenue: number
-  waitronStats: WaitronStat[]
   dateLabel: string
   sessionDate?: string
   sessionEndDate?: string
   dateRangeType?: string
+  waitronStats?: WaitronStat[]
   creditByWaitron?: Record<string, number>
   creditDetails?: Array<{
     name: string
@@ -62,11 +62,11 @@ export default function OverviewTab({
   trendData,
   totalPayouts,
   netRevenue,
-  waitronStats,
   dateLabel,
   sessionDate,
   sessionEndDate,
   dateRangeType,
+  waitronStats = [],
   creditByWaitron = {},
   creditDetails = [],
 }: Props) {

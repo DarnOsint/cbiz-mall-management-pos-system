@@ -4,27 +4,15 @@ import { HelpTooltip } from '../../components/HelpTooltip'
 import { useAuth } from '../../context/AuthContext'
 import {
   ShoppingBag,
-  AlertTriangle,
-  Users,
   DollarSign,
   BarChart2,
-  Clock,
   BookOpen,
   Shield,
   TrendingUp,
-  UtensilsCrossed,
-  ChefHat,
-  ClipboardList,
-  CalendarDays,
-  Package,
 } from 'lucide-react'
 
-import WaitronOrdersTab from './WaitronOrdersTab'
-import StockSummaryTab from './StockSummaryTab'
-import Debtors from './Debtors'
 import OverviewTab from './OverviewTab'
 import OrdersTab from './OrdersTab'
-import StaffTab from './StaffTab'
 import TrendsTab from './TrendsTab'
 import LedgerTab from './LedgerTab'
 import AuditTab from './AuditTab'
@@ -32,10 +20,8 @@ import { getNetOrderAmount } from './orderAmounts'
 
 import type {
   AccountingSummary,
-  WaitronStat,
   TrendPoint,
   PayoutRow,
-  TimesheetEntry,
   AuditEntry,
 } from './types'
 import type { Order } from '../../types'
@@ -46,44 +32,14 @@ type DateRange = (typeof DATE_RANGES)[number]
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
   { id: 'orders', label: 'Orders', icon: ShoppingBag },
-  { id: 'staff', label: 'Staff Sales', icon: Users },
   { id: 'trends', label: 'Trends', icon: TrendingUp },
-  { id: 'debtors', label: 'Outstanding', icon: AlertTriangle },
   { id: 'ledger', label: 'Ledger', icon: BookOpen },
   { id: 'audit', label: 'Audit', icon: Shield },
-  { id: 'waitron_orders', label: 'Waitron Orders', icon: ClipboardList },
-  { id: 'bar_stock', label: 'Bar Stock', icon: UtensilsCrossed },
-  { id: 'kitchen_stock', label: 'Kitchen Stock', icon: ChefHat },
 ] as const
-
-const getWaitronRemittance = (paymentMethod: string | null | undefined, amount: number) => {
-  const pm = (paymentMethod || '').toLowerCase()
-  if (pm === 'cash') return { cash: amount, transfer: 0 }
-  if (pm === 'card' || pm === 'bank_pos') return { cash: 0, transfer: amount }
-  if (pm.startsWith('transfer') || pm === 'transfer') return { cash: 0, transfer: amount }
-  if (pm.startsWith('cash+transfer')) {
-    const payload = pm.split(':')[1] || ''
-    const [cashPart, transferPart] = payload.split('+')
-    return {
-      cash: parseFloat(cashPart || '0') || 0,
-      transfer: parseFloat(transferPart || '0') || 0,
-    }
-  }
-  if (pm.startsWith('cash+card')) {
-    const payload = pm.split(':')[1] || ''
-    const [cashPart, cardPart] = payload.split('+')
-    return {
-      cash: parseFloat(cashPart || '0') || 0,
-      transfer: parseFloat(cardPart || '0') || 0,
-    }
-  }
-  return { cash: 0, transfer: 0 }
-}
 
 export default function Accounting() {
   useAuth()
 
-  // ── UI state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('overview')
   const [dateRange, setDateRange] = useState<DateRange>('Today')
   const [pickedDate, setPickedDate] = useState(() => {
@@ -96,9 +52,6 @@ export default function Accounting() {
   const [loading, setLoading] = useState(true)
   const [orderFilter, setOrderFilter] = useState({ status: 'all', type: 'all' })
 
-  // ── Void sub-state (date-specific fetch) ─────────────────────────────────
-
-  // ── Data state ────────────────────────────────────────────────────────────
   const [summary, setSummary] = useState<AccountingSummary>({
     total: 0,
     byMethod: {},
@@ -106,22 +59,14 @@ export default function Accounting() {
     avgOrder: 0,
   })
   const [orders, setOrders] = useState<Order[]>([])
-  const [waitronStats, setWaitronStats] = useState<WaitronStat[]>([])
-  const [creditByWaitron, setCreditByWaitron] = useState<Record<string, number>>({})
-  const [creditDetailsList, setCreditDetailsList] = useState<
-    Array<{ name: string; amount: number; notes: string; date: string; by: string }>
-  >([])
   const [trendData, setTrendData] = useState<TrendPoint[]>([])
-  const [timesheet, setTimesheet] = useState<TimesheetEntry[]>([])
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [payouts, setPayouts] = useState<PayoutRow[]>([])
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const getDateBounds = useCallback(() => {
     const now = new Date()
     let start: Date, end: Date
 
-    // Session window: 23:00 previous day → 23:00 today (WAT), resets daily at 11pm
     const sessionStart = () => {
       const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
       const s = new Date(lagosNow)
@@ -171,10 +116,7 @@ export default function Accounting() {
     setLoading(true)
     const { start, end } = getDateBounds()
 
-    const [ordersRes, payoutsRes, trendRes, timesheetRes, auditRes] = await Promise.all([
-      // IMPORTANT:
-      // - Paid sales must be filtered by `closed_at` so end-of-day reports tally with actual sales time.
-      // - Open orders (not yet paid) can be filtered by `created_at` for visibility during the session.
+    const [ordersRes, payoutsRes, trendRes, auditRes] = await Promise.all([
       supabase
         .from('orders')
         .select(
@@ -193,12 +135,11 @@ export default function Accounting() {
       supabase
         .from('orders')
         .select(
-          'created_at, order_items(total_price, extra_charge, status, return_requested, return_accepted)'
+          'created_at, order_items(total_price, status, return_requested, return_accepted)'
         )
         .eq('status', 'paid')
         .gte('created_at', new Date(Date.now() - 30 * 864e5).toISOString())
         .order('created_at', { ascending: true }),
-      Promise.resolve({ data: [] as any[] }) as any,
       supabase
         .from('audit_log')
         .select(
@@ -237,82 +178,6 @@ export default function Accounting() {
     })
     setOrders(allOrders)
 
-    const wMap: Record<string, WaitronStat> = {}
-    paidOrders.forEach((o) => {
-      const name =
-        (o as Order & { profiles?: { full_name: string } }).profiles?.full_name || 'Unknown'
-      if (!wMap[name]) {
-        wMap[name] = { name, orders: 0, revenue: 0, cashExpected: 0, transferExpected: 0 }
-      }
-      const netAmount = getNetOrderAmount(o)
-      const remittance = getWaitronRemittance(o.payment_method, netAmount)
-      wMap[name].orders++
-      wMap[name].revenue += netAmount
-      wMap[name].cashExpected = (wMap[name].cashExpected || 0) + remittance.cash
-      wMap[name].transferExpected = (wMap[name].transferExpected || 0) + remittance.transfer
-    })
-    setWaitronStats(Object.values(wMap).sort((a, b) => b.revenue - a.revenue))
-
-    // Compute UNPAID credit debts per waitron (from debtors table, respects paid status)
-    const { start: dStart, end: dEnd } = getDateBounds()
-    const { data: unpaidDebts } = await supabase
-      .from('debtors')
-      .select('name, current_balance, notes, created_at, recorded_by_name, order_id')
-      .in('status', ['outstanding', 'partial'])
-      .in('debt_type', ['credit_order', 'table_order', 'fridge'])
-      .gte('created_at', dStart)
-      .lt('created_at', dEnd)
-      .order('created_at', { ascending: false })
-    // Fetch order items for each debt
-    const orderIds = (unpaidDebts || []).map((d: any) => d.order_id).filter(Boolean)
-    const { data: debtOrderItems } =
-      orderIds.length > 0
-        ? await supabase
-            .from('order_items')
-            .select('order_id, quantity, return_requested, return_accepted, menu_items(name)')
-            .in('order_id', orderIds)
-        : { data: [] }
-    const itemsByOrder: Record<string, string[]> = {}
-    for (const oi of (debtOrderItems || []) as any[]) {
-      if (oi.return_requested || oi.return_accepted) continue
-      if (!itemsByOrder[oi.order_id]) itemsByOrder[oi.order_id] = []
-      itemsByOrder[oi.order_id].push(`${oi.quantity}x ${oi.menu_items?.name || 'Item'}`)
-    }
-    const creditMap: Record<string, number> = {}
-    const creditDetails: Array<{
-      name: string
-      amount: number
-      notes: string
-      date: string
-      by: string
-      items: string
-    }> = []
-    for (const d of (unpaidDebts || []) as Array<{
-      name: string
-      current_balance: number
-      notes: string
-      created_at: string
-      recorded_by_name: string
-      order_id: string
-    }>) {
-      // "recorded_by_name" is the waitron/staff who recorded the debt (pay later).
-      const waitronName = d.recorded_by_name || 'Unknown'
-      creditMap[waitronName] = (creditMap[waitronName] || 0) + (d.current_balance || 0)
-      const items = d.order_id ? (itemsByOrder[d.order_id] || []).join(', ') : ''
-      // Keep the customer/debtor name in notes for traceability.
-      const note = [d.name ? `Customer: ${d.name}` : '', d.notes || ''].filter(Boolean).join(' · ')
-      creditDetails.push({
-        name: waitronName,
-        amount: d.current_balance,
-        notes: note,
-        date: d.created_at,
-        by: d.recorded_by_name || '',
-        items,
-      })
-    }
-    setCreditByWaitron(creditMap)
-    setCreditDetailsList(creditDetails)
-
     const dayMap: Record<string, TrendPoint> = {}
     ;(
       trendRes.data as unknown as
@@ -333,20 +198,17 @@ export default function Accounting() {
     })
     setTrendData(Object.values(dayMap))
 
-    setTimesheet([])
     setAuditLog((auditRes.data || []) as AuditEntry[])
     setPayouts((payoutsRes.data || []) as PayoutRow[])
 
     setLoading(false)
   }, [getDateBounds])
 
-  // ── Scroll to top on tab change ───────────────────────────────────────────
   useEffect(() => {
     const _ms = document.getElementById('main-scroll')
     if (_ms) _ms.scrollTop = 0
   }, [activeTab])
 
-  // ── Main data fetch ───────────────────────────────────────────────────────
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll()
@@ -427,67 +289,37 @@ export default function Accounting() {
                 id: 'acc-daterange',
                 title: 'Date Range Filter',
                 description:
-                  'All tabs respect the date range at the top — Today, This Week, This Month, or Custom. Set the range before reading any figures. The Overview, Orders, Voids, Ledger, and Staff tabs all filter to that period.',
+                  'All tabs respect the date range at the top — Today, This Week, This Month, or Custom. Set the range before reading any figures.',
               },
               {
                 id: 'acc-overview',
                 title: 'Overview Tab',
                 description:
-                  'Gross revenue, net revenue (after payouts), breakdown by payment method (Cash, Bank POS, Transfer, Credit), order count, average order value, and a per-waitron performance table.',
+                  'Gross revenue, net revenue (after payouts), breakdown by payment method, order count, and average order value.',
               },
               {
                 id: 'acc-orders',
                 title: 'Orders Tab',
                 description:
-                  'Full order list for the period. Filter by status and type. Expand any order to see every item, the waitron, table, payment method, and exact timestamp. Search by table name or waitron.',
-              },
-              {
-                id: 'acc-staff',
-                title: 'Staff Tab',
-                description:
-                  'Per-waitron breakdown — total revenue, orders closed, and average order value.',
-              },
-              {
-                id: 'acc-till',
-                title: 'Till Tab',
-                description:
-                  'Full log of all till sessions — opening float, total sales collected, payout deductions, expected vs actual closing cash, and any shortfall or surplus. Each session is tied to the manager who opened it.',
-              },
-              {
-                id: 'acc-payouts',
-                title: 'Payouts Tab',
-                description:
-                  'Record cash paid out of the till — expenses, petty cash, advances, or refunds. Each payout requires amount, reason, and category. Search by recipient, reason, or category. Refunds are also logged here.',
+                  'Full order list for the period. Filter by status and type. Expand any order to see every item, the staff, payment method, and exact timestamp.',
               },
               {
                 id: 'acc-trends',
                 title: 'Trends Tab',
                 description:
-                  'Revenue and order count charts over the selected period. Identifies peak days, slow periods, and week-on-week patterns.',
-              },
-              {
-                id: 'acc-debtors',
-                title: 'Outstanding',
-                description:
-                  'All outstanding credit sales. Shows who recorded each debt, payments received, and lets you send statements or mark paid.',
-              },
-              {
-                id: 'acc-voids',
-                title: 'Voids Tab',
-                description:
-                  'Date-filtered void log — item name, quantity, value, and which manager PIN authorised it. Each void also deletes the order_items DB row and reduces the order total automatically.',
+                  'Revenue and order count charts over the selected period. Identifies peak days and slow periods.',
               },
               {
                 id: 'acc-ledger',
                 title: 'Ledger Tab',
                 description:
-                  'Double-entry general ledger — every sale, payout, and debtor payment recorded as credit or debit with a running balance. Search by description, reference, or type. Exportable to PDF.',
+                  'Double-entry general ledger — every sale, payout, and debtor payment recorded as credit or debit with a running balance. Exportable to PDF.',
               },
               {
                 id: 'acc-audit',
                 title: 'Audit Log Tab',
                 description:
-                  'Tamper-evident log of every system action — logins, order changes, voids, menu edits, staff changes, clock-ins, and settings updates. For the full activity log with filters and CSV export, see Management → Activity tab.',
+                  'Tamper-evident log of every system action — logins, order changes, voids, menu edits, staff changes, and settings updates.',
               },
             ]}
           />
@@ -516,29 +348,18 @@ export default function Accounting() {
             trendData={trendData}
             totalPayouts={totalPayouts}
             netRevenue={netRevenue}
-            waitronStats={waitronStats}
             dateLabel={dateLabel}
             sessionDate={sessionDate}
             sessionEndDate={sessionEndDateInclusive}
             dateRangeType={dateRange}
-            creditByWaitron={creditByWaitron}
-            creditDetails={creditDetailsList}
           />
         )}
         {activeTab === 'orders' && (
           <OrdersTab orders={orders} orderFilter={orderFilter} onFilterChange={setOrderFilter} />
         )}
-        {activeTab === 'staff' && <StaffTab waitronStats={waitronStats} />}
         {activeTab === 'trends' && <TrendsTab trendData={trendData} />}
-        {activeTab === 'debtors' && (
-          <Debtors onBack={() => setActiveTab('overview')} embedded={true} />
-        )}
-
         {activeTab === 'ledger' && <LedgerTab dateRange={dateRange} />}
         {activeTab === 'audit' && <AuditTab auditLog={auditLog} dateRange={dateRange} />}
-        {activeTab === 'waitron_orders' && <WaitronOrdersTab />}
-        {activeTab === 'bar_stock' && <StockSummaryTab type="bar" />}
-        {activeTab === 'kitchen_stock' && <StockSummaryTab type="kitchen" />}
       </div>
     </div>
   )
