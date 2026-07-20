@@ -9,7 +9,6 @@ import { useVisibilityInterval } from '../../hooks/useVisibilityInterval'
 import StatCards from './exec/StatCards'
 import RevenueChart from './exec/RevenueChart'
 import QuickActions from './exec/QuickActions'
-import RecentOrders from './exec/RecentOrders'
 
 import type { MallShop, MallRentPayment } from '../../types'
 
@@ -59,22 +58,10 @@ const HELP_TIPS = [
       'A red button appears when any inventory item is at or below its minimum threshold. Tap it to jump to Inventory in Back Office to restock.',
   },
   {
-    id: 'exec-recentorders',
-    title: "Today's Orders Feed",
-    description:
-      "Shows today's orders — time, amount, and status badge (open = amber, paid = green). Tap Full Report to go to detailed Reports.",
-  },
-  {
     id: 'exec-quickactions',
     title: 'Quick Actions',
     description:
       'Shortcut tiles to Accounting, Reports, Back Office, and Management. Use these instead of navigating through the sidebar.',
-  },
-  {
-    id: 'exec-peak',
-    title: 'Peak Hour',
-    description:
-      'Shows the hour of the day that generated the most revenue over the last 7 days. Use this to plan staffing.',
   },
 ]
 
@@ -86,7 +73,6 @@ export default function Executive() {
     revenue: 0,
     lowStock: 0,
   })
-  const [recentOrders, setRecentOrders] = useState<Record<string, unknown>[]>([])
   const [trendData, setTrendData] = useState<TrendDay[]>([])
   const [loading, setLoading] = useState(true)
   const [mallSummary, setMallSummary] = useState({
@@ -101,7 +87,7 @@ export default function Executive() {
   const isVisible = () => document.visibilityState === 'visible'
 
   const fetchStats = useCallback(async () => {
-    const { sessionStart, sessionEnd, sessionStartIso } = getSessionWindow()
+    const { sessionStart, sessionEnd } = getSessionWindow()
 
     supabase.from('mall_shops').select('*, mall_rent_payments(*)').then(({ data }) => {
       if (!data) return
@@ -130,17 +116,9 @@ export default function Executive() {
       })
     })
 
-    const [stockRes, recentRes, revenueRes, trendRes] =
+    const [stockRes, revenueRes, trendRes] =
       await Promise.all([
         supabase.from('inventory').select('id, current_stock, minimum_stock').eq('is_active', true),
-        supabase
-          .from('orders')
-          .select(
-            'id, total_amount, status, order_type, created_at, profiles(full_name)'
-          )
-          .gte('created_at', sessionStartIso)
-          .order('created_at', { ascending: false })
-          .limit(10),
         supabase
           .from('orders')
           .select(
@@ -172,7 +150,6 @@ export default function Executive() {
       }, 0),
       lowStock: stockRes.data?.filter((i) => i.current_stock <= i.minimum_stock).length || 0,
     })
-    setRecentOrders((recentRes.data || []) as Record<string, unknown>[])
     const dayMap: Record<string, TrendDay> = {}
     ;(trendRes.data || []).forEach((o) => {
       const day = new Date(o.closed_at).toLocaleDateString('en-NG', {
@@ -242,18 +219,6 @@ export default function Executive() {
 
   useVisibilityInterval(() => scheduleFetchStats(15000), 60_000, [scheduleFetchStats])
 
-  const peakHour = (() => {
-    const hourMap: Record<number, number> = {}
-    recentOrders.forEach((o) => {
-      const h = new Date(o.created_at as string).getHours()
-      hourMap[h] = (hourMap[h] || 0) + 1
-    })
-    const peak = Object.entries(hourMap).sort((a, b) => Number(b[1]) - Number(a[1]))[0]
-    if (!peak) return null
-    const h = parseInt(peak[0])
-    return `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
-  })()
-
   return (
     <div className="min-h-full bg-gray-950">
       {/* Header */}
@@ -313,9 +278,6 @@ export default function Executive() {
 
         <RevenueChart trendData={trendData} />
         <QuickActions />
-        <RecentOrders
-          orders={recentOrders as unknown as Parameters<typeof RecentOrders>[0]['orders']}
-        />
       </div>
     </div>
   )
