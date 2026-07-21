@@ -17,9 +17,12 @@ interface ReturnEntry {
   quantity: number
   item_total: number
   table_name: string | null
-  waitron_id: string | null
-  waitron_name: string | null
-  barman_name: string | null
+  staff_id: string | null
+  staff_name: string | null
+  handler_name: string | null
+  waitron_id?: string | null
+  waitron_name?: string | null
+  barman_name?: string | null
   return_reason: string | null
   status: string
   requested_at: string
@@ -57,7 +60,7 @@ export default function ReturnedDrinksTab() {
       .eq('status', 'bar_accepted')
       .lt('resolved_at', expiry)
     if (expired && expired.length > 0) {
-      // Auto-revert expired returns — items go back to waitron's account
+      // Auto-revert expired returns — items go back to staff's account
       for (const exp of expired as Array<{
         id: string
         order_id: string
@@ -101,7 +104,13 @@ export default function ReturnedDrinksTab() {
       .gte('requested_at', wideStart.toISOString())
       .order('requested_at', { ascending: false })
 
-    const filtered = ((data || []) as ReturnEntry[]).filter((r) => {
+    const mapped = ((data || []) as any[]).map((r) => ({
+      ...r,
+      staff_id: r.waitron_id,
+      staff_name: r.waitron_name,
+      handler_name: r.barman_name,
+    })) as ReturnEntry[]
+    const filtered = mapped.filter((r) => {
       const req = new Date(r.requested_at).getTime()
       const res = r.resolved_at ? new Date(r.resolved_at).getTime() : null
       const inWindow =
@@ -296,15 +305,15 @@ export default function ReturnedDrinksTab() {
   const statusLabel = (s: string) => {
     if (s === 'bar_accepted')
       return {
-        text: 'Bar Accepted',
+        text: 'Accepted',
         color: 'bg-amber-500/20 text-amber-400',
         desc: 'Awaiting manager approval',
       }
     if (s === 'kitchen_accepted')
       return {
-        text: 'Kitchen Accepted',
+        text: 'Stock Accepted',
         color: 'bg-blue-500/20 text-blue-300',
-        desc: 'Kitchen approved — manager final decision needed',
+        desc: 'Stock approved — manager final decision needed',
       }
     if (s === 'griller_accepted')
       return {
@@ -315,7 +324,7 @@ export default function ReturnedDrinksTab() {
     if (s === 'accepted')
       return { text: 'Approved', color: 'bg-green-500/20 text-green-400', desc: 'Manager approved' }
     if (s === 'rejected')
-      return { text: 'Bar Rejected', color: 'bg-red-500/20 text-red-400', desc: '' }
+      return { text: 'Rejected', color: 'bg-red-500/20 text-red-400', desc: '' }
     if (s === 'manager_rejected')
       return {
         text: 'Manager Rejected',
@@ -332,7 +341,7 @@ export default function ReturnedDrinksTab() {
       return {
         text: 'Pending',
         color: 'bg-amber-500/20 text-amber-400',
-        desc: 'Waiting for barman',
+        desc: 'Waiting for handler',
       }
     return { text: s, color: 'bg-gray-500/20 text-gray-400', desc: '' }
   }
@@ -369,8 +378,8 @@ export default function ReturnedDrinksTab() {
         [
           row(`${idx + 1}. ${r.quantity}x ${r.item_name}`, `N${r.item_total.toLocaleString()}`),
           row(`   Status: ${statusLabel(r.status).text}`, fmtTime(r.requested_at)),
-          `   Waitron: ${r.waitron_name || '?'}`,
-          `   Barman: ${r.barman_name || 'Pending'}`,
+          `   Staff: ${r.staff_name || '?'}`,
+          `   Handler: ${r.handler_name || 'Pending'}`,
           `   Table: ${r.table_name || '?'}`,
           r.return_reason ? `   Reason: ${r.return_reason}` : '',
           '',
@@ -451,7 +460,7 @@ export default function ReturnedDrinksTab() {
             </span>
           </div>
           <p className="text-amber-400/70 text-xs">
-            Bar accepted these returns tentatively. Approve to confirm or reject to restore items to
+            Handler accepted these returns tentatively. Approve to confirm or reject to restore items to
             the order. Auto-reverts after 24 hours if not approved.
           </p>
         </div>
@@ -462,7 +471,7 @@ export default function ReturnedDrinksTab() {
         {[
           { label: 'Total', value: returns.length, color: 'text-white', border: 'border-gray-800' },
           {
-            label: 'Bar Accepted',
+            label: 'Accepted',
             value: barAccepted.length,
             color: 'text-amber-400',
             border: 'border-amber-500/20',
@@ -515,7 +524,7 @@ export default function ReturnedDrinksTab() {
                       {r.quantity}x {r.item_name}
                     </p>
                     <p className="text-gray-400 text-xs">
-                      {r.table_name || '?'} — by {r.waitron_name || '?'}
+                      {r.table_name || '?'} — by {r.staff_name || '?'}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
@@ -529,8 +538,8 @@ export default function ReturnedDrinksTab() {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
                   <span>
-                    Barman:{' '}
-                    {r.barman_name
+                    Handler:{' '}
+                    {r.handler_name
                       ? r.barman_name
                       : r.status === 'pending'
                         ? 'Pending'

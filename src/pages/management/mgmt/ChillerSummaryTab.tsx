@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { UtensilsCrossed, RefreshCw, Printer, Wrench } from 'lucide-react'
+import { Package, RefreshCw, Printer, Wrench } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../context/AuthContext'
 import BarChillerStock from '../../backoffice/BarChillerStock'
@@ -423,7 +423,7 @@ export default function ChillerSummaryTab() {
         <div className="text-center py-12 text-amber-500">Loading...</div>
       ) : entries.length === 0 ? (
         <div className="text-center py-12">
-          <UtensilsCrossed size={32} className="text-gray-700 mx-auto mb-3" />
+          <Package size={32} className="text-gray-700 mx-auto mb-3" />
           <p className="text-gray-500">No chiller data for {date}</p>
           <p className="text-gray-600 text-xs mt-1">Barman hasn't entered stock for this date</p>
         </div>

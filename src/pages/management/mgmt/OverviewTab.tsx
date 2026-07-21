@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { formatPrice } from '../../../lib/currency'
 
 interface Stats {
-  openOrders: number
+  openSales: number
   todayRevenue: number
 }
 
@@ -25,8 +25,8 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
 
   const kpis = [
     {
-      label: 'Open Orders',
-      value: stats.openOrders,
+      label: 'Open Sales',
+      value: stats.openSales,
       icon: ShoppingBag,
       color: 'text-amber-400',
       bg: 'bg-amber-400/10',
@@ -49,9 +49,9 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
 
   const actions = [
     {
-      label: 'View Open Orders',
-      sub: 'Monitor active orders',
-      action: () => onTabChange('orders'),
+      label: 'View Open Sales',
+      sub: 'Monitor active sales',
+      action: () => onTabChange('sales'),
       icon: ShoppingBag,
     },
     {

@@ -5,7 +5,7 @@ interface MenuItemSummary {
   name: string
 }
 
-interface OrderItemSummary {
+interface SaleItemSummary {
   id: string
   menu_item_id: string
   quantity: number
@@ -28,11 +28,11 @@ export interface HistoryOrder {
   status: string
   customer_name: string | null
   tables: { name: string } | null
-  order_items: OrderItemSummary[]
+  order_items: SaleItemSummary[]
 }
 
-export function useOrderHistory(profileId?: string) {
-  const [orders, setOrders] = useState<HistoryOrder[]>([])
+export function useSaleHistory(profileId?: string) {
+  const [sales, setSales] = useState<HistoryOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
@@ -78,9 +78,9 @@ export function useOrderHistory(profileId?: string) {
 
         const newOrders = (data || []) as unknown as HistoryOrder[]
         if (loadMore) {
-          setOrders((prev) => [...prev, ...newOrders])
+          setSales((prev) => [...prev, ...newOrders])
         } else {
-          setOrders(newOrders)
+          setSales(newOrders)
         }
         setHasMore(newOrders.length === 60)
         setPage(loadMore ? page + 1 : 0)
@@ -92,5 +92,5 @@ export function useOrderHistory(profileId?: string) {
     [profileId, page]
   )
 
-  return { orders, loading, hasMore, fetchHistory }
+  return { sales, loading, hasMore, fetchHistory }
 }

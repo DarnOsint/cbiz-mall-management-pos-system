@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ArrowLeft,
-  UtensilsCrossed,
+  Package,
   RefreshCw,
   Save,
   Minus,
@@ -129,7 +129,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
   const [pendingVoidQty, setPendingVoidQty] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
 
-  // Load bar menu items
+  // Load chiller menu items
   useEffect(() => {
     supabase
       .from('menu_items')
@@ -152,7 +152,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
   }, [])
 
   // Load sold quantities from POS — count all items in open/paid orders
-  // (bar items are removed from chiller the moment the order is confirmed)
+  // (chiller items are removed from stock the moment the order is confirmed)
   const loadSoldQty = useCallback(async (d: string) => {
     const dayStart = new Date(d + 'T08:00:00+01:00')
     const dayEnd = new Date(dayStart)
@@ -344,7 +344,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
           }
         }
       }
-      // Include chiller entries that exist in DB but aren't in the bar menu
+      // Include chiller entries that exist in DB but aren't in the chiller menu
       for (const [name, entry] of Object.entries(existing)) {
         if (!stock[name]) {
           const carryOver = prevClosing[name]
@@ -596,13 +596,13 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1">
-            <h1 className="text-white font-bold">Bar Chiller Stock</h1>
+            <h1 className="text-white font-bold">Chiller Stock</h1>
             <p className="text-gray-400 text-xs">Tap +/- to enter stock counts</p>
           </div>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search drink…"
+            placeholder="Search product…"
             className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 w-48"
           />
           {isManager && (
@@ -672,11 +672,11 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
 
         {/* Drink list */}
         {loading ? (
-          <div className="text-center py-16 text-amber-500">Loading drinks...</div>
+          <div className="text-center py-16 text-amber-500">Loading products...</div>
         ) : drinks.length === 0 ? (
           <div className="text-center py-16">
-            <UtensilsCrossed size={32} className="text-gray-700 mx-auto mb-3" />
-            <p className="text-gray-500">No bar drinks found in menu</p>
+            <Package size={32} className="text-gray-700 mx-auto mb-3" />
+            <p className="text-gray-500">No products found</p>
           </div>
         ) : (
           <div className="space-y-2">

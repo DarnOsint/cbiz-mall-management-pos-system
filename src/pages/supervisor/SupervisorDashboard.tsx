@@ -14,9 +14,7 @@ import {
   Phone,
   RefreshCw,
   LogOut,
-  ChefHat,
-  Wine,
-  Flame,
+  Package,
   Bell,
 } from 'lucide-react'
 
@@ -24,7 +22,7 @@ interface OpenOrder {
   id: string
   created_at: string
   order_type: string
-  tables?: { name: string; table_categories?: { name: string } | null } | null
+  areas?: { name: string; area_categories?: { name: string } | null } | null
   profiles?: { full_name: string } | null
   order_items?: Array<{
     id: string
@@ -43,7 +41,7 @@ interface ActiveShift {
 interface WaiterCall {
   id: string
   table_name: string
-  waitron_name: string | null
+  staff_name: string | null
   status: string
   created_at: string
 }
@@ -74,9 +72,7 @@ function urgencyText(ts: string, hasPending: boolean) {
   return 'text-gray-400'
 }
 const ROLE_ICON: Record<string, React.ReactNode> = {
-  kitchen: <ChefHat size={13} className="text-orange-400" />,
-  bar: <Wine size={13} className="text-blue-400" />,
-  waitron: <Users size={13} className="text-amber-400" />,
+  staff: <Users size={13} className="text-amber-400" />,
 }
 
 const SUPERVISOR_TIPS = [
@@ -84,7 +80,7 @@ const SUPERVISOR_TIPS = [
     id: 'sup-floor',
     title: 'Floor Tab',
     description:
-      'Live view of every open order on the floor. Cards turn amber at 10 minutes and red at 20 minutes — escalate red cards immediately to the kitchen or bar. Use the zone filter (Inside, Outside) to focus on a specific area. This is a read-only view — use the Management page to take action.',
+      'Live view of every open order on the floor. Cards turn amber at 10 minutes and red at 20 minutes — escalate immediately to the relevant department. Use the zone filter (Inside, Outside) to focus on a specific area. This is a read-only view — use the Management page to take action.',
   },
   {
     id: 'sup-staff',
@@ -96,7 +92,7 @@ const SUPERVISOR_TIPS = [
     id: 'sup-calls',
     title: 'Calls Tab',
     description:
-      'Pending waiter calls from customer tables — table name, assigned waitron, and how long the call has been waiting. If a call is unanswered beyond a reasonable time, notify the waitron directly.',
+      'Pending service calls — table name, assigned staff, and how long the call has been waiting. If a call is unanswered beyond a reasonable time, notify the staff directly.',
   },
   {
     id: 'sup-voids',
@@ -108,13 +104,13 @@ const SUPERVISOR_TIPS = [
     id: 'sup-kpis',
     title: 'KPI Strip',
     description:
-      'Four live counts at a glance: open orders, pending items (not yet started in kitchen/bar), items currently being prepared, and total staff on shift. These update every 30 seconds and in real time via live subscriptions.',
+      'Four live counts at a glance: open sales, pending items (not yet started), items currently being processed, and total staff on shift. These update every 30 seconds and in real time via live subscriptions.',
   },
   {
     id: 'sup-alerts',
     title: 'Alert Badges',
     description:
-      'The header shows red badge for late orders and amber badge for unanswered waiter calls. These are the two things that need your immediate attention on the floor.',
+      'The header shows red badge for late sales and amber badge for unanswered service calls. These are the two things that need your immediate attention on the floor.',
   },
 ]
 
@@ -157,9 +153,9 @@ function SupervisorDashboardInner() {
         .order('created_at', { ascending: false })
         .limit(30),
     ])
-    setOrders((oR.data || []) as unknown as OpenOrder[])
+    setOrders(((oR.data || []) as unknown as Array<OpenOrder & { tables?: OpenOrder['areas'] }>).map(o => ({ ...o, areas: o.areas ?? o.tables ?? null })) as OpenOrder[])
     setShifts([])
-    setCalls((cR.data || []) as WaiterCall[])
+    setCalls(((cR.data || []) as unknown as Array<WaiterCall & { waitron_name?: string }>).map(c => ({ ...c, staff_name: c.staff_name ?? (c as unknown as { waitron_name?: string }).waitron_name ?? null })) as WaiterCall[])
     setVoids((vR.data || []) as VoidEntry[])
     setPendingStore(0)
     setLoading(false)
@@ -315,8 +311,8 @@ function SupervisorDashboardInner() {
               ? orders
               : orders.filter(
                   (o) =>
-                    (o.tables as { table_categories?: { name?: string } | null } | null)
-                      ?.table_categories?.name === zoneFilter
+                    (o.areas as { area_categories?: { name?: string } | null } | null)
+                      ?.area_categories?.name === zoneFilter
                 )
             ).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-gray-600">
@@ -332,8 +328,8 @@ function SupervisorDashboardInner() {
                 ? orders
                 : orders.filter(
                     (o) =>
-                      (o.tables as { table_categories?: { name?: string } | null } | null)
-                        ?.table_categories?.name === zoneFilter
+                      (o.areas as { area_categories?: { name?: string } | null } | null)
+                        ?.area_categories?.name === zoneFilter
                   )
               ).map((order) => {
                 const pending = order.order_items?.filter((i) => i.status === 'pending') || []
@@ -347,7 +343,7 @@ function SupervisorDashboardInner() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <p className="text-white font-bold">
-                          {order.tables?.name || order.order_type}
+                          {order.areas?.name || order.order_type}
                         </p>
                         {order.profiles?.full_name && (
                           <span className="text-gray-500 text-xs">
@@ -421,7 +417,7 @@ function SupervisorDashboardInner() {
           (calls.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-600">
               <Phone size={36} className="mb-3 opacity-30" />
-              <p className="font-medium">No pending waiter calls</p>
+              <p className="font-medium">No pending service calls</p>
             </div>
           ) : (
             calls.map((call) => (
@@ -432,7 +428,7 @@ function SupervisorDashboardInner() {
                 <div>
                   <p className="text-white font-bold">{call.table_name}</p>
                   <p className="text-gray-500 text-xs">
-                    {call.waitron_name ? `Waitron: ${call.waitron_name}` : 'Unassigned'}
+                    {call.staff_name ? `Staff: ${call.staff_name}` : 'Unassigned'}
                   </p>
                 </div>
                 <div className="text-right">

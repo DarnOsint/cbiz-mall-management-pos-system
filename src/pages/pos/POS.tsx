@@ -12,11 +12,11 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import OrderPanel from './OrderPanel'
+import SalePanel from './SalePanel'
 import ReceiptModal from './ReceiptModal'
 import PaymentModal from './PaymentModal'
 import CashSaleModal from './CashSaleModal'
-import type { Item, ItemCategory, Order, OrderItem, Profile } from '../../types'
+import type { Item, ItemCategory, Sale, SaleItem, Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
 interface CartEntry {
@@ -24,8 +24,8 @@ interface CartEntry {
   quantity: number
 }
 
-interface ActiveOrderWithItems extends Order {
-  order_items?: (OrderItem & {
+interface ActiveSaleWithItems extends Sale {
+  order_items?: (SaleItem & {
     items?: Pick<Item, 'name' | 'price'> | null
   })[]
 }
@@ -44,12 +44,12 @@ export default function POS() {
   const [notes, setNotes] = useState('')
 
   const [showPayment, setShowPayment] = useState(false)
-  const [activeOrder, setActiveOrder] = useState<ActiveOrderWithItems | null>(null)
+  const [activeSale, setActiveSale] = useState<ActiveSaleWithItems | null>(null)
   const [showCashSale, setShowCashSale] = useState(false)
-  const [reprintOrder, setReprintOrder] = useState<Order | null>(null)
+  const [reprintSale, setReprintSale] = useState<Sale | null>(null)
   const [mobileView, setMobileView] = useState<'items' | 'cart'>('items')
 
-  const placingOrderRef = useRef(false)
+  const placingSaleRef = useRef(false)
 
   useEffect(() => {
     fetchItems()
@@ -123,8 +123,8 @@ export default function POS() {
   const cartItemCount = cart.reduce((sum, e) => sum + e.quantity, 0)
 
   const handlePlaceOrder = async () => {
-    if (placingOrderRef.current || cart.length === 0 || !profile) return
-    placingOrderRef.current = true
+    if (placingSaleRef.current || cart.length === 0 || !profile) return
+    placingSaleRef.current = true
     try {
       const orderId = crypto.randomUUID()
       const orderRecord = {
@@ -138,7 +138,7 @@ export default function POS() {
       }
       const { error: orderError } = await supabase.from('orders').insert(orderRecord)
       if (orderError) {
-        toast.error('Error', 'Failed to create order: ' + orderError.message)
+        toast.error('Error', 'Failed to create sale: ' + orderError.message)
         return
       }
       const orderItemRows = cart.map((entry) => ({
@@ -173,19 +173,19 @@ export default function POS() {
         .eq('id', orderId)
         .single()
       if (freshOrder) {
-        setActiveOrder(freshOrder as ActiveOrderWithItems)
+        setActiveSale(freshOrder as ActiveSaleWithItems)
         setShowPayment(true)
       }
     } catch (err) {
-      toast.error('Error', 'Order failed: ' + (err instanceof Error ? err.message : String(err)))
+      toast.error('Error', 'Sale failed: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
-      placingOrderRef.current = false
+      placingSaleRef.current = false
     }
   }
 
   const handlePaymentSuccess = () => {
     setShowPayment(false)
-    setActiveOrder(null)
+    setActiveSale(null)
     setCart([])
     setNotes('')
     setMobileView('items')
@@ -337,7 +337,7 @@ export default function POS() {
         </div>
 
         <div className="hidden md:flex w-[340px] min-w-[280px] border-l border-gray-800 flex-col overflow-hidden">
-          <OrderPanel
+          <SalePanel
             cart={cart}
             onUpdateQuantity={updateQuantity}
             onRemoveItem={removeItem}
@@ -443,7 +443,7 @@ export default function POS() {
                 <span className="text-white font-bold text-sm">Cart ({cartItemCount})</span>
               </div>
               <div className="flex-1 overflow-hidden">
-                <OrderPanel
+                <SalePanel
                   cart={cart}
                   onUpdateQuantity={updateQuantity}
                   onRemoveItem={removeItem}
@@ -458,13 +458,13 @@ export default function POS() {
         </div>
       </div>
 
-      {showPayment && activeOrder && (
+      {showPayment && activeSale && (
         <PaymentModal
-          order={activeOrder as any}
+          sale={activeSale as any}
           onSuccess={handlePaymentSuccess}
           onClose={() => {
             setShowPayment(false)
-            setActiveOrder(null)
+            setActiveSale(null)
           }}
         />
       )}
@@ -477,13 +477,13 @@ export default function POS() {
         />
       )}
 
-      {reprintOrder && (
+      {reprintSale && (
         <ReceiptModal
-          order={reprintOrder}
-          items={(reprintOrder.order_items || []) as OrderItem[]}
+          order={reprintSale}
+          items={(reprintSale.order_items || []) as SaleItem[]}
           staffName={profile?.full_name || ''}
           autoPrint={false}
-          onClose={() => setReprintOrder(null)}
+          onClose={() => setReprintSale(null)}
         />
       )}
     </div>

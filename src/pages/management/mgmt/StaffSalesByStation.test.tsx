@@ -34,15 +34,15 @@ vi.mock('../../../lib/supabase', () => {
   return { supabase: { from: () => query } }
 })
 
-import OrdersByWaitronTab from './OrdersByWaitronTab'
+import StaffSalesByStation from './StaffSalesByStation'
 
-describe('OrdersByWaitronTab', () => {
+describe('StaffSalesByStation', () => {
   afterEach(() => {
     cleanup()
   })
 
-  it('excludes return_accepted items from waitron totals', async () => {
-    render(<OrdersByWaitronTab destinations={['bar']} title="Bar Waitron Orders" />)
+  it('excludes return_accepted items from staff totals', async () => {
+    render(<StaffSalesByStation destinations={['counter']} title="Counter Staff Sales" />)
 
     await waitFor(() => {
       expect(screen.queryByText(/Loading…/)).not.toBeInTheDocument()

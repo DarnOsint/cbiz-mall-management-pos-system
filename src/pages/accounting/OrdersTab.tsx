@@ -1,15 +1,15 @@
-import type { Order } from '../../types'
-import { getNetOrderAmount, getValidOrderItemCount } from './orderAmounts'
+import type { Sale } from '../../types'
+import { getNetSaleAmount, getValidSaleItemCount } from './orderAmounts'
 import { formatPrice } from '../../lib/currency'
 
-interface OrderFilter {
+interface SaleFilter {
   status: string
   type: string
 }
 interface Props {
-  orders: Order[]
-  orderFilter: OrderFilter
-  onFilterChange: (f: OrderFilter) => void
+  sales: Sale[]
+  saleFilter: SaleFilter
+  onFilterChange: (f: SaleFilter) => void
 }
 
 const paymentColor: Record<string, string> = {
@@ -22,10 +22,10 @@ const statusColor: Record<string, string> = {
   open: 'bg-amber-500/20 text-amber-400',
 }
 
-export default function OrdersTab({ orders, orderFilter, onFilterChange }: Props) {
-  const filtered = orders.filter((o) => {
-    const matchStatus = orderFilter.status === 'all' || o.status === orderFilter.status
-    const matchType = orderFilter.type === 'all' || o.order_type === orderFilter.type
+export default function SalesTab({ sales, saleFilter, onFilterChange }: Props) {
+  const filtered = sales.filter((o) => {
+    const matchStatus = saleFilter.status === 'all' || o.status === saleFilter.status
+    const matchType = saleFilter.type === 'all' || o.order_type === saleFilter.type
     return matchStatus && matchType
   })
 
@@ -33,8 +33,8 @@ export default function OrdersTab({ orders, orderFilter, onFilterChange }: Props
     <div className="space-y-4">
       <div className="flex gap-3 flex-wrap">
         <select
-          value={orderFilter.status}
-          onChange={(e) => onFilterChange({ ...orderFilter, status: e.target.value })}
+          value={saleFilter.status}
+          onChange={(e) => onFilterChange({ ...saleFilter, status: e.target.value })}
           className="bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-amber-500"
         >
           <option value="all">All Status</option>
@@ -43,16 +43,16 @@ export default function OrdersTab({ orders, orderFilter, onFilterChange }: Props
           <option value="cancelled">Cancelled</option>
         </select>
         <select
-          value={orderFilter.type}
-          onChange={(e) => onFilterChange({ ...orderFilter, type: e.target.value })}
+          value={saleFilter.type}
+          onChange={(e) => onFilterChange({ ...saleFilter, type: e.target.value })}
           className="bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-amber-500"
         >
           <option value="all">All Types</option>
           <option value="table">Table</option>
           <option value="cash_sale">Cash Sale</option>
-          <option value="takeaway">Takeaway</option>
+          <option value="takeaway">To-go</option>
         </select>
-        <span className="text-gray-500 text-sm self-center">{filtered.length} orders</span>
+        <span className="text-gray-500 text-sm self-center">{filtered.length} sales</span>
       </div>
 
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -76,50 +76,50 @@ export default function OrdersTab({ orders, orderFilter, onFilterChange }: Props
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-gray-600">
-                    No orders found
+                    No sales found
                   </td>
                 </tr>
               ) : (
-                filtered.map((order, i) => (
+                filtered.map((sale, i) => (
                   <tr
-                    key={order.id}
+                    key={sale.id}
                     className={`border-b border-gray-800 last:border-0 ${i % 2 === 0 ? '' : 'bg-gray-800/20'}`}
                   >
                     <td className="px-4 py-3 text-gray-400 text-xs font-mono">
-                      {order.id.slice(0, 8).toUpperCase()}
+                      {sale.id.slice(0, 8).toUpperCase()}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                      {new Date(order.created_at).toLocaleTimeString('en-NG', {
+                      {new Date(sale.created_at).toLocaleTimeString('en-NG', {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
                     </td>
                     <td className="px-4 py-3 text-white text-sm whitespace-nowrap">
-                      {order.customer_name || order.order_type}
+                      {sale.customer_name || sale.order_type}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-sm whitespace-nowrap">
-                      {(order as Order & { profiles?: { full_name: string } }).profiles
+                      {(sale as Sale & { profiles?: { full_name: string } }).profiles
                         ?.full_name || '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">
-                      {getValidOrderItemCount(order)} items
+                      {getValidSaleItemCount(sale)} items
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-lg capitalize ${order.payment_method ? (paymentColor[order.payment_method] ?? 'bg-gray-700 text-gray-400') : 'bg-gray-700 text-gray-400'}`}
+                        className={`text-xs px-2 py-0.5 rounded-lg capitalize ${sale.payment_method ? (paymentColor[sale.payment_method] ?? 'bg-gray-700 text-gray-400') : 'bg-gray-700 text-gray-400'}`}
                       >
-                        {order.payment_method || '—'}
+                        {sale.payment_method || '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-lg capitalize ${statusColor[order.status] ?? 'bg-red-500/20 text-red-400'}`}
+                        className={`text-xs px-2 py-0.5 rounded-lg capitalize ${statusColor[sale.status] ?? 'bg-red-500/20 text-red-400'}`}
                       >
-                        {order.status}
+                        {sale.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-amber-400 font-bold text-sm whitespace-nowrap">
-                      {formatPrice(getNetOrderAmount(order))}
+                      {formatPrice(getNetSaleAmount(sale))}
                     </td>
                   </tr>
                 ))

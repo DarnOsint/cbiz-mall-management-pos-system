@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Order, OrderItem, ReceiptData, PrinterConfig, PrintJob } from '../types'
+import type { Sale, SaleItem, ReceiptData, PrinterConfig, PrintJob } from '../types'
 
 const PRINT_SERVICE_URL = `http://127.0.0.1:9101`
 
@@ -37,25 +37,25 @@ function formatCurrency(amount: number): string {
 
 export function buildReceiptData(
   type: 'customer' | 'internal',
-  order: Order,
-  items: OrderItem[],
+  sale: Sale,
+  items: SaleItem[],
   staffName: string,
   tipAmount?: number,
   amountReceived?: number
 ): ReceiptData {
-  const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
-  const date = new Date(order.created_at).toLocaleDateString('en-NG', {
+  const saleRef = `SLS-${String(sale.id).slice(0, 8).toUpperCase()}`
+  const date = new Date(sale.created_at).toLocaleDateString('en-NG', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   })
-  const time = new Date(order.created_at).toLocaleTimeString('en-NG', {
+  const time = new Date(sale.created_at).toLocaleTimeString('en-NG', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
   })
 
-  const pmRaw = (order.payment_method ?? '').toLowerCase()
+  const pmRaw = (sale.payment_method ?? '').toLowerCase()
   const pmLabel = pmRaw.startsWith('transfer:')
     ? `TRANSFER - ${pmRaw.replace('transfer:', '').toUpperCase()}`
     : pmRaw === 'cash'
@@ -106,10 +106,10 @@ export function buildReceiptData(
   const received = amountReceived || 0
 
   const header = [
-    { label: 'Ref', value: orderRef },
+    { label: 'Ref', value: saleRef },
     { label: 'Date', value: date },
     { label: 'Time', value: time },
-    { label: 'Order', value: order.order_type === 'return' ? 'Return' : 'Counter' },
+    { label: 'Type', value: sale.order_type === 'return' ? 'Return' : 'Counter' },
     { label: 'Served by', value: staffName || 'Staff' },
   ]
 
@@ -154,20 +154,20 @@ export function buildReceiptData(
 }
 
 export async function queuePrintJob(
-  order: Order,
+  sale: Sale,
   type: 'customer' | 'internal',
-  items: OrderItem[],
+  items: SaleItem[],
   staffName: string,
   tipAmount?: number,
   amountReceived?: number
 ): Promise<{ success: boolean; jobId?: string; error?: string }> {
-  const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
+  const saleRef = `SLS-${String(sale.id).slice(0, 8).toUpperCase()}`
 
   const printer = await fetchPrinterConfig(
     type === 'customer' || type === 'internal' ? ['customer', 'internal'] : [type]
   )
 
-  const receipt = buildReceiptData(type, order, items, staffName, tipAmount, amountReceived)
+  const receipt = buildReceiptData(type, sale, items, staffName, tipAmount, amountReceived)
 
   // First, try the local print service directly (fast path)
   if (printer) {
@@ -180,7 +180,7 @@ export async function queuePrintJob(
           printerPort: printer.port,
           receipt,
           copies: printer.copies || 1,
-          jobId: `${orderRef}-${type}`,
+          jobId: `${saleRef}-${type}`,
         }),
         signal: AbortSignal.timeout(15000),
       })
@@ -189,8 +189,8 @@ export async function queuePrintJob(
 
       if (result.success) {
         await supabase.from('print_jobs').insert({
-          order_id: order.id,
-          receipt_number: orderRef,
+          order_id: sale.id,
+          receipt_number: saleRef,
           type,
           status: 'printed',
           copies: printer.copies || 1,
@@ -199,13 +199,13 @@ export async function queuePrintJob(
           printed_at: new Date().toISOString(),
         })
 
-        return { success: true, jobId: `${orderRef}-${type}` }
+        return { success: true, jobId: `${saleRef}-${type}` }
       }
 
       // Failed — queue with retry schedule
       await supabase.from('print_jobs').insert({
-        order_id: order.id,
-        receipt_number: orderRef,
+        order_id: sale.id,
+        receipt_number: saleRef,
         type,
         status: 'failed',
         copies: printer.copies || 1,
@@ -217,13 +217,13 @@ export async function queuePrintJob(
         next_retry_at: new Date(Date.now() + 5000).toISOString(),
       })
 
-      return { success: false, jobId: `${orderRef}-${type}`, error: result.error }
+      return { success: false, jobId: `${saleRef}-${type}`, error: result.error }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Print service unreachable'
 
       await supabase.from('print_jobs').insert({
-        order_id: order.id,
-        receipt_number: orderRef,
+        order_id: sale.id,
+        receipt_number: saleRef,
         type,
         status: 'failed',
         copies: printer.copies || 1,
@@ -235,21 +235,21 @@ export async function queuePrintJob(
         next_retry_at: new Date(Date.now() + 5000).toISOString(),
       })
 
-      return { success: false, jobId: `${orderRef}-${type}`, error: msg }
+      return { success: false, jobId: `${saleRef}-${type}`, error: msg }
     }
   }
 
   // No printer configured — queue as pending
   await supabase.from('print_jobs').insert({
-    order_id: order.id,
-    receipt_number: orderRef,
+    order_id: sale.id,
+    receipt_number: saleRef,
     type,
     status: 'pending',
     copies: 1,
     receipt_data: receipt as any,
   })
 
-  return { success: false, jobId: `${orderRef}-${type}`, error: 'No printer configured' }
+  return { success: false, jobId: `${saleRef}-${type}`, error: 'No printer configured' }
 }
 
 export async function reprintJob(jobId: string): Promise<{ success: boolean; error?: string }> {

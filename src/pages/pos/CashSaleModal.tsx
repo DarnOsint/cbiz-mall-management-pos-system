@@ -64,7 +64,7 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
   const [success, setSuccess] = useState(false)
   const [completedOrder, setCompletedOrder] = useState<CompletedOrder | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'menu' | 'order'>('menu')
+  const [activeTab, setActiveTab] = useState<'products' | 'cart'>('products')
 
   useEffect(() => {
     const load = async () => {
@@ -409,23 +409,23 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
         {/* Mobile tab switcher */}
         <div className="flex md:hidden border-b border-gray-800 bg-gray-900 shrink-0">
           <button
-            onClick={() => setActiveTab('menu')}
-            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'menu' ? 'text-white border-b-2 border-amber-500' : 'text-gray-500'}`}
+            onClick={() => setActiveTab('products')}
+            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'products' ? 'text-white border-b-2 border-amber-500' : 'text-gray-500'}`}
           >
-            Items
+            Products
           </button>
           <button
-            onClick={() => setActiveTab('order')}
-            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'order' ? 'text-white border-b-2 border-amber-500' : 'text-gray-500'}`}
+            onClick={() => setActiveTab('cart')}
+            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'cart' ? 'text-white border-b-2 border-amber-500' : 'text-gray-500'}`}
           >
-            Order {cart.length > 0 && `(${cart.length})`}
+            Cart {cart.length > 0 && `(${cart.length})`}
           </button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Left panel — item grid */}
           <div
-            className={`${activeTab === 'menu' ? 'flex' : 'hidden'} md:flex flex-1 flex-col overflow-hidden border-r border-gray-800`}
+            className={`${activeTab === 'products' ? 'flex' : 'hidden'} md:flex flex-1 flex-col overflow-hidden border-r border-gray-800`}
           >
             {/* Search */}
             <div className="p-3 border-b border-gray-800 shrink-0">
@@ -463,10 +463,10 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             {cart.length > 0 && (
               <div className="md:hidden shrink-0 p-2 border-t border-gray-800 bg-gray-900">
                 <button
-                  onClick={() => setActiveTab('order')}
+                  onClick={() => setActiveTab('cart')}
                   className="w-full bg-amber-500 text-black font-bold rounded-xl py-2.5 text-sm"
                 >
-                  View Order ({cart.length} items) — {formatPrice(total)} →
+                  View Cart ({cart.length} items) — {formatPrice(total)} →
                 </button>
               </div>
             )}
@@ -507,7 +507,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 
           {/* Right panel — cart + payment */}
           <div
-            className={`${activeTab === 'order' ? 'flex' : 'hidden'} md:flex w-full md:w-80 flex-col overflow-hidden shrink-0`}
+            className={`${activeTab === 'cart' ? 'flex' : 'hidden'} md:flex w-full md:w-80 flex-col overflow-hidden shrink-0`}
           >
             <div className="flex-1 overflow-y-auto">
               {/* Customer name */}

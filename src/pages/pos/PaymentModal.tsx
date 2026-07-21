@@ -17,7 +17,7 @@ import { queuePrintJob } from '../../lib/printService'
 import type { Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
-interface OrderItemExtended {
+interface SaleItemExtended {
   id: string
   order_id?: string
   item_id?: string
@@ -29,7 +29,7 @@ interface OrderItemExtended {
   created_at?: string
   items?: { name: string; price: number } | null
 }
-interface OrderExtended {
+interface SaleExtended {
   id: string
   total_amount: number
   payment_method?: string | null
@@ -38,7 +38,7 @@ interface OrderExtended {
   created_at: string
   closed_at?: string | null
   notes?: string | null
-  order_items?: OrderItemExtended[]
+  order_items?: SaleItemExtended[]
   customer_name?: string
   customer_phone?: string
   profiles?: { full_name: string } | null
@@ -51,55 +51,54 @@ interface SplitPayment {
   change: number
 }
 interface Props {
-  order: OrderExtended
+  sale: SaleExtended
   onSuccess: () => void
   onClose: () => void
 }
 
-export default function PaymentModal({ order: orderProp, onSuccess, onClose }: Props) {
-  const [order, setOrder] = useState(orderProp)
-  // Sync when parent refreshes the order (realtime DB update)
+export default function PaymentModal({ sale: saleProp, onSuccess, onClose }: Props) {
+  const [sale, setSale] = useState(saleProp)
   useEffect(() => {
-    setOrder(orderProp)
-  }, [orderProp])
+    setSale(saleProp)
+  }, [saleProp])
   const { profile } = useAuth()
   const toast = useToast()
 
-  const refreshOrder = async () => {
+  const refreshSale = async () => {
     const { data } = await supabase
       .from('orders')
       .select('*, order_items(*, items(name, price))')
-      .eq('id', order.id)
+      .eq('id', sale.id)
       .single()
     if (data) {
-      setOrder(data as unknown as OrderExtended)
+      setSale(data as unknown as SaleExtended)
     }
   }
 
   useEffect(() => {
-    if (!order.id) return
+    if (!sale.id) return
 
     const channel = supabase
-      .channel(`payment-modal-order-${order.id}`)
+      .channel(`payment-modal-sale-${sale.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items', filter: `order_id=eq.${order.id}` },
+        { event: '*', schema: 'public', table: 'order_items', filter: `order_id=eq.${sale.id}` },
         () => {
-          void refreshOrder()
+          void refreshSale()
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'returns_log', filter: `order_id=eq.${order.id}` },
+        { event: '*', schema: 'public', table: 'returns_log', filter: `order_id=eq.${sale.id}` },
         () => {
-          void refreshOrder()
+          void refreshSale()
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${order.id}` },
+        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${sale.id}` },
         () => {
-          void refreshOrder()
+          void refreshSale()
         }
       )
       .subscribe()
@@ -107,15 +106,15 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [order.id])
+  }, [sale.id])
   const [paymentMethod, setPaymentMethod] = useState<string>('cash')
   const [cashTendered, setCashTendered] = useState('')
   const [processing, setProcessing] = useState(false)
   const [success, setSuccess] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
-  const [paidOrder, setPaidOrder] = useState<OrderExtended | null>(null)
-  const [debtorName, setDebtorName] = useState(order?.customer_name || '')
-  const [debtorPhone, setDebtorPhone] = useState(order?.customer_phone || '')
+  const [paidSale, setPaidSale] = useState<SaleExtended | null>(null)
+  const [debtorName, setDebtorName] = useState(sale?.customer_name || '')
+  const [debtorPhone, setDebtorPhone] = useState(sale?.customer_phone || '')
   const [dueDate, setDueDate] = useState('')
   const [splitMode, setSplitMode] = useState(false)
   const [numPeople, setNumPeople] = useState(2)
@@ -147,7 +146,7 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
       })
   })
 
-  const billableItems = (order?.order_items || [])
+  const billableItems = (sale?.order_items || [])
   const activeItemsTotal = billableItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
   const subtotal = activeItemsTotal
   const total = subtotal
@@ -172,12 +171,12 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
   }
 
   const printPreReceipt = async () => {
-    const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
+    const orderRef = `BSP-${String(sale.id).slice(0, 8).toUpperCase()}`
 
     const result = await queuePrintJob(
-      order as unknown as import('../../types').Order,
+      sale as unknown as import('../../types').Sale,
       'customer',
-      billableItems as unknown as import('../../types').OrderItem[],
+      billableItems as unknown as import('../../types').SaleItem[],
       profile?.full_name || 'Staff'
     )
 
@@ -188,12 +187,12 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
     }
   }
 
-  const orderItems = billableItems
+  const saleItems = billableItems
   const getPersonItems = (idx: number) =>
-    orderItems.filter((item) => itemAssignments[item.id] === idx)
+    saleItems.filter((item) => itemAssignments[item.id] === idx)
   const getPersonTotal = (idx: number) =>
     getPersonItems(idx).reduce((s, i) => s + (i.total_price || 0), 0)
-  const unassignedItems = orderItems.filter((item) => itemAssignments[item.id] === undefined)
+  const unassignedItems = saleItems.filter((item) => itemAssignments[item.id] === undefined)
   const allAssigned = unassignedItems.length === 0
 
   const processSplitPayment = async () => {
@@ -228,25 +227,25 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
           closed_at: new Date().toISOString(),
           total_amount: total,
           notes:
-            (order.notes || '') +
+            (sale.notes || '') +
             ' [Split: ' +
             updatedPayments.map((p) => 'P' + p.person + '=' + p.method).join(', ') +
             ']',
         })
-        .eq('id', order.id)
+        .eq('id', sale.id)
       await audit({
         action: 'ORDER_PAID',
         entity: 'order',
-        entityId: order.id,
-        entityName: 'Order #' + (order.id || '').slice(0, 8),
+        entityId: sale.id,
+        entityName: 'Sale #' + (sale.id || '').slice(0, 8),
         newValue: {
-          total: order.total_amount,
+          total: sale.total_amount,
           payment_method: 'split',
           splits: updatedPayments.length,
         },
         performer: profile as Profile,
       })
-      setPaidOrder({ ...order, payment_method: 'split' })
+      setPaidSale({ ...sale, payment_method: 'split' })
       setSuccess(true)
       setShowReceipt(true)
     } else {
@@ -259,17 +258,16 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
   const processPayment = async () => {
     setProcessing(true)
     try {
-      // Verify total against server-side order_items sum before processing
       const { data: serverItems } = await supabase
         .from('order_items')
         .select('total_price')
-        .eq('order_id', order.id)
+        .eq('order_id', sale.id)
       if (serverItems && serverItems.length > 0) {
         const serverTotal = serverItems
           .reduce((s: number, i: { total_price: number }) => s + (i.total_price || 0), 0)
         if (Math.abs(serverTotal - total) > 1) {
-          await supabase.from('orders').update({ total_amount: serverTotal }).eq('id', order.id)
-          setOrder({ ...order, total_amount: serverTotal })
+          await supabase.from('orders').update({ total_amount: serverTotal }).eq('id', sale.id)
+          setSale({ ...sale, total_amount: serverTotal })
         }
       }
 
@@ -283,13 +281,12 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
             customer_phone: debtorPhone,
             closed_at: new Date().toISOString(),
           })
-          .eq('id', order.id)
+          .eq('id', sale.id)
         if (creditOrderErr) throw creditOrderErr
         await supabase
           .from('order_items')
           .update({ status: 'completed' })
-          .eq('order_id', order.id)
-        // Deduplicate debtors — match by phone first, then name
+          .eq('order_id', sale.id)
         const { data: existingDebtors } = await (debtorPhone
           ? supabase
               .from('debtors')
@@ -303,14 +300,13 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
               .ilike('name', debtorName)
               .eq('is_active', true)
               .limit(1))
-        // Always create a separate entry for each credit order — never lump
         await supabase.from('debtors').insert({
           id: crypto.randomUUID(),
           created_at: new Date().toISOString(),
           name: debtorName,
           phone: debtorPhone,
           debt_type: 'credit_order',
-          order_id: order.id,
+          order_id: sale.id,
           credit_limit: total,
           current_balance: total,
           amount_paid: 0,
@@ -324,19 +320,17 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
         await audit({
           action: 'ORDER_PAID',
           entity: 'order',
-          entityId: order.id,
-          entityName: 'Order #' + (order.id || '').slice(0, 8),
-          newValue: { total: order.total_amount, payment_method: paymentMethod },
+          entityId: sale.id,
+          entityName: 'Sale #' + (sale.id || '').slice(0, 8),
+          newValue: { total: sale.total_amount, payment_method: paymentMethod },
           performer: profile as Profile,
         })
-        setPaidOrder({ ...order, payment_method: 'credit' })
+        setPaidSale({ ...sale, payment_method: 'credit' })
         setSuccess(true)
         setShowReceipt(true)
         setProcessing(false)
         return
       }
-      // Use direct Supabase calls for payment — offlineUpdate's .single() can silently
-      // fail (PGRST116) causing realtime events to not fire on Management/Executive
       const { error: orderErr } = await supabase
         .from('orders')
         .update({
@@ -351,23 +345,22 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
                   : paymentMethod,
           closed_at: new Date().toISOString(),
         })
-        .eq('id', order.id)
+        .eq('id', sale.id)
       if (orderErr) throw orderErr
       await audit({
         action: 'ORDER_PAID',
         entity: 'order',
-        entityId: order.id,
-        entityName: 'Order #' + (order.id || '').slice(0, 8),
-        newValue: { total: order.total_amount, payment_method: paymentMethod },
+        entityId: sale.id,
+        entityName: 'Sale #' + (sale.id || '').slice(0, 8),
+        newValue: { total: sale.total_amount, payment_method: paymentMethod },
         performer: profile as Profile,
       })
-      // Record tip if entered
       const tipVal = parseFloat(tipAmount)
       if (tipVal > 0 && profile?.id) {
         await supabase.from('tips').insert({
-          order_id: order.id,
-          waitron_id: profile.id,
-          waitron_name: profile.full_name,
+          order_id: sale.id,
+          staff_id: profile.id,
+          staff_name: profile.full_name,
           order_total: total,
           amount_received: parseFloat(amountReceived) || total + tipVal,
           tip_amount: tipVal,
@@ -379,11 +372,11 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
                 : paymentMethod === 'cash+card'
                   ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
                   : paymentMethod,
-          shift_date: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10), // WAT = UTC+1
+          shift_date: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10),
           status: 'pending',
         })
       }
-      setPaidOrder({ ...order, payment_method: paymentMethod } as typeof order)
+      setPaidSale({ ...sale, payment_method: paymentMethod } as typeof sale)
       setSuccess(true)
       setShowReceipt(true)
     } catch (err) {
@@ -449,7 +442,7 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
               </p>
             )}
             <div className="space-y-2">
-              {orderItems.map((item) => (
+              {saleItems.map((item) => (
                 <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -553,7 +546,7 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
             <CheckCircle size={32} className="text-green-400" />
           </div>
           <h3 className="text-white text-xl font-bold mb-1">Payment Successful!</h3>
-          <p className="text-gray-400 text-sm mb-1">Order complete</p>
+          <p className="text-gray-400 text-sm mb-1">Sale complete</p>
           <p className="text-gray-500 text-xs capitalize">
             {paymentMethod === 'credit'
               ? 'Recorded as debt'
@@ -585,11 +578,11 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
       </div>
     )
 
-  if (showReceipt && paidOrder)
+  if (showReceipt && paidSale)
     return (
       <ReceiptModal
-        order={paidOrder as unknown as import('../../types').Order}
-        items={billableItems as import('../../types').OrderItem[]}
+        order={paidSale as unknown as import('../../types').Sale}
+        items={billableItems as import('../../types').SaleItem[]}
         staffName={profile?.full_name || 'Staff'}
         tipAmount={parseFloat(tipAmount) || 0}
         amountReceived={parseFloat(amountReceived) || 0}
@@ -606,7 +599,7 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
         <div className="flex flex-col gap-3 p-5 border-b border-gray-800 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-white font-bold text-lg">Process Payment</h3>
-            <p className="text-gray-400 text-sm">Order #{(order.id || '').slice(0, 8).toUpperCase()}</p>
+            <p className="text-gray-400 text-sm">Sale #{(sale.id || '').slice(0, 8).toUpperCase()}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -625,7 +618,7 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
 
         <div className="p-5 space-y-5">
           <div className="bg-gray-800 rounded-xl p-4">
-            <p className="text-gray-400 text-xs mb-3 uppercase tracking-wide">Order Summary</p>
+            <p className="text-gray-400 text-xs mb-3 uppercase tracking-wide">Sale Summary</p>
             <div className="space-y-2 mb-3">
               {billableItems.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm">
@@ -824,7 +817,7 @@ export default function PaymentModal({ order: orderProp, onSuccess, onClose }: P
                 <Clock size={28} className="text-red-400 mx-auto mb-2" />
                 <p className="text-red-400 font-medium">Pay Later</p>
                 <p className="text-gray-400 text-sm mt-1">
-                  Order will be recorded as a debt. Enter customer details below.
+                  Sale will be recorded as a debt. Enter customer details below.
                 </p>
               </div>
               <div>

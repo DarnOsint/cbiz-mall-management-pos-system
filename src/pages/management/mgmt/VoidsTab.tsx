@@ -233,7 +233,7 @@ export default function VoidsTab() {
             </span>
           </div>
           <p className="text-amber-400/70 text-xs">
-            Bar/kitchen staff reported these items as broken, expired, or damaged. Approve to
+            Staff reported these items as broken, expired, or damaged. Approve to
             confirm the loss or reject to restore the stock.
           </p>
         </div>

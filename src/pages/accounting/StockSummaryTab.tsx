@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { UtensilsCrossed, ChefHat, Printer, RefreshCw, Search } from 'lucide-react'
+import { Package, Box, Printer, RefreshCw, Search } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/currency'
 
@@ -42,8 +42,8 @@ export default function StockSummaryTab({ type }: Props) {
 
   const tableName = type === 'bar' ? 'bar_chiller_stock' : 'kitchen_stock'
   const destination = type === 'bar' ? 'bar' : 'kitchen'
-  const label = type === 'bar' ? 'Bar Chiller' : 'Kitchen'
-  const Icon = type === 'bar' ? UtensilsCrossed : ChefHat
+  const label = type === 'bar' ? 'Chiller' : 'Stock Room'
+  const Icon = type === 'bar' ? Package : Box
 
   const fetchData = useCallback(
     async (d: string) => {
@@ -90,7 +90,7 @@ export default function StockSummaryTab({ type }: Props) {
           if (item.status === 'cancelled') continue
           const name = item.menu_items?.name
           const rev = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
-          const zone = item.orders?.tables?.table_categories?.name || 'Takeaway'
+          const zone = item.orders?.tables?.table_categories?.name || 'Walk-in'
           if (name) {
             soldMap[name] = (soldMap[name] || 0) + item.quantity
             salesRev += rev

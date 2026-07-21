@@ -92,8 +92,8 @@ const statusConfig = {
   },
 }
 const debtTypeLabels: Record<string, string> = {
-  table_order: 'Table Order',
-  bar_tab: 'Bar Tab',
+  walk_in: 'Walk-in Sale',
+  credit_sale: 'Credit Sale',
 }
 
 export default function Debtors({ onBack, embedded = false }: Props) {
@@ -117,7 +117,7 @@ export default function Debtors({ onBack, embedded = false }: Props) {
     name: '',
     phone: '',
     email: '',
-    debt_type: 'table_order',
+    debt_type: 'walk_in',
     credit_limit: '',
     due_date: '',
     notes: '',

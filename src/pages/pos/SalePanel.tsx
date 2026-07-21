@@ -18,7 +18,7 @@ interface Props {
   profile: Profile | null
 }
 
-export default function OrderPanel({
+export default function SalePanel({
   cart,
   onUpdateQuantity,
   onRemoveItem,
@@ -32,7 +32,7 @@ export default function OrderPanel({
   return (
     <div className="flex flex-col h-full bg-gray-900">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 shrink-0">
-        <h2 className="text-white font-bold text-sm">Current Order</h2>
+        <h2 className="text-white font-bold text-sm">Current Sale</h2>
         <span className="text-gray-500 text-xs">
           {cart.reduce((s, e) => s + e.quantity, 0)} item{cart.reduce((s, e) => s + e.quantity, 0) !== 1 ? 's' : ''}
         </span>
@@ -93,7 +93,7 @@ export default function OrderPanel({
       <div className="border-t border-gray-800 px-4 py-3 shrink-0">
         <input
           type="text"
-          placeholder="Order notes..."
+          placeholder="Sale notes..."
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}
           className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 mb-3"
@@ -111,7 +111,7 @@ export default function OrderPanel({
           disabled={cart.length === 0}
           className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
         >
-          <Send size={16} /> Place Order
+          <Send size={16} /> Place Sale
         </button>
       </div>
     </div>

@@ -7,7 +7,7 @@ import { useToast } from '../../../context/ToastContext'
 import { formatPrice } from '../../../lib/currency'
 import type { Profile } from '../../../types'
 
-interface OrderItem {
+interface SaleItem {
   id: string
   menu_item_id: string
   quantity: number
@@ -29,17 +29,17 @@ interface MenuItem {
   menu_categories?: { name?: string; destination?: string } | null
 }
 
-interface Order {
+interface Sale {
   id: string
   total_amount?: number
   table_id?: string
-  tables?: { name: string } | null
+  areas?: { name: string } | null
   profiles?: { full_name: string } | null
-  order_items?: OrderItem[]
+  order_items?: SaleItem[]
 }
 
 interface Props {
-  order: Order
+  order: Sale
   onClose: () => void
   onSaved: () => void
 }
@@ -47,7 +47,7 @@ interface Props {
 export default function EditOrderModal({ order, onClose, onSaved }: Props) {
   const { profile } = useAuth()
   const toast = useToast()
-  const [items, setItems] = useState<OrderItem[]>(order.order_items || [])
+  const [items, setItems] = useState<SaleItem[]>(order.order_items || [])
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [menuSearch, setMenuSearch] = useState('')
   const [showMenu, setShowMenu] = useState(false)
@@ -101,12 +101,10 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
     setAddedItems((prev) => prev.filter((a) => a.tempId !== tempId))
   }
 
-  // Calculate new total
   const existingTotal = items.reduce((s, i) => s + (i.total_price || 0), 0)
   const addedTotal = addedItems.reduce((s, a) => s + a.menuItem.price * a.quantity, 0)
   const newTotal = existingTotal + addedTotal
 
-  // Detect total mismatch — stored total doesn't match actual items
   const storedTotal = order.total_amount || 0
   const actualItemsTotal = (order.order_items || []).reduce((s, i) => s + (i.total_price || 0), 0)
   const hasTotalMismatch = Math.abs(storedTotal - actualItemsTotal) > 1
@@ -116,7 +114,6 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
     try {
       const changes: string[] = []
 
-      // Delete removed items
       for (const id of removedIds) {
         const removed = (order.order_items || []).find((i) => i.id === id)
         await supabase.from('order_items').delete().eq('id', id)
@@ -125,14 +122,12 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
         }
       }
 
-      // Note total correction if mismatch
       if (hasTotalMismatch && removedIds.length === 0 && addedItems.length === 0) {
         changes.push(
           `Total corrected from ${formatPrice(storedTotal)} to ${formatPrice(actualItemsTotal)}`
         )
       }
 
-      // Insert new items
       for (const added of addedItems) {
         await supabase.from('order_items').insert({
           id: crypto.randomUUID(),
@@ -148,7 +143,6 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
         changes.push(`Added ${added.quantity}x ${added.menuItem.name}`)
       }
 
-      // Recalculate total from DB
       const { data: remaining } = await supabase
         .from('order_items')
         .select('total_price')
@@ -162,20 +156,19 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
         .update({ total_amount: correctTotal, updated_at: new Date().toISOString() })
         .eq('id', order.id)
 
-      // Audit
       if (changes.length > 0) {
         await audit({
           action: 'ORDER_MODIFIED_BY_MANAGER',
           entity: 'order',
           entityId: order.id,
-          entityName: order.tables?.name || 'Order',
+          entityName: order.areas?.name || 'Sale',
           oldValue: { total: order.total_amount },
           newValue: { total: correctTotal, changes },
           performer: profile as Profile,
         })
       }
 
-      toast.success('Order Updated', changes.join(', '))
+      toast.success('Sale Updated', changes.join(', '))
       onSaved()
     } catch (e) {
       toast.error('Failed', e instanceof Error ? e.message : String(e))
@@ -192,9 +185,9 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-800 shrink-0">
           <div>
-            <h3 className="text-white font-bold">Edit Order</h3>
+            <h3 className="text-white font-bold">Edit Sale</h3>
             <p className="text-gray-400 text-xs">
-              {order.tables?.name || 'Order'} — {order.profiles?.full_name || 'Staff'}
+              {order.areas?.name || 'Sale'} — {order.profiles?.full_name || 'Staff'}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -322,7 +315,7 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
               onClick={() => setShowMenu(!showMenu)}
               className="flex items-center gap-2 text-amber-400 hover:text-amber-300 text-sm font-medium mb-2 transition-colors"
             >
-              <Plus size={14} /> {showMenu ? 'Hide Menu' : 'Add Items from Menu'}
+              <Plus size={14} /> {showMenu ? 'Hide Catalog' : 'Add Items from Catalog'}
             </button>
             {showMenu && (
               <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
@@ -332,7 +325,7 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
                     <input
                       value={menuSearch}
                       onChange={(e) => setMenuSearch(e.target.value)}
-                      placeholder="Search menu..."
+                      placeholder="Search catalog..."
                       className="flex-1 bg-transparent text-white text-xs placeholder-gray-500 focus:outline-none"
                     />
                   </div>

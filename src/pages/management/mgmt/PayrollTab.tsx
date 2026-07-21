@@ -74,7 +74,7 @@ export default function PayrollTab() {
   const [showAdd, setShowAdd] = useState(false)
   const [newStaff, setNewStaff] = useState({
     name: '',
-    role: 'waitron',
+    role: 'cashier',
     bank: '',
     account: '',
     salary: '',
@@ -141,7 +141,7 @@ export default function PayrollTab() {
       }
     }
 
-    // Sum UNPAID credit debts per waitron for the month (from debtors table)
+    // Sum UNPAID credit debts per staff for the month (from debtors table)
     // This respects paid/partial status — paid debts are excluded
     const monthStartISO = new Date(monthStart + 'T08:00:00+01:00').toISOString()
     const monthEndISO = new Date(monthEnd + 'T08:00:00+01:00')
@@ -155,7 +155,7 @@ export default function PayrollTab() {
       .lt('created_at', monthEndISO.toISOString())
     const creditByStaff: Record<string, number> = {}
     for (const d of (unpaidDebts || []) as any[]) {
-      // "recorded_by_name" is the waitron/staff who recorded the pay-later debt.
+      // "recorded_by_name" is the staff member who recorded the pay-later debt.
       const key = normalizeStaffNameKey(d.recorded_by_name || 'Unknown')
       creditByStaff[key] = (creditByStaff[key] || 0) + (d.current_balance || 0)
     }
@@ -168,7 +168,7 @@ export default function PayrollTab() {
       const effectiveRole = saved?.role || s.role || ''
       const key = normalizeStaffNameKey(s.full_name)
       const autoOutstanding =
-        effectiveRole === 'waitron' ? (reconOutstanding[key] || 0) + (creditByStaff[key] || 0) : 0
+        effectiveRole === 'cashier' ? (reconOutstanding[key] || 0) + (creditByStaff[key] || 0) : 0
       return {
         id: saved?.id,
         staff_id: s.id,
@@ -348,7 +348,7 @@ export default function PayrollTab() {
       })
 
       setShowAdd(false)
-      setNewStaff({ name: '', role: 'waitron', bank: '', account: '', salary: '' })
+      setNewStaff({ name: '', role: 'cashier', bank: '', account: '', salary: '' })
       toast.success('Added', `${newStaff.name.trim()} added to payroll`)
       await fetchData()
     } catch (err) {
@@ -464,7 +464,7 @@ export default function PayrollTab() {
       }, 200)
   }
 
-  const roles = ['waitron', 'kitchen', 'bar', 'manager']
+  const roles = ['cashier', 'stock_control', 'manager']
 
   return (
     <div className="space-y-4">

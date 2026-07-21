@@ -153,7 +153,7 @@ function getStatus(
         color: 'text-amber-300',
         bg: 'bg-amber-400/10',
         border: 'border-amber-400/30',
-        remark: `Yield is ${yieldPct.toFixed(0)}% — above benchmark. Excellent kitchen efficiency!`,
+        remark: `Yield is ${yieldPct.toFixed(0)}% — above benchmark. Excellent stock efficiency!`,
       }
     if (yieldPct >= 100 - tol * 3)
       return {
@@ -496,7 +496,7 @@ export default function KitchenStock({ onBack }: Props) {
             <ArrowLeft size={20} className="text-gray-400" />
           </button>
           <div className="flex-1">
-            <h1 className="text-white font-bold text-base">Kitchen Stock Register</h1>
+            <h1 className="text-white font-bold text-base">Stock Room Register</h1>
             <p className="text-gray-500 text-xs">Reconciliation · Benchmarks · Yield Analysis</p>
           </div>
           <button onClick={() => loadEntries(date)} className="p-2 rounded-xl hover:bg-gray-800">
@@ -615,7 +615,7 @@ export default function KitchenStock({ onBack }: Props) {
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
               <Package size={32} className="text-gray-700 mx-auto mb-3" />
               <p className="text-gray-400 text-sm font-medium">No entries for this date</p>
-              <p className="text-gray-600 text-xs mt-1">Add items received in the kitchen today</p>
+              <p className="text-gray-600 text-xs mt-1">Add items received today</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1051,7 +1051,7 @@ export default function KitchenStock({ onBack }: Props) {
           <div className="bg-gray-900 border border-amber-500/20 rounded-2xl px-4 py-3">
             <p className="text-amber-400 text-xs font-semibold mb-1">What is a benchmark?</p>
             <p className="text-gray-400 text-xs leading-relaxed">
-              A benchmark tells the system how much cooked output (portions) to expect from a given
+              A benchmark tells the system how much finished output (portions) to expect from a given
               raw input (kg, pack, etc.). For example:{' '}
               <span className="text-white font-medium">1 kg beef = 8 portions</span>. The system
               will then calculate expected yield daily and flag deviations.

@@ -111,9 +111,8 @@ interface PaidOrder {
   payment_method?: string
   order_type?: string
   created_at: string
-  covers?: number | null
   profiles?: { full_name?: string } | null
-  tables?: { name?: string; table_categories?: { name?: string } | null } | null
+  areas?: { name?: string; area_categories?: { name?: string } | null } | null
 }
 
 interface Report {
@@ -125,27 +124,25 @@ interface Report {
   totalExpenses: number
   totalRevenue: number
   totalOrders: number
-  totalCovers: number
-  revenuePerCover: number
   paidOrders: PaidOrder[]
   paidOrdersCount: number
   cancelledOrders: number
   returnedItems: number
   returnedValue: number
-  avgOrderValue: number
+  avgSaleValue: number
   byPayment: Record<string, number>
   byCategory: CategoryStat[]
   topItems: ItemStat[]
   staffPerformance: StaffStat[]
   hourlyData: ChartPoint[]
   dailyBreakdown: ChartPoint[]
-  tableStats: TableStat[]
+  areaStats: TableStat[]
   totalDebt: number
   totalDebtCreated: number
   debtorCount: number
   totalOpeningFloat: number
   totalClosingFloat: number
-  byOrderType: { table: number; cash_sale: number; takeaway: number }
+  bySaleType: { walk_in: number; cash_sale: number; takeaway: number }
   payouts: Payout[]
   tillSessions: TillSession[]
   voids: VoidEntry[]
@@ -251,7 +248,7 @@ export default function Reports() {
           .lte('requested_at', end),
       ])
 
-      const orders = (ordersRes.data || []) as PaidOrder[]
+      const orders = ((ordersRes.data || []) as unknown as Array<PaidOrder & { tables?: PaidOrder['areas'] }>).map(o => ({ ...o, areas: o.areas ?? o.tables ?? null })) as PaidOrder[]
       const paidOrders = orders.filter(
         (o) => (o as unknown as { status: string }).status === 'paid'
       ) as PaidOrder[]
@@ -393,14 +390,14 @@ export default function Reports() {
         dayMap[d].orders++
       })
 
-      const tableMap: Record<string, TableStat> = {}
+      const areaMap: Record<string, TableStat> = {}
       paidOrders
-        .filter((o) => o.tables?.name)
+        .filter((o) => o.areas?.name)
         .forEach((o) => {
-          const t = o.tables!.name!
-          if (!tableMap[t]) tableMap[t] = { table: t, orders: 0, revenue: 0 }
-          tableMap[t].orders++
-          tableMap[t].revenue += perOrderNet[o.id] ?? o.total_amount ?? 0
+          const t = o.areas!.name!
+          if (!areaMap[t]) areaMap[t] = { table: t, orders: 0, revenue: 0 }
+          areaMap[t].orders++
+          areaMap[t].revenue += perOrderNet[o.id] ?? o.total_amount ?? 0
         })
 
       setReport({
@@ -412,24 +409,19 @@ export default function Reports() {
         totalExpenses,
         totalRevenue: grossRevenue,
         totalOrders: orders.length,
-        totalCovers: paidOrders.reduce((s, o) => s + (o.covers || 0), 0),
-        revenuePerCover: (() => {
-          const c = paidOrders.reduce((s, o) => s + (o.covers || 0), 0)
-          return c > 0 ? grossRevenue / c : 0
-        })(),
         paidOrders,
         paidOrdersCount: paidOrders.length,
         cancelledOrders,
         returnedItems,
         returnedValue,
-        avgOrderValue: paidOrders.length ? Math.round(grossRevenue / paidOrders.length) : 0,
+        avgSaleValue: paidOrders.length ? Math.round(grossRevenue / paidOrders.length) : 0,
         byPayment,
         byCategory: Object.values(categoryMap).sort((a, b) => b.revenue - a.revenue),
         topItems: Object.values(itemMap).sort((a, b) => b.quantity - a.quantity),
         staffPerformance: Object.values(staffMap).sort((a, b) => b.revenue - a.revenue),
         hourlyData: Object.values(hourMap).filter((h) => h.orders > 0),
         dailyBreakdown: Object.values(dayMap),
-        tableStats: Object.values(tableMap).sort((a, b) => b.revenue - a.revenue),
+        areaStats: Object.values(areaMap).sort((a, b) => b.revenue - a.revenue),
         totalDebt: debtors.reduce((s, d) => s + (d.current_balance || 0), 0),
         totalDebtCreated: debtors.reduce((s, d) => s + (d.credit_limit || 0), 0),
         debtorCount: debtors.length,
@@ -437,8 +429,8 @@ export default function Reports() {
         totalClosingFloat: tillSessions
           .filter((t) => t.status === 'closed')
           .reduce((s, t) => s + (t.closing_float || 0), 0),
-        byOrderType: {
-          table: paidOrders.filter(
+        bySaleType: {
+          walk_in: paidOrders.filter(
             (o) => (o as unknown as { order_type?: string }).order_type === 'table'
           ).length,
           cash_sale: paidOrders.filter(
@@ -465,7 +457,7 @@ export default function Reports() {
   const exportCSV = () => {
     if (!report) return
     const rows = [
-      ['C.BIZ AFRICAN FOOD - ' + report.period.toUpperCase() + ' REPORT'],
+      ['C.BIZ POS - ' + report.period.toUpperCase() + ' REPORT'],
       ['Generated:', report.generatedAt],
       [],
       ['REVENUE SUMMARY'],
@@ -474,13 +466,13 @@ export default function Reports() {
       ['Total Expenses', formatPrice(report.totalExpenses)],
       ['Net Revenue', formatPrice(report.netRevenue)],
       [],
-      ['ORDERS'],
-      ['Total Orders', report.totalOrders],
-      ['Paid Orders', report.paidOrdersCount],
-      ['Cancelled Orders', report.cancelledOrders],
+      ['SALES'],
+      ['Total Sales', report.totalOrders],
+      ['Completed Sales', report.paidOrdersCount],
+      ['Cancelled Sales', report.cancelledOrders],
       ['Returned Items', report.returnedItems],
       ['Return Value', formatPrice(report.returnedValue)],
-      ['Avg Order Value', formatPrice(report.avgOrderValue)],
+      ['Avg Sale Value', formatPrice(report.avgSaleValue)],
       [],
       ['PAYMENT METHODS'],
       ...Object.entries(report.byPayment)
@@ -495,7 +487,7 @@ export default function Reports() {
       }),
       [],
       ['STAFF PERFORMANCE'],
-      ['Staff', 'Orders', 'Revenue'],
+      ['Staff', 'Sales', 'Revenue'],
       ...report.staffPerformance.map((s) => [s.name, s.orders, formatPrice(s.revenue)]),
     ]
     const csv = rows.map((r) => r.join(',')).join('\n')
@@ -512,7 +504,7 @@ export default function Reports() {
     if (!report) return
     const sheets: Record<string, any[][]> = {
       Summary: [
-        ['C.Biz African Food', report.period],
+        ['C.Biz POS', report.period],
         ['Generated', report.generatedAt],
         [],
         ['Metric', 'Value'],
@@ -520,12 +512,12 @@ export default function Reports() {
         ['Total Revenue', report.totalRevenue],
         ['Total Expenses', report.totalExpenses],
         ['Net Revenue', report.netRevenue],
-        ['Total Orders', report.totalOrders],
-        ['Paid Orders', report.paidOrdersCount],
-        ['Cancelled Orders', report.cancelledOrders],
+        ['Total Sales', report.totalOrders],
+        ['Completed Sales', report.paidOrdersCount],
+        ['Cancelled Sales', report.cancelledOrders],
         ['Returned Items', report.returnedItems],
         ['Return Value', report.returnedValue],
-        ['Avg Order Value', report.avgOrderValue],
+        ['Avg Sale Value', report.avgSaleValue],
       ],
       Payments: [
         ['Method', 'Value'],
@@ -536,8 +528,8 @@ export default function Reports() {
         ['Split', report.byPayment.split],
       ],
       Items: [['Item', 'Qty', 'Revenue', 'Returned']],
-      Staff: [['Staff', 'Orders', 'Revenue']],
-      Tables: [['Table', 'Orders', 'Revenue']],
+      Staff: [['Staff', 'Sales', 'Revenue']],
+      Areas: [['Area', 'Sales', 'Revenue']],
     }
 
     ;(report.topItems || []).forEach((i) =>
@@ -546,7 +538,7 @@ export default function Reports() {
     ;(report.staffPerformance || []).forEach((s) =>
       sheets.Staff.push([s.name, s.orders, s.revenue])
     )
-    ;(report.tableStats || []).forEach((t) => sheets.Tables.push([t.table, t.orders, t.revenue]))
+    ;(report.areaStats || []).forEach((t) => sheets.Areas.push([t.table, t.orders, t.revenue]))
 
     const wb = XLSX.utils.book_new()
     Object.entries(sheets).forEach(([name, data]) => {
@@ -576,9 +568,9 @@ export default function Reports() {
         ['Gross Revenue', formatPrice(r.grossRevenue)],
         ['Total Expenses', formatPrice(r.totalExpenses)],
         ['Net Revenue', formatPrice(r.netRevenue)],
-        ['Total Orders', String(r.totalOrders)],
-        ['Paid Orders', String(r.paidOrdersCount)],
-        ['Avg Order Value', formatPrice(r.avgOrderValue)],
+        ['Total Sales', String(r.totalOrders)],
+        ['Completed Sales', String(r.paidOrdersCount)],
+        ['Avg Sale Value', formatPrice(r.avgSaleValue)],
       ],
       y + 2
     )
@@ -611,13 +603,13 @@ export default function Reports() {
                   id: 'rep-daily',
                   title: 'Daily Report',
                   description:
-                    'Full trading summary for any selected day — total and net revenue, cash/transfer breakdown, order count, top-selling items, per-waitron performance, void log, and payout deductions.',
+                    'Full trading summary for any selected day — total and net revenue, cash/transfer breakdown, sale count, top-selling items, per-staff performance, void log, and payout deductions.',
                 },
                 {
                   id: 'rep-monthly',
                   title: 'Monthly Report',
                   description:
-                    'Aggregated figures for a full calendar month — revenue, orders, average order value, payment method split, and top items.',
+                    'Aggregated figures for a full calendar month — revenue, sales, average sale value, payment method split, and top items.',
                 },
                 {
                   id: 'rep-annual',
@@ -818,19 +810,19 @@ export default function Reports() {
                     icon: TrendingUp,
                   },
                   {
-                    label: 'Total Orders',
+                    label: 'Total Sales',
                     value: String(report.totalOrders),
                     color: 'text-white',
                     icon: ShoppingBag,
                   },
                   {
-                    label: 'Paid Orders',
+                    label: 'Completed Sales',
                     value: String(report.paidOrdersCount),
                     color: 'text-green-400',
                     icon: ShoppingBag,
                   },
                   {
-                    label: 'Cancelled Orders',
+                    label: 'Cancelled Sales',
                     value: String(report.cancelledOrders),
                     color: 'text-red-400',
                     icon: ShoppingBag,
@@ -842,37 +834,16 @@ export default function Reports() {
                     icon: ShoppingBag,
                   },
                   {
-                    label: 'Avg Order Value',
+                    label: 'Avg Sale Value',
                     value: (
                       <PriceDisplay
-                        amount={report.avgOrderValue}
+                        amount={report.avgSaleValue}
                         className="text-white font-bold text-lg"
                         sspClassName="text-[9px] text-gray-500"
                       />
                     ),
                     color: 'text-purple-400',
                     icon: BarChart2,
-                  },
-                  {
-                    label: 'Total Covers',
-                    value: report.totalCovers > 0 ? String(report.totalCovers) : '—',
-                    color: 'text-amber-400',
-                    icon: Users,
-                  },
-                  {
-                    label: 'Revenue / Cover',
-                    value:
-                      report.revenuePerCover > 0 ? (
-                        <PriceDisplay
-                          amount={Math.round(report.revenuePerCover)}
-                          className="text-white font-bold text-lg"
-                          sspClassName="text-[9px] text-gray-500"
-                        />
-                      ) : (
-                        '—'
-                      ),
-                    color: 'text-amber-400',
-                    icon: Users,
                   },
                 ] as const
               ).map((m, i) => (
@@ -936,24 +907,24 @@ export default function Reports() {
               </div>
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
                 <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                  <ShoppingBag size={16} className="text-amber-400" /> Order Types
+                  <ShoppingBag size={16} className="text-amber-400" /> Sale Types
                 </h3>
                 <div className="space-y-3">
                   {(
                     [
                       {
-                        label: 'Table Orders',
-                        value: report.byOrderType.table,
+                        label: 'Walk-in Sales',
+                        value: report.bySaleType.walk_in,
                         color: 'bg-amber-500',
                       },
                       {
                         label: 'Cash Sales',
-                        value: report.byOrderType.cash_sale,
+                        value: report.bySaleType.cash_sale,
                         color: 'bg-blue-500',
                       },
                       {
-                        label: 'Takeaway',
-                        value: report.byOrderType.takeaway,
+                        label: 'To-go',
+                        value: report.bySaleType.takeaway,
                         color: 'bg-green-500',
                       },
                     ] as const
@@ -961,7 +932,7 @@ export default function Reports() {
                     <div key={item.label}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-gray-400">{item.label}</span>
-                        <span className="text-white font-medium">{item.value} orders</span>
+                        <span className="text-white font-medium">{item.value} sales</span>
                       </div>
                       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                         <div
@@ -1159,7 +1130,7 @@ export default function Reports() {
                           Staff
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
-                          Ord
+                          Sales
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
                           Revenue
@@ -1193,18 +1164,18 @@ export default function Reports() {
               </div>
             )}
 
-            {report.tableStats.length > 0 && (
+            {report.areaStats.length > 0 && (
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-                <h3 className="text-white font-semibold mb-4">Tables by Revenue</h3>
+                <h3 className="text-white font-semibold mb-4">Areas by Revenue</h3>
                 <div className="overflow-x-auto -mx-2">
                   <table className="w-full min-w-[260px]">
                     <thead>
                       <tr className="border-b border-gray-800">
                         <th className="text-left text-gray-500 text-xs uppercase px-3 py-2">
-                          Table
+                          Area
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
-                          Ord
+                          Sales
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
                           Revenue
@@ -1212,7 +1183,7 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {report.tableStats.map((t) => (
+                      {report.areaStats.map((t) => (
                         <tr key={t.table} className="border-b border-gray-800 last:border-0">
                           <td className="px-3 py-2.5 text-white text-sm">{t.table}</td>
                           <td className="px-3 py-2.5 text-right text-gray-400 text-sm whitespace-nowrap">
@@ -1356,7 +1327,7 @@ export default function Reports() {
                             ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
                           const z = [
                             '',
-                            ctr('C.Biz African Food'),
+                            ctr('C.Biz POS'),
                             ctr('Z-REPORT — END OF DAY'),
                             div,
                             row('Period:', getPeriodLabel()),
@@ -1364,7 +1335,7 @@ export default function Reports() {
                             div,
                             ctr('SALES SUMMARY'),
                             div,
-                            row('Total Orders:', String(report.paidOrders.length)),
+                            row('Total Sales:', String(report.paidOrders.length)),
                             row('Cancelled:', String(report.cancelledOrders)),
                             row(
                               'Returned:',
@@ -1435,7 +1406,7 @@ export default function Reports() {
                       style={{ fontFamily: 'monospace', fontSize: '13px' }}
                     >
                       <div className="text-center mb-4">
-                        <div className="text-xl font-bold tracking-widest">C.Biz African Food</div>
+                        <div className="text-xl font-bold tracking-widest">C.Biz POS</div>
                         <div className="text-xs text-gray-500 mt-1">Z-REPORT — END OF DAY</div>
                         <div className="text-xs text-gray-500">{getPeriodLabel()}</div>
                         <div className="text-xs text-gray-400">
@@ -1446,8 +1417,8 @@ export default function Reports() {
                       <div className="font-bold text-xs uppercase mb-2">Sales Summary</div>
                       {(
                         [
-                          ['Total Orders', report.paidOrders.length],
-                          ['Cancelled Orders', report.cancelledOrders],
+                          ['Total Sales', report.paidOrders.length],
+                          ['Cancelled Sales', report.cancelledOrders],
                           [
                             'Returned Items',
                             `${report.returnedItems} (${formatPrice(report.returnedValue)})`,

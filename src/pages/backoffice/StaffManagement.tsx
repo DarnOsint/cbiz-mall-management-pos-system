@@ -24,8 +24,8 @@ import {
 import type { Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
-const DEFAULT_ROLES = ['waitron', 'kitchen', 'bar', 'manager', 'owner'] as const
-const DEFAULT_FLOOR_ROLES = ['waitron', 'kitchen', 'bar']
+const DEFAULT_ROLES = ['cashier', 'stock_control', 'manager', 'owner'] as const
+const DEFAULT_FLOOR_ROLES = ['cashier', 'stock_control', 'manager']
 type AccessMode = 'floor' | 'office'
 interface CustomRoleConfig {
   role: string
@@ -34,9 +34,8 @@ interface CustomRoleConfig {
 const roleColors: Record<string, string> = {
   owner: 'bg-amber-500/20 text-amber-400',
   manager: 'bg-purple-500/20 text-purple-400',
-  waitron: 'bg-green-500/20 text-green-400',
-  kitchen: 'bg-red-500/20 text-red-400',
-  bar: 'bg-cyan-500/20 text-cyan-400',
+  cashier: 'bg-green-500/20 text-green-400',
+  stock_control: 'bg-red-500/20 text-red-400',
 }
 interface StaffForm {
   full_name: string
@@ -98,7 +97,7 @@ export default function StaffManagement({ onBack }: Props) {
     full_name: '',
     email: '',
     phone: '',
-    role: 'waitron',
+    role: 'cashier',
     pin: '',
     password: '',
     hire_date: new Date().toISOString().split('T')[0],
@@ -163,7 +162,7 @@ export default function StaffManagement({ onBack }: Props) {
       full_name: member.full_name || '',
       email: (member as unknown as { email?: string }).email || '',
       phone: (member as unknown as { phone?: string }).phone || '',
-      role: member.role || 'waitron',
+      role: member.role || 'cashier',
       pin: (member as unknown as { pin?: string }).pin || '',
       password: '',
       hire_date:

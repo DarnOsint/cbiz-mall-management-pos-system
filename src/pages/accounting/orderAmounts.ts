@@ -1,4 +1,4 @@
-type OrderItemWithReturns = {
+type SaleItemWithReturns = {
   id?: string
   quantity?: number
   total_price?: number
@@ -17,13 +17,13 @@ type OrderItemWithReturns = {
   return_accepted?: boolean
 }
 
-type OrderLike = {
-  order_items?: Array<OrderItemWithReturns | undefined> | undefined
+type SaleLike = {
+  order_items?: Array<SaleItemWithReturns | undefined> | undefined
 }
 
-export function getValidOrderItems(order: OrderLike) {
+export function getValidSaleItems(order: SaleLike) {
   return (order.order_items || []).filter((item) => {
-    const orderItem = item as OrderItemWithReturns | undefined
+    const orderItem = item as SaleItemWithReturns | undefined
     if (!orderItem) return false
     return (
       !orderItem.return_requested &&
@@ -33,13 +33,19 @@ export function getValidOrderItems(order: OrderLike) {
   })
 }
 
-export function getNetOrderAmount(order: OrderLike) {
-  return getValidOrderItems(order).reduce(
+export function getNetSaleAmount(order: SaleLike) {
+  return getValidSaleItems(order).reduce(
     (sum, item) => sum + (item.total_price || 0) + (item.extra_charge || 0),
     0
   )
 }
 
-export function getValidOrderItemCount(order: OrderLike) {
-  return getValidOrderItems(order).reduce((sum, item) => sum + (item.quantity || 0), 0)
+export function getValidSaleItemCount(order: SaleLike) {
+  return getValidSaleItems(order).reduce((sum, item) => sum + (item.quantity || 0), 0)
 }
+
+export const getValidOrderItems = getValidSaleItems
+export const getNetOrderAmount = getNetSaleAmount
+export const getValidOrderItemCount = getValidSaleItemCount
+type OrderItemWithReturns = SaleItemWithReturns
+type OrderLike = SaleLike

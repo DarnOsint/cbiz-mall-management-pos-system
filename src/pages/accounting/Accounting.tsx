@@ -12,11 +12,11 @@ import {
 } from 'lucide-react'
 
 import OverviewTab from './OverviewTab'
-import OrdersTab from './OrdersTab'
+import SalesTab from './OrdersTab'
 import TrendsTab from './TrendsTab'
 import LedgerTab from './LedgerTab'
 import AuditTab from './AuditTab'
-import { getNetOrderAmount } from './orderAmounts'
+import { getNetSaleAmount } from './orderAmounts'
 
 import type {
   AccountingSummary,
@@ -24,14 +24,14 @@ import type {
   PayoutRow,
   AuditEntry,
 } from './types'
-import type { Order } from '../../types'
+import type { Sale } from '../../types'
 
 const DATE_RANGES = ['Today', 'Prev Day', 'Date', 'This Week', 'This Month', 'Custom'] as const
 type DateRange = (typeof DATE_RANGES)[number]
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
-  { id: 'orders', label: 'Orders', icon: ShoppingBag },
+  { id: 'sales', label: 'Sales', icon: ShoppingBag },
   { id: 'trends', label: 'Trends', icon: TrendingUp },
   { id: 'ledger', label: 'Ledger', icon: BookOpen },
   { id: 'audit', label: 'Audit', icon: Shield },
@@ -50,15 +50,15 @@ export default function Accounting() {
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [loading, setLoading] = useState(true)
-  const [orderFilter, setOrderFilter] = useState({ status: 'all', type: 'all' })
+  const [saleFilter, setSaleFilter] = useState({ status: 'all', type: 'all' })
 
   const [summary, setSummary] = useState<AccountingSummary>({
     total: 0,
     byMethod: {},
-    orders: 0,
-    avgOrder: 0,
+    sales: 0,
+    avgSale: 0,
   })
-  const [orders, setOrders] = useState<Order[]>([])
+  const [sales, setSales] = useState<Sale[]>([])
   const [trendData, setTrendData] = useState<TrendPoint[]>([])
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [payouts, setPayouts] = useState<PayoutRow[]>([])
@@ -116,7 +116,7 @@ export default function Accounting() {
     setLoading(true)
     const { start, end } = getDateBounds()
 
-    const [ordersRes, payoutsRes, trendRes, auditRes] = await Promise.all([
+    const [salesRes, payoutsRes, trendRes, auditRes] = await Promise.all([
       supabase
         .from('orders')
         .select(
@@ -151,12 +151,12 @@ export default function Accounting() {
         .limit(200),
     ])
 
-    const allOrders = (ordersRes.data || []) as unknown as Order[]
-    const paidOrders = allOrders.filter((o) => o.status === 'paid')
+    const allSales = (salesRes.data || []) as unknown as Sale[]
+    const paidSales = allSales.filter((o) => o.status === 'paid')
 
-    const total = paidOrders.reduce((s, o) => s + getNetOrderAmount(o), 0)
+    const total = paidSales.reduce((s, o) => s + getNetSaleAmount(o), 0)
     const byMethod: Record<string, number> = {}
-    paidOrders.forEach((o) => {
+    paidSales.forEach((o) => {
       const pm = (o.payment_method || '').toLowerCase()
       let key = 'Transfer'
       if (pm === 'cash') key = 'Cash'
@@ -167,23 +167,23 @@ export default function Accounting() {
       else if (pm.startsWith('cash+transfer')) key = 'Cash + Transfer'
       else if (pm.startsWith('cash+card')) key = 'Cash + POS'
       else if (pm === 'complimentary') key = 'Complimentary'
-      byMethod[key] = (byMethod[key] || 0) + getNetOrderAmount(o)
+      byMethod[key] = (byMethod[key] || 0) + getNetSaleAmount(o)
     })
 
     setSummary({
       total,
       byMethod,
-      orders: paidOrders.length,
-      avgOrder: paidOrders.length ? Math.round(total / paidOrders.length) : 0,
+      sales: paidSales.length,
+      avgSale: paidSales.length ? Math.round(total / paidSales.length) : 0,
     })
-    setOrders(allOrders)
+    setSales(allSales)
 
     const dayMap: Record<string, TrendPoint> = {}
     ;(
       trendRes.data as unknown as
         | Array<{
             created_at: string
-            order_items?: Order['order_items']
+            order_items?: Sale['order_items']
           }>
         | null
         | undefined
@@ -192,9 +192,9 @@ export default function Accounting() {
         month: 'short',
         day: 'numeric',
       })
-      if (!dayMap[day]) dayMap[day] = { day, revenue: 0, orders: 0 }
-      dayMap[day].revenue += getNetOrderAmount(o)
-      dayMap[day].orders++
+      if (!dayMap[day]) dayMap[day] = { day, revenue: 0, sales: 0 }
+      dayMap[day].revenue += getNetSaleAmount(o)
+      dayMap[day].sales++
     })
     setTrendData(Object.values(dayMap))
 
@@ -223,7 +223,7 @@ export default function Accounting() {
 
   const totalPayouts = payouts.reduce((s, p) => s + (p.amount || 0), 0)
   const netRevenue = summary.total - totalPayouts
-  const paidCount = orders.filter((o) => o.status === 'paid').length
+  const paidCount = sales.filter((o) => o.status === 'paid').length
   const bounds = getDateBounds()
   const sessionDate = bounds.start.slice(0, 10)
   const sessionEndDateInclusive = (() => {
@@ -280,7 +280,7 @@ export default function Accounting() {
         )}
         <div className="ml-auto flex items-center gap-3">
           <span className="text-gray-600 text-xs">
-            {loading ? 'Loading...' : `${paidCount} paid orders`}
+            {loading ? 'Loading...' : `${paidCount} completed sales`}
           </span>
           <HelpTooltip
             storageKey="accounting"
@@ -295,19 +295,19 @@ export default function Accounting() {
                 id: 'acc-overview',
                 title: 'Overview Tab',
                 description:
-                  'Gross revenue, net revenue (after payouts), breakdown by payment method, order count, and average order value.',
+                  'Gross revenue, net revenue (after payouts), breakdown by payment method, sale count, and average sale value.',
               },
               {
-                id: 'acc-orders',
-                title: 'Orders Tab',
+                id: 'acc-sales',
+                title: 'Sales Tab',
                 description:
-                  'Full order list for the period. Filter by status and type. Expand any order to see every item, the staff, payment method, and exact timestamp.',
+                  'Full sale list for the period. Filter by status and type. Expand any sale to see every item, the staff, payment method, and exact timestamp.',
               },
               {
                 id: 'acc-trends',
                 title: 'Trends Tab',
                 description:
-                  'Revenue and order count charts over the selected period. Identifies peak days and slow periods.',
+                  'Revenue and sale count charts over the selected period. Identifies peak days and slow periods.',
               },
               {
                 id: 'acc-ledger',
@@ -319,7 +319,7 @@ export default function Accounting() {
                 id: 'acc-audit',
                 title: 'Audit Log Tab',
                 description:
-                  'Tamper-evident log of every system action — logins, order changes, voids, menu edits, staff changes, and settings updates.',
+                  'Tamper-evident log of every system action — logins, sale changes, voids, catalog edits, staff changes, and settings updates.',
               },
             ]}
           />
@@ -354,8 +354,8 @@ export default function Accounting() {
             dateRangeType={dateRange}
           />
         )}
-        {activeTab === 'orders' && (
-          <OrdersTab orders={orders} orderFilter={orderFilter} onFilterChange={setOrderFilter} />
+        {activeTab === 'sales' && (
+          <SalesTab sales={sales} saleFilter={saleFilter} onFilterChange={setSaleFilter} />
         )}
         {activeTab === 'trends' && <TrendsTab trendData={trendData} />}
         {activeTab === 'ledger' && <LedgerTab dateRange={dateRange} />}

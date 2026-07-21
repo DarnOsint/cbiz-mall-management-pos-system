@@ -19,6 +19,7 @@ interface DeleteRequest {
   table_name: string
   waitron_id: string
   waitron_name: string
+  staff_name?: string
   requested_at: string
 }
 
@@ -28,7 +29,7 @@ interface OrderRow {
   total_amount?: number
   created_at: string
   order_type?: string
-  tables?: { name: string; table_categories?: { name: string } | null } | null
+  areas?: { name: string; area_categories?: { name: string } | null } | null
   profiles?: { full_name: string } | null
   order_items?: Array<{
     id: string
@@ -72,13 +73,11 @@ export default function OpenOrdersTab() {
   }, [])
 
   const approveDelete = async (req: DeleteRequest) => {
-    // Delete the item from DB
     const { error } = await supabase.from('order_items').delete().eq('id', req.order_item_id)
     if (error) {
       toast.error('Error', 'Failed to delete item: ' + error.message)
       return
     }
-    // Recalculate order total
     const { data: remaining } = await supabase
       .from('order_items')
       .select('total_price')
@@ -92,7 +91,6 @@ export default function OpenOrdersTab() {
       .update({ total_amount: newTotal, updated_at: new Date().toISOString() })
       .eq('id', req.order_id)
 
-    // Remove from pending list
     const updated = deleteRequests.filter((r) => r.id !== req.id)
     await supabase.from('settings').upsert(
       {
@@ -136,14 +134,14 @@ export default function OpenOrdersTab() {
       newValue: { rejected_by: profile?.full_name, table: req.table_name },
       performer: profile as Profile,
     })
-    toast.success('Rejected', `${req.item_name} stays on the order`)
+    toast.success('Rejected', `${req.item_name} stays on the sale`)
   }
 
   const fetchOrders = useCallback(async () => {
     const { data, error } = await supabase
       .from('orders')
       .select(
-        '*, table_id, tables(name, table_categories(name)), profiles(full_name), order_items(*, menu_items(name, menu_categories(name, destination)))'
+        '*, table_id, areas(name, area_categories(name)), profiles(full_name), order_items(*, menu_items(name, menu_categories(name, destination)))'
       )
       .eq('status', 'open')
       .order('created_at', { ascending: false })
@@ -171,7 +169,6 @@ export default function OpenOrdersTab() {
 
   return (
     <>
-      {/* Deletion requests from waitrons */}
       {deleteRequests.length > 0 && (
         <div className="mb-4 bg-red-500/5 border border-red-500/30 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -188,7 +185,7 @@ export default function OpenOrdersTab() {
                     {req.quantity}x {req.item_name}
                   </p>
                   <p className="text-gray-400 text-xs">
-                    {req.table_name} — requested by {req.waitron_name}
+                    {req.table_name} — requested by {req.staff_name ?? req.waitron_name}
                   </p>
                   <p className="text-gray-500 text-xs">
                     {formatPrice(req.item_total)} ·{' '}
@@ -223,18 +220,17 @@ export default function OpenOrdersTab() {
         {orders.length === 0 ? (
           <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8 text-center">
             <ShoppingBag size={32} className="text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400">No open orders right now</p>
+            <p className="text-gray-400">No open sales right now</p>
           </div>
         ) : (
           orders.map((order) => {
-            // Hide items that are pending return review by barman
             const visibleItems = (order.order_items || []).filter(
               (i) => !(i as any).return_requested
             )
             const itemsSum = visibleItems.reduce((s, i) => s + (i.total_price || 0), 0)
             const totalMismatch = Math.abs((order.total_amount || 0) - itemsSum) > 1
-            const zoneName = (order.tables as unknown as { table_categories?: { name: string } })
-              ?.table_categories?.name
+            const zoneName = (order.areas as unknown as { area_categories?: { name: string } })
+              ?.area_categories?.name
             return (
               <div
                 key={order.id}
@@ -244,7 +240,7 @@ export default function OpenOrdersTab() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-white font-bold">
-                        {order.tables?.name || 'Unknown Table'}
+                        {order.areas?.name || 'Unknown Area'}
                       </p>
                       {zoneName && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
@@ -273,13 +269,13 @@ export default function OpenOrdersTab() {
                       onClick={() => setEditingOrder(order)}
                       className="flex items-center gap-1 text-[10px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg px-2 py-1 transition-colors"
                     >
-                      <Edit2 size={10} /> Edit Order
+                      <Edit2 size={10} /> Edit Sale
                     </button>
                     <button
                       onClick={async () => {
                         if (
                           !confirm(
-                            'Force-close this order? Use this only for stuck orders that were already paid.'
+                            'Force-close this sale? Use this only for stuck sales that were already paid.'
                           )
                         )
                           return
@@ -295,7 +291,6 @@ export default function OpenOrdersTab() {
                           toast.error('Error', 'Failed: ' + error.message)
                           return
                         }
-                        // Mark all items delivered so KDS clears and shift summary is accurate
                         await supabase
                           .from('order_items')
                           .update({ status: 'delivered' })

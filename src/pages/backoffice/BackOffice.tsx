@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import {
   Users,
-  UtensilsCrossed,
+  ShoppingBag,
   Package,
   Lock,
   Building2,
@@ -46,7 +46,7 @@ export default function BackOffice() {
       id: 'menu',
       label: 'Item Management',
       desc: 'Add and edit items, prices, availability',
-      icon: UtensilsCrossed,
+      icon: ShoppingBag,
       color: 'bg-green-500',
       roles: ['owner', 'manager'],
     },

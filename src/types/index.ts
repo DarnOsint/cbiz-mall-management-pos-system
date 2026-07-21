@@ -2,8 +2,10 @@
 
 export type Role = 'owner' | 'manager' | 'cashier'
 
-export type OrderStatus = 'open' | 'paid' | 'voided' | 'cancelled'
-export type OrderType = 'sale' | 'return'
+export type SaleStatus = 'open' | 'paid' | 'voided' | 'cancelled'
+export type SaleType = 'sale' | 'return'
+export type OrderStatus = SaleStatus
+export type OrderType = SaleType
 export type PaymentMethod =
   | 'cash'
   | 'bank_pos'
@@ -54,7 +56,7 @@ export interface Item {
   item_categories?: ItemCategory
 }
 
-export interface OrderItem {
+export interface SaleItem {
   id: string
   order_id: string
   item_id: string
@@ -68,11 +70,11 @@ export interface OrderItem {
   items?: Pick<Item, 'name' | 'price'> | null
 }
 
-export interface Order {
+export interface Sale {
   id: string
   staff_id?: string | null
-  order_type: OrderType
-  status: OrderStatus
+  order_type: SaleType
+  status: SaleStatus
   total_amount: number
   notes?: string | null
   payment_method?: PaymentMethod | null
@@ -80,8 +82,11 @@ export interface Order {
   created_at: string
   closed_at?: string | null
   updated_at?: string | null
-  order_items?: OrderItem[]
+  order_items?: SaleItem[]
 }
+
+export type Order = Sale
+export type OrderItem = SaleItem
 
 export interface TillSession {
   id: string

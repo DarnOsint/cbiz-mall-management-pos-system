@@ -329,7 +329,7 @@ export default function Inventory({ onBack }: Props) {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-white font-bold">Drink Inventory & Restocking</h1>
+            <h1 className="text-white font-bold">Product Inventory & Restocking</h1>
             <p className="text-gray-400 text-xs">
               {items.length} items · {lowStockCount} low stock · Stock value: SSP{formatPrice(totalStockValue)}
             </p>
@@ -693,7 +693,7 @@ export default function Inventory({ onBack }: Props) {
                     value={itemForm.category}
                     onChange={(e) => fi({ category: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 text-sm"
-                    placeholder="e.g. Beer, Spirits"
+                    placeholder="e.g. Beverages, Electronics"
                   />
                 </div>
                 <div>

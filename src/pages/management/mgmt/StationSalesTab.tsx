@@ -8,7 +8,7 @@ interface SaleRow {
   qty: number
   revenue: number
   zone: string
-  waitron: string
+  staff: string
   time: string
 }
 
@@ -16,9 +16,9 @@ const inferDestination = (row: any): string => {
   const normalize = (d: string) => {
     const v = (d || '').toString().trim().toLowerCase()
     if (!v) return ''
-    if (v === 'kitchen') return 'kitchen'
+    if (v === 'kitchen') return 'stock_room'
     if (v === 'griller' || v === 'grill' || v === 'grilling') return 'griller'
-    if (v === 'bar') return 'bar'
+    if (v === 'bar') return 'counter'
     if (v === 'shisha' || v === 'hookah') return 'shisha'
     if (v === 'games' || v === 'game' || v === 'games_master' || v === 'gamesmaster') return 'games'
     if (
@@ -36,7 +36,7 @@ const inferDestination = (row: any): string => {
   if (raw) return raw
   const name = (row?.menu_items?.name || '').toLowerCase()
   const catName = (row?.menu_items?.menu_categories?.name || '').toLowerCase()
-  if (catName.includes('kitchen') || name.includes('kitchen')) return 'kitchen'
+  if (catName.includes('kitchen') || name.includes('kitchen')) return 'stock_room'
   if (catName.includes('grill') || name.includes('grill')) return 'griller'
   if (catName.includes('shisha') || name.includes('shisha') || name.includes('hookah'))
     return 'shisha'
@@ -64,7 +64,7 @@ const inferDestination = (row: any): string => {
     catName.includes('smoothie') ||
     catName.includes('punch')
   if (looksMixo) return 'mixologist'
-  return 'bar'
+  return 'counter'
 }
 
 const todayWAT = () => {
@@ -86,7 +86,7 @@ export default function StationSalesTab({ destination, label }: Props) {
     revenue: 0,
     qty: 0,
     byZone: {} as Record<string, number>,
-    byWaitron: {} as Record<string, { qty: number; rev: number }>,
+    byStaff: {} as Record<string, { qty: number; rev: number }>,
   })
 
   const fetchData = useCallback(
@@ -109,7 +109,7 @@ export default function StationSalesTab({ destination, label }: Props) {
       let totalRev = 0,
         totalQty = 0
       const byZone: Record<string, number> = {}
-      const byWaitron: Record<string, { qty: number; rev: number }> = {}
+      const byStaff: Record<string, { qty: number; rev: number }> = {}
 
       for (const item of (data || []) as any[]) {
         if (item.return_accepted) continue
@@ -118,8 +118,8 @@ export default function StationSalesTab({ destination, label }: Props) {
         if (inferDestination(item) !== destination) continue
         const name = item.menu_items?.name || 'Item'
         const rev = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
-        const zone = item.orders?.tables?.table_categories?.name || 'Takeaway'
-        const waitron = item.orders?.profiles?.full_name || 'Unknown'
+        const zone = item.orders?.tables?.table_categories?.name || 'Walk-in'
+        const staff = item.orders?.profiles?.full_name || 'Unknown'
         const time = new Date(item.created_at).toLocaleTimeString('en-NG', {
           hour: '2-digit',
           minute: '2-digit',
@@ -127,17 +127,17 @@ export default function StationSalesTab({ destination, label }: Props) {
           timeZone: 'Africa/Lagos',
         })
 
-        rows.push({ item_name: name, qty: item.quantity, revenue: rev, zone, waitron, time })
+        rows.push({ item_name: name, qty: item.quantity, revenue: rev, zone, staff, time })
         totalRev += rev
         totalQty += item.quantity
         byZone[zone] = (byZone[zone] || 0) + rev
-        if (!byWaitron[waitron]) byWaitron[waitron] = { qty: 0, rev: 0 }
-        byWaitron[waitron].qty += item.quantity
-        byWaitron[waitron].rev += rev
+        if (!byStaff[staff]) byStaff[staff] = { qty: 0, rev: 0 }
+        byStaff[staff].qty += item.quantity
+        byStaff[staff].rev += rev
       }
 
       setSales(rows)
-      setTotals({ revenue: totalRev, qty: totalQty, byZone, byWaitron })
+      setTotals({ revenue: totalRev, qty: totalQty, byZone, byStaff })
       setLoading(false)
     },
     [destination]
@@ -172,9 +172,9 @@ export default function StationSalesTab({ destination, label }: Props) {
       r('Total Items:', String(totals.qty)),
       r('Total Revenue:', formatPrice(totals.revenue)),
       div,
-      ctr('BY WAITRON'),
+      ctr('BY STAFF'),
       div,
-      ...Object.entries(totals.byWaitron)
+      ...Object.entries(totals.byStaff)
         .sort((a, b) => b[1].rev - a[1].rev)
         .map(([name, v]) => r(name, `${v.qty} items ${formatPrice(v.rev)}`)),
       div,
@@ -268,11 +268,11 @@ export default function StationSalesTab({ destination, label }: Props) {
         </div>
       )}
 
-      {/* By Waitron */}
-      {Object.keys(totals.byWaitron).length > 0 && (
+      {/* By Staff */}
+      {Object.keys(totals.byStaff).length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-white text-sm font-bold mb-2">Given to Waitrons</p>
-          {Object.entries(totals.byWaitron)
+          <p className="text-white text-sm font-bold mb-2">Given to Staff</p>
+          {Object.entries(totals.byStaff)
             .sort((a, b) => b[1].rev - a[1].rev)
             .map(([name, v]) => (
               <div
@@ -304,7 +304,7 @@ export default function StationSalesTab({ destination, label }: Props) {
                 <th className="text-right px-2 py-2">Qty</th>
                 <th className="text-right px-2 py-2">Revenue</th>
                 <th className="text-left px-2 py-2">Zone</th>
-                <th className="text-left px-2 py-2">Waitron</th>
+                <th className="text-left px-2 py-2">Staff</th>
                 <th className="text-left px-2 py-2">Time</th>
               </tr>
             </thead>
@@ -315,7 +315,7 @@ export default function StationSalesTab({ destination, label }: Props) {
                   <td className="text-blue-400 text-right px-2 py-2">{s.qty}</td>
                   <td className="text-amber-400 text-right px-2 py-2">{formatPrice(s.revenue)}</td>
                   <td className="text-gray-400 px-2 py-2">{s.zone}</td>
-                  <td className="text-gray-300 px-2 py-2">{s.waitron}</td>
+                  <td className="text-gray-300 px-2 py-2">{s.staff}</td>
                   <td className="text-gray-500 px-2 py-2">{s.time}</td>
                 </tr>
               ))}

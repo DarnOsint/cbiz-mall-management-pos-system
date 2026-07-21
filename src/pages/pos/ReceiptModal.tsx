@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatPrice } from '../../lib/currency'
 import { X, Printer, Download, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react'
-import type { Order, OrderItem } from '../../types'
+import type { Sale, SaleItem } from '../../types'
 import { queuePrintJob, getPrintServiceUrl } from '../../lib/printService'
 import { useToast } from '../../context/ToastContext'
 
 interface Props {
-  order: Order
-  items: OrderItem[]
+  order: Sale
+  items: SaleItem[]
   staffName: string
   tipAmount?: number
   amountReceived?: number
@@ -133,7 +133,7 @@ export default function ReceiptModal({
     // Wait briefly between prints so the printer can finish
     await new Promise((r) => setTimeout(r, 1000))
 
-    const waiterResult = await queuePrintJob(
+    const staffResult = await queuePrintJob(
       order,
       'internal',
       items,
@@ -144,15 +144,15 @@ export default function ReceiptModal({
 
     setPrintStatus((prev) => ({
       ...prev,
-      internal: waiterResult.success ? 'success' : 'failed',
-      error: waiterResult.error || prev.error,
+      internal: staffResult.success ? 'success' : 'failed',
+      error: staffResult.error || prev.error,
     }))
 
-    if (customerResult.success && waiterResult.success) {
+    if (customerResult.success && staffResult.success) {
       toast.success('Printed', 'Customer receipt + internal copy sent to printer')
     } else if (customerResult.success) {
       toast.warning('Partial Print', 'Customer receipt printed but internal copy failed')
-    } else if (waiterResult.success) {
+    } else if (staffResult.success) {
       toast.warning('Partial Print', 'Internal copy printed but customer receipt failed')
     } else {
       toast.error('Print Failed', customerResult.error || 'Could not reach print service')
@@ -368,7 +368,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
   <div class="receipt-text">${customerLines}</div>
   <div class="qr-section">
     <img src="${qrUrl}" width="90" height="90" alt="QR" style="display:block;margin:0 auto;" />
-    <div class="qr-label">Scan to view your order online</div>
+                    <div class="qr-label">Scan to view your sale online</div>
   </div>
   <div class="footer">Thank you for visiting Cbiz!</div>
 </body>
@@ -515,7 +515,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       order.order_type === 'return'
                         ? 'Return'
                         : (order as unknown as { customer_name?: string }).customer_name
-                          ? `Takeaway — ${(order as unknown as { customer_name: string }).customer_name}`
+                          ? `Walk-in — ${(order as unknown as { customer_name: string }).customer_name}`
                           : 'Counter',
                     ],
                     ['Staff', staffName],
@@ -669,7 +669,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     style={{ width: '80px', height: '80px', display: 'block', margin: '0 auto' }}
                   />
                   <div style={{ fontSize: '9px', marginTop: '4px', color: '#666' }}>
-                    Scan to review your order
+                    Scan to review your sale
                   </div>
                 </div>
                 <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
@@ -718,7 +718,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 }}
               >
                 <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>ORDER SUMMARY</div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>SALE SUMMARY</div>
                   <div style={{ fontSize: '10px', color: '#444' }}>INTERNAL USE ONLY</div>
                   <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
                     — — — — — — — —
@@ -734,7 +734,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       order.order_type === 'return'
                         ? 'Return'
                         : (order as unknown as { customer_name?: string }).customer_name
-                          ? `Takeaway — ${(order as unknown as { customer_name: string }).customer_name}`
+                          ? `Walk-in — ${(order as unknown as { customer_name: string }).customer_name}`
                           : 'Counter',
                     ],
                     ['Staff', staffName],
@@ -756,7 +756,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 </div>
                 <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
                 <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '4px' }}>
-                  ITEMS ORDERED
+                  ITEMS SOLD
                 </div>
                 {billableItems.map((item, i) => (
                   <div
@@ -880,7 +880,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                         fontSize: '9px',
                       }}
                     >
-                      Waitron
+                      Staff
                     </div>
                     <div
                       style={{

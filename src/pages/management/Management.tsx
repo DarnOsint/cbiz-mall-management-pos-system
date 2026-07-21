@@ -34,14 +34,14 @@ const activityWindow = (dateStr: string) => {
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'orders', label: 'Orders', icon: ShoppingBag },
+  { id: 'sales', label: 'Sales', icon: ShoppingBag },
   { id: 'activity', label: 'Activity Log', icon: Shield },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
 
 interface Stats {
-  openOrders: number
+  openSales: number
   todayRevenue: number
 }
 export default function Management() {
@@ -54,7 +54,7 @@ export default function Management() {
     return { start: start.toISOString(), end: end.toISOString() }
   }, [activityDate])
   const [stats, setStats] = useState<Stats>({
-    openOrders: 0,
+    openSales: 0,
     todayRevenue: 0,
   })
 
@@ -65,7 +65,7 @@ export default function Management() {
 
   const fetchStats = useCallback(async () => {
     const { start, end } = sessionWindow()
-    const [ordersRes, revenueRes] = await Promise.all([
+    const [salesRes, revenueRes] = await Promise.all([
       supabase.from('orders').select('id').eq('status', 'open'),
       supabase
         .from('orders')
@@ -75,7 +75,7 @@ export default function Management() {
         .lt('closed_at', end.toISOString()),
     ])
     setStats({
-      openOrders: ordersRes.data?.length || 0,
+      openSales: salesRes.data?.length || 0,
       todayRevenue: (revenueRes.data || []).reduce((s: number, o: any) => {
         const net = (o.order_items || [])
           .filter(
@@ -139,12 +139,12 @@ export default function Management() {
       id: 'mgmt-overview',
       title: 'Overview',
       description:
-        "Live dashboard: open orders and today's revenue — all updating in real time.",
+        "Live dashboard: open sales and today's revenue — all updating in real time.",
     },
     {
-      id: 'mgmt-orders',
-      title: 'Orders',
-      description: 'View and manage open orders.',
+      id: 'mgmt-sales',
+      title: 'Sales',
+      description: 'View and manage open sales.',
     },
     {
       id: 'mgmt-activity',
@@ -181,7 +181,7 @@ export default function Management() {
         {activeTab === 'overview' && (
           <OverviewTab stats={stats} onTabChange={(id) => setActiveTab(id as TabId)} />
         )}
-        {activeTab === 'orders' && <OpenOrdersTab />}
+        {activeTab === 'sales' && <OpenOrdersTab />}
         {activeTab === 'activity' && (
           <div>
             <div className="flex items-center gap-3 mb-4">

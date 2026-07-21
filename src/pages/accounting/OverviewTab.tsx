@@ -25,7 +25,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { audit } from '../../lib/audit'
-import type { AccountingSummary, TrendPoint, WaitronStat } from './types'
+import type { AccountingSummary, TrendPoint, StaffStat } from './types'
 import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 
@@ -38,8 +38,8 @@ interface Props {
   sessionDate?: string
   sessionEndDate?: string
   dateRangeType?: string
-  waitronStats?: WaitronStat[]
-  creditByWaitron?: Record<string, number>
+  staffStats?: StaffStat[]
+  creditByStaff?: Record<string, number>
   creditDetails?: Array<{
     name: string
     amount: number
@@ -51,10 +51,10 @@ interface Props {
 }
 
 interface Reconciliation {
-  cashCollected: Record<string, number> // waitron name → cash collected
-  transferReceipts: Record<string, number> // waitron name → transfer receipt handed in
-  outstanding: Record<string, number> // waitron name → outstanding/shortage for the day
-  excess: Record<string, number> // waitron name → excess/surplus for the day
+  cashCollected: Record<string, number> // staff name → cash collected
+  transferReceipts: Record<string, number> // staff name → transfer receipt handed in
+  outstanding: Record<string, number> // staff name → outstanding/shortage for the day
+  excess: Record<string, number> // staff name → excess/surplus for the day
 }
 
 export default function OverviewTab({
@@ -66,8 +66,8 @@ export default function OverviewTab({
   sessionDate,
   sessionEndDate,
   dateRangeType,
-  waitronStats = [],
-  creditByWaitron = {},
+  staffStats = [],
+  creditByStaff = {},
   creditDetails = [],
 }: Props) {
   const { profile } = useAuth()
@@ -97,8 +97,8 @@ export default function OverviewTab({
     dateRangeType === 'Today' ||
     dateRangeType === 'Prev Day' ||
     dateRangeType === 'Date'
-  const activeWaitrons =
-    waitronStats.filter((w) => (w.revenue || 0) > 0 || (w.orders || 0) > 0) || waitronStats
+  const activeStaff =
+    staffStats.filter((w) => (w.revenue || 0) > 0 || (w.sales || 0) > 0) || staffStats
 
   const sessionTodayKey = (() => {
     const wat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
@@ -239,7 +239,7 @@ export default function OverviewTab({
   // Shortages:
   // - Single day: computed from expected vs remitted (and saved into recon_<date>.outstanding on save)
   // - Range: use locked-in saved shortages per day (summed into recon.outstanding via loadRecon)
-  const autoShortage = activeWaitrons.reduce(
+  const autoShortage = activeStaff.reduce(
     (acc, w) => {
       const expectedTotal = (w.cashExpected || 0) + (w.transferExpected || 0)
       const remittedTotal =
@@ -251,7 +251,7 @@ export default function OverviewTab({
     {} as Record<string, number>
   )
 
-  const autoExcess = activeWaitrons.reduce(
+  const autoExcess = activeStaff.reduce(
     (acc, w) => {
       const expectedTotal = (w.cashExpected || 0) + (w.transferExpected || 0)
       const remittedTotal =
@@ -305,9 +305,9 @@ export default function OverviewTab({
     ? autoShortage
     : ((recon.outstanding || {}) as Record<string, number>)
 
-  // Merge shortages + credit (pay later) per waitron
+  // Merge shortages + credit (pay later) per staff
   const mergedOutstanding: Record<string, number> = { ...shortagesForView }
-  for (const [name, amt] of Object.entries(creditByWaitron)) {
+  for (const [name, amt] of Object.entries(creditByStaff)) {
     mergedOutstanding[name] = (mergedOutstanding[name] || 0) + amt
   }
   const totalOutstanding = Object.values(mergedOutstanding).reduce((s, v) => s + (v || 0), 0)
@@ -350,8 +350,8 @@ export default function OverviewTab({
       div,
       row('Gross Revenue:', fmtSSP(summary.total)),
       row('Net Revenue:', fmtSSP(netRevenue)),
-      row('Total Orders:', String(summary.orders)),
-      row('Avg Order Value:', fmtSSP(summary.avgOrder)),
+      row('Total Sales:', String(summary.sales)),
+      row('Avg Sale Value:', fmtSSP(summary.avgSale)),
       div,
       ctr('PAYMENT BREAKDOWN'),
       div,
@@ -361,11 +361,11 @@ export default function OverviewTab({
       div,
       ctr('STAFF SALES'),
       div,
-      ...waitronStats.map((w) => row(w.name, `${fmtSSP(w.revenue)} (${w.orders})`)),
+      ...staffStats.map((w) => row(w.name, `${fmtSSP(w.revenue)} (${w.sales})`)),
       div,
-      ctr('WAITRON REMITTANCE'),
+      ctr('STAFF REMITTANCE'),
       div,
-      ...activeWaitrons.flatMap((w) => {
+      ...activeStaff.flatMap((w) => {
         const cash = recon.cashCollected[w.name] || 0
         const transfer = recon.transferReceipts[w.name] || 0
         if (cash <= 0 && transfer <= 0) return []
@@ -377,14 +377,14 @@ export default function OverviewTab({
       row('TOTAL CASH:', fmtSSP(totalCashCollected)),
       row('TOTAL TRANSFER:', fmtSSP(totalTransferReceipts)),
       div,
-      ctr('OUTSTANDING PER WAITRON'),
+      ctr('OUTSTANDING PER STAFF'),
       div,
       ...Object.entries(mergedOutstanding)
         .filter(([, v]) => v > 0)
         .map(([name, amt]) => row(name, fmtSSP(amt))),
       row('TOTAL OUTSTANDING:', fmtSSP(totalOutstanding)),
       div,
-      ctr('EXCESS PER WAITRON'),
+      ctr('EXCESS PER STAFF'),
       div,
       ...Object.entries(autoExcess)
         .filter(([, v]) => v > 0)
@@ -401,8 +401,8 @@ export default function OverviewTab({
       row('Total Sales (POS):', fmtSSP(expectedRevenue)),
       row('Total Received:', fmtSSP(totalReceived)),
       row('Payouts:', fmtSSP(totalPayouts)),
-      row('Outstanding (Waitrons):', fmtSSP(totalOutstanding)),
-      row('Excess (Waitrons):', fmtSSP(totalExcess)),
+      row('Outstanding (Staff):', fmtSSP(totalOutstanding)),
+      row('Excess (Staff):', fmtSSP(totalExcess)),
       row('Accounted For:', fmtSSP(totalReceived)),
       sol,
       row(
@@ -497,10 +497,10 @@ export default function OverviewTab({
       bg: 'bg-purple-400/10',
     },
     {
-      label: 'Avg Order',
+      label: 'Avg Sale',
       value: (
         <PriceDisplay
-          amount={summary.avgOrder}
+          amount={summary.avgSale}
           className="text-white font-bold text-lg leading-tight"
           sspClassName="text-[9px] text-gray-500"
         />
@@ -541,20 +541,20 @@ export default function OverviewTab({
       </div>
 
       {/* Staff Sales Summary */}
-      {waitronStats.length > 0 && (
+      {staffStats.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
             <Users size={16} className="text-amber-400" /> Staff Sales — {dateLabel}
           </h3>
           <div className="space-y-2">
-            {waitronStats.map((w) => (
+            {staffStats.map((w) => (
               <div
                 key={w.name}
                 className="flex items-center justify-between py-1.5 border-b border-gray-800 last:border-0"
               >
                 <div>
                   <span className="text-white text-sm font-medium">{w.name}</span>
-                  <span className="text-gray-500 text-xs ml-2">{w.orders} orders</span>
+                  <span className="text-gray-500 text-xs ml-2">{w.sales} sales</span>
                 </div>
                 <PriceDisplay
                   amount={w.revenue}
@@ -669,17 +669,17 @@ export default function OverviewTab({
           )}
         </div>
 
-        {/* Waitron Remittance Per Waitron (single-day only) */}
+        {/* Staff Remittance Per Staff (single-day only) */}
         {isSingleDay && (
           <div className="mb-5">
             <h4 className="text-gray-300 text-sm font-semibold mb-2 flex items-center gap-1.5">
-              <Banknote size={13} className="text-emerald-400" /> Waitron Remittance
+              <Banknote size={13} className="text-emerald-400" /> Staff Remittance
             </h4>
             <p className="text-gray-600 text-xs mb-2">
-              Enter cash collected and POS/transfer receipt submitted by each waitron
+              Enter cash collected and POS/transfer receipt submitted by each staff
             </p>
             <div className="space-y-1.5">
-              {activeWaitrons.map((w) => (
+              {activeStaff.map((w) => (
                 <div key={w.name} className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
                   <span className="text-gray-600 text-xs w-40">
@@ -744,20 +744,20 @@ export default function OverviewTab({
           </div>
         )}
 
-        {/* Outstanding per Waitron */}
+        {/* Outstanding per Staff */}
         <div className="mb-5">
           <h4 className="text-gray-300 text-sm font-semibold mb-2 flex items-center gap-1.5">
-            <AlertTriangle size={13} className="text-red-400" /> Outstanding / Shortage per Waitron
+            <AlertTriangle size={13} className="text-red-400" /> Outstanding / Shortage per Staff
           </h4>
           <p className="text-gray-600 text-xs mb-2">
             Shortages are calculated automatically from cash and POS/transfer remittance. Surplus is
-            shown as excess. Credit and pay-later orders are added automatically.
+            shown as excess. Credit and pay-later sales are added automatically.
           </p>
           <div className="space-y-1.5">
-            {activeWaitrons.map((w) => {
+            {activeStaff.map((w) => {
               const shortage = shortagesForView[w.name] || 0
               const excess = autoExcess[w.name] || 0
-              const credit = creditByWaitron[w.name] || 0
+              const credit = creditByStaff[w.name] || 0
               return (
                 <div key={w.name} className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
@@ -874,7 +874,7 @@ export default function OverviewTab({
             />
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Outstanding / Shortage (Waitrons)</span>
+            <span className="text-gray-400">Outstanding / Shortage (Staff)</span>
             <PriceDisplay
               amount={totalOutstanding}
               className="text-red-400 text-sm"

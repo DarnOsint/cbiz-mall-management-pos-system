@@ -4,10 +4,10 @@ import { formatPrice } from '../../../lib/currency'
 import { RefreshCw, Download } from 'lucide-react'
 import React from 'react'
 
-type Dest = 'bar' | 'kitchen' | 'griller' | 'mixologist' | 'shisha' | 'games'
+type Dest = 'general' | 'stock_room' | 'counter'
 
 interface Row {
-  waitron: string
+  staff: string
   count: number
   total: number
 }
@@ -33,7 +33,7 @@ const dayWindow = (dateStr: string) => {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-export default function OrdersByWaitronTab({
+export default function StaffSalesByStation({
   destinations,
   title,
 }: {
@@ -41,9 +41,9 @@ export default function OrdersByWaitronTab({
   title: string
 }) {
   const [rows, setRows] = useState<Row[]>([])
-  const [itemsByWaitron, setItemsByWaitron] = useState<Record<string, Item[]>>({})
+  const [itemsByStaff, setItemsByStaff] = useState<Record<string, Item[]>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [modalWaitron, setModalWaitron] = useState<string | null>(null)
+  const [modalStaff, setModalStaff] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [startDate, setStartDate] = useState<string>(() =>
@@ -104,7 +104,7 @@ export default function OrdersByWaitronTab({
           if ((oi.status || '').toLowerCase() === 'cancelled') return
           if (!destinations.includes(dest as Dest)) return
           const name = oi.orders?.profiles?.full_name || 'Unknown'
-          if (!map[name]) map[name] = { waitron: name, count: 0, total: 0 }
+          if (!map[name]) map[name] = { staff: name, count: 0, total: 0 }
           map[name].count += oi.quantity || 0
           map[name].total += oi.total_price || 0
 
@@ -120,11 +120,11 @@ export default function OrdersByWaitronTab({
         }
       )
       setRows(Object.values(map).sort((a, b) => b.total - a.total))
-      setItemsByWaitron(itemsMap)
+      setItemsByStaff(itemsMap)
     } catch (e) {
-      console.warn('Load waitron orders failed:', e)
+      console.warn('Load staff sales failed:', e)
       setRows([])
-      setItemsByWaitron({})
+      setItemsByStaff({})
       setErrorMsg('Could not load data. Check connection and retry.')
     } finally {
       setLoading(false)
@@ -138,8 +138,8 @@ export default function OrdersByWaitronTab({
 
   const exportCsv = () => {
     const lines = [
-      ['Waitron', 'Items', 'Value'],
-      ...rows.map((r) => [r.waitron, String(r.count), String(r.total)]),
+      ['Staff', 'Items', 'Value'],
+      ...rows.map((r) => [r.staff, String(r.count), String(r.total)]),
     ]
     const csv = lines
       .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
@@ -216,28 +216,28 @@ export default function OrdersByWaitronTab({
           {errorMsg}
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-gray-500">No orders in this session.</div>
+        <div className="text-gray-500">No sales in this session.</div>
       ) : (
         <div className="overflow-x-auto bg-gray-900 border border-gray-800 rounded-xl">
           <table className="min-w-full text-sm text-white">
             <thead className="bg-gray-800 text-gray-300">
               <tr>
-                <th className="px-3 py-2 text-left">Waitron</th>
+                <th className="px-3 py-2 text-left">Staff</th>
                 <th className="px-3 py-2 text-right">Items</th>
                 <th className="px-3 py-2 text-right">Value</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <React.Fragment key={r.waitron}>
+                <React.Fragment key={r.staff}>
                   <tr
                     className="border-t border-gray-800 hover:bg-gray-800/60 cursor-pointer"
                     onClick={() => {
-                      setExpanded(expanded === r.waitron ? null : r.waitron)
-                      setModalWaitron(r.waitron)
+                      setExpanded(expanded === r.staff ? null : r.staff)
+                      setModalStaff(r.staff)
                     }}
                   >
-                    <td className="px-3 py-2">{r.waitron}</td>
+                    <td className="px-3 py-2">{r.staff}</td>
                     <td className="px-3 py-2 text-right">{r.count}</td>
                     <td className="px-3 py-2 text-right">{formatPrice(r.total)}</td>
                   </tr>
@@ -247,12 +247,12 @@ export default function OrdersByWaitronTab({
           </table>
         </div>
       )}
-      {modalWaitron && (
+      {modalStaff && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
           <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
               <div>
-                <p className="text-white font-bold">{modalWaitron}</p>
+                <p className="text-white font-bold">{modalStaff}</p>
                 <p className="text-xs text-gray-500">
                   {start.slice(0, 10)} to {end.slice(0, 10)} (8am–8am WAT)
                 </p>
@@ -260,7 +260,7 @@ export default function OrdersByWaitronTab({
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    const items = itemsByWaitron[modalWaitron] || []
+                    const items = itemsByStaff[modalStaff] || []
                     const html = `
                       <html><head><style>
                         body{font-family:Inter,Arial,sans-serif;font-size:12px;margin:16px;}
@@ -268,7 +268,7 @@ export default function OrdersByWaitronTab({
                         table{width:100%;border-collapse:collapse;}
                         th,td{padding:6px;border:1px solid #ddd;text-align:left;}
                       </style></head><body>
-                        <h2>${modalWaitron} — Orders</h2>
+                        <h2>${modalStaff} — Sales</h2>
                         <p>Window: ${start} to ${end} (8am–8am WAT)</p>
                         <table>
                           <thead><tr><th>Time</th><th>Item</th><th>Qty</th><th>Value</th></tr></thead>
@@ -295,7 +295,7 @@ export default function OrdersByWaitronTab({
                   Print
                 </button>
                 <button
-                  onClick={() => setModalWaitron(null)}
+                  onClick={() => setModalStaff(null)}
                   className="px-3 py-1.5 text-xs bg-gray-800 text-gray-200 rounded-lg"
                 >
                   Close
@@ -303,7 +303,7 @@ export default function OrdersByWaitronTab({
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {(itemsByWaitron[modalWaitron] || []).length === 0 ? (
+              {(itemsByStaff[modalStaff] || []).length === 0 ? (
                 <div className="p-4 text-gray-500 text-sm">No items</div>
               ) : (
                 <table className="w-full text-sm text-white">
@@ -320,7 +320,7 @@ export default function OrdersByWaitronTab({
                       const aggregated: {
                         [name: string]: { qty: number; total: number; at: string }
                       } = {}
-                      ;(itemsByWaitron[modalWaitron] || []).forEach((it) => {
+                      ;(itemsByStaff[modalStaff] || []).forEach((it) => {
                         const key = it.name
                         if (!aggregated[key]) aggregated[key] = { qty: 0, total: 0, at: it.at }
                         aggregated[key].qty += it.qty

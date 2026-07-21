@@ -45,7 +45,7 @@ self.addEventListener('push', (event: PushEvent) => {
     body: payload.body || '',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: 'restaurantos',
+    tag: 'cbizpos',
     renotify: true,
     data: payload.data || {},
     vibrate: [200, 100, 200],

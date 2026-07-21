@@ -9,13 +9,13 @@ const todayWAT = () =>
     'en-CA'
   )
 
-interface WaitronShift {
+interface StaffShift {
   staff_id: string
   staff_name: string
   role: string
 }
 
-interface WaitronOrder {
+interface StaffSale {
   id: string
   status?: string
   total_amount: number
@@ -131,13 +131,13 @@ const sessionWindow = (dateStr: string) => {
   return { start, end }
 }
 
-export default function WaitronOrdersTab() {
+export default function StaffSalesTab() {
   const [date, setDate] = useState(todayWAT())
-  const [shifts, setShifts] = useState<WaitronShift[]>([])
+  const [shifts, setShifts] = useState<StaffShift[]>([])
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null)
-  const [orders, setOrders] = useState<WaitronOrder[]>([])
+  const [sales, setSales] = useState<StaffSale[]>([])
   const [loading, setLoading] = useState(true)
-  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [salesLoading, setSalesLoading] = useState(false)
 
   const fetchShifts = useCallback(async (d: string) => {
     setLoading(true)
@@ -152,7 +152,7 @@ export default function WaitronOrdersTab() {
       )
       .limit(500)
 
-    const unique = new Map<string, WaitronShift>()
+    const unique = new Map<string, StaffShift>()
     for (const row of (salesStaff || []) as Array<{
       staff_id: string | null
       profiles?: { full_name?: string | null; role?: string | null } | null
@@ -174,12 +174,12 @@ export default function WaitronOrdersTab() {
   useEffect(() => {
     fetchShifts(date)
     setSelectedStaff(null)
-    setOrders([])
+    setSales([])
   }, [date, fetchShifts])
 
-  const fetchOrders = async (staffId: string) => {
+  const fetchSales = async (staffId: string) => {
     setSelectedStaff(staffId)
-    setOrdersLoading(true)
+    setSalesLoading(true)
     const { start: dayStart, end: dayEnd } = sessionWindow(date)
     const { data } = await supabase
       .from('orders')
@@ -191,22 +191,22 @@ export default function WaitronOrdersTab() {
         `and(status.eq.paid,closed_at.gte.${dayStart.toISOString()},closed_at.lt.${dayEnd.toISOString()}),and(status.eq.open,created_at.gte.${dayStart.toISOString()},created_at.lt.${dayEnd.toISOString()})`
       )
       .order('created_at', { ascending: true })
-    setOrders((data || []) as unknown as WaitronOrder[])
-    setOrdersLoading(false)
+    setSales((data || []) as unknown as StaffSale[])
+    setSalesLoading(false)
   }
 
   const selectedShift = shifts.find((s) => s.staff_id === selectedStaff)
-  const validItems = (items: WaitronOrder['order_items']) =>
+  const validItems = (items: StaffSale['order_items']) =>
     getValidOrderItems({ order_items: items })
-  const paidOrders = orders.filter((o) => o.status === 'paid')
-  const openOrders = orders.filter((o) => o.status !== 'paid')
-  const totalSales = orders.reduce((s, o) => s + getNetOrderAmount(o), 0)
-  const totalItems = orders.reduce((s, o) => s + getValidOrderItemCount(o), 0)
-  const paidSales = paidOrders.reduce((s, o) => s + getNetOrderAmount(o), 0)
-  const openSales = openOrders.reduce((s, o) => s + getNetOrderAmount(o), 0)
+  const paidSalesItems = sales.filter((o) => o.status === 'paid')
+  const openSalesItems = sales.filter((o) => o.status !== 'paid')
+  const totalSales = sales.reduce((s, o) => s + getNetOrderAmount(o), 0)
+  const totalItems = sales.reduce((s, o) => s + getValidOrderItemCount(o), 0)
+  const paidSales = paidSalesItems.reduce((s, o) => s + getNetOrderAmount(o), 0)
+  const openSales = openSalesItems.reduce((s, o) => s + getNetOrderAmount(o), 0)
 
-  const printWaitronReport = () => {
-    if (!selectedShift || orders.length === 0) return
+  const printStaffReport = () => {
+    if (!selectedShift || sales.length === 0) return
     const W = 40
     const div = '-'.repeat(W)
     const sol = '='.repeat(W)
@@ -286,7 +286,7 @@ export default function WaitronOrdersTab() {
       bucket.items.set(label, existing)
     }
 
-    for (const order of orders) {
+    for (const order of sales) {
       for (const item of validItems(order.order_items)) {
         const itemName = item.menu_items?.name || item.modifier_notes || 'Item'
         const categoryName = item.menu_items?.menu_categories?.name || ''
@@ -370,11 +370,11 @@ export default function WaitronOrdersTab() {
     const lines = [
       '',
       ctr('C.Biz African Food'),
-      ctr('WAITRON ORDER REPORT'),
+      ctr('STAFF SALES REPORT'),
       div,
-      row('Waitron:', selectedShift.staff_name),
+      row('Staff:', selectedShift.staff_name),
       row('Date:', fmtDate),
-      row('Orders:', String(orders.length)),
+      row('Sales:', String(sales.length)),
       row('Total Sales:', formatPrice(totalSales)),
       row('Total Items:', String(totalItems)),
       div,
@@ -388,7 +388,7 @@ export default function WaitronOrdersTab() {
       ctr('*** END OF REPORT ***'),
       '',
     ].join('\n')
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Waitron Report — ${selectedShift.staff_name}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre}@media print{body{width:80mm}@page{margin:0;size:80mm auto}}</style></head><body>${lines}</body></html>`
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Staff Report — ${selectedShift.staff_name}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre}@media print{body{width:80mm}@page{margin:0;size:80mm auto}}</style></head><body>${lines}</body></html>`
     const w = window.open('', '_blank', 'width=500,height=700,toolbar=no,menubar=no')
     if (!w) return
     w.document.open('text/html', 'replace')
@@ -450,7 +450,7 @@ export default function WaitronOrdersTab() {
             {shifts.map((s) => (
               <button
                 key={s.staff_id}
-                onClick={() => fetchOrders(s.staff_id)}
+                onClick={() => fetchSales(s.staff_id)}
                 className={`w-full text-left bg-gray-900 border rounded-xl p-3 transition-colors ${selectedStaff === s.staff_id ? 'border-amber-500 bg-amber-500/5' : 'border-gray-800 hover:border-gray-700'}`}
               >
                 <p className="text-white text-sm font-semibold">{s.staff_name}</p>
@@ -464,38 +464,38 @@ export default function WaitronOrdersTab() {
           <div className="md:col-span-2">
             {!selectedStaff ? (
               <div className="text-center py-12">
-                <p className="text-gray-500 text-sm">Select a staff member to view their orders</p>
+                <p className="text-gray-500 text-sm">Select a staff member to view their sales</p>
               </div>
-            ) : ordersLoading ? (
-              <div className="text-center py-12 text-amber-500">Loading orders...</div>
+            ) : salesLoading ? (
+              <div className="text-center py-12 text-amber-500">Loading sales...</div>
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <p className="text-white font-bold">{selectedShift?.staff_name}</p>
                     <p className="text-gray-400 text-xs">
-                      {orders.length} orders · {formatPrice(totalSales)} · {totalItems} items
-                      {orders.length > 0
+                      {sales.length} sales · {formatPrice(totalSales)} · {totalItems} items
+                      {sales.length > 0
                         ? ` (paid ${formatPrice(paidSales)} · open ${formatPrice(openSales)})`
                         : ''}
                     </p>
                   </div>
-                  {orders.length > 0 && (
+                  {sales.length > 0 && (
                     <button
-                      onClick={printWaitronReport}
+                      onClick={printStaffReport}
                       className="flex items-center gap-1 px-3 py-2 bg-gray-800 text-gray-400 hover:text-white rounded-xl text-xs transition-colors"
                     >
                       <Printer size={12} /> Print Report
                     </button>
                   )}
                 </div>
-                {orders.length === 0 ? (
+                {sales.length === 0 ? (
                   <p className="text-gray-600 text-sm text-center py-8">
-                    No orders for this staff member on {date}
+                    No sales for this staff member on {date}
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {orders.map((o, idx) => {
+                    {sales.map((o, idx) => {
                       const zone = (o.tables as unknown as { table_categories?: { name: string } })
                         ?.table_categories?.name
                       const pm =

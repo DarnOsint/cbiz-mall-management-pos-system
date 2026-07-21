@@ -18,10 +18,10 @@ interface ShiftOrder {
 
 export interface ShiftStats {
   clockIn: string
-  ordersCount: number
+  salesCount: number
   totalSales: number
   totalItems: number
-  uniqueTables: number
+  uniqueAreas: number
   recentOrders: ShiftOrder[]
 }
 
@@ -80,14 +80,14 @@ export function useShiftStats(profileId?: string) {
         (s, o) => s + o.order_items.reduce((ss, i) => ss + (i.quantity || 0), 0),
         0
       )
-      const uniqueTables = new Set(orders.map((o) => o.tables?.name).filter(Boolean)).size
+      const uniqueAreas = new Set(orders.map((o) => o.tables?.name).filter(Boolean)).size
 
       setStats({
         clockIn: attendance?.clock_in ?? '',
-        ordersCount: orders.length,
+        salesCount: orders.length,
         totalSales,
         totalItems,
-        uniqueTables,
+        uniqueAreas,
         recentOrders: filteredOrders.slice(0, 5),
       })
     } catch (err) {

@@ -64,7 +64,7 @@ export default function MenuManagement({ onBack }: Props) {
     image_url: '',
     is_available: true,
   })
-  const [catForm, setCatForm] = useState<CatForm>({ name: '', destination: 'bar' })
+  const [catForm, setCatForm] = useState<CatForm>({ name: '', destination: 'general' })
   const [zones, setZones] = useState<TableZone[]>([])
   const [zonePrices, setZonePrices] = useState<Record<string, string>>({})
   const [itemZonePrices, setItemZonePrices] = useState<Set<string>>(new Set())
@@ -273,12 +273,12 @@ export default function MenuManagement({ onBack }: Props) {
   }
   const openAddCat = () => {
     setEditingCat(null)
-    setCatForm({ name: '', destination: 'bar' })
+    setCatForm({ name: '', destination: 'general' })
     setShowCatModal(true)
   }
   const openEditCat = (cat: MenuCategory) => {
     setEditingCat(cat)
-    setCatForm({ name: cat.name, destination: cat.destination || 'bar' })
+    setCatForm({ name: cat.name, destination: cat.destination || 'general' })
     setShowCatModal(true)
   }
   const saveCat = async () => {
@@ -320,14 +320,12 @@ export default function MenuManagement({ onBack }: Props) {
   }
 
   const destinationLabel = (dest?: string) => {
-    if (dest === 'kitchen') return { label: 'Kitchen', className: 'bg-red-500/20 text-red-400' }
-    if (dest === 'griller')
-      return { label: 'Griller', className: 'bg-orange-500/20 text-orange-400' }
-    if (dest === 'shisha') return { label: 'Shisha', className: 'bg-rose-500/20 text-rose-400' }
+    if (dest === 'kitchen') return { label: 'Stock Room', className: 'bg-red-500/20 text-red-400' }
+    if (dest === 'griller') return { label: 'Stock Room', className: 'bg-red-500/20 text-red-400' }
+    if (dest === 'shisha') return { label: 'Stock Room', className: 'bg-red-500/20 text-red-400' }
     if (dest === 'games') return { label: 'Games', className: 'bg-amber-500/20 text-amber-400' }
-    if (dest === 'mixologist')
-      return { label: 'Mixologist', className: 'bg-emerald-500/20 text-emerald-400' }
-    return { label: 'Bar', className: 'bg-blue-500/20 text-blue-400' }
+    if (dest === 'mixologist') return { label: 'Stock Room', className: 'bg-red-500/20 text-red-400' }
+    return { label: 'General', className: 'bg-blue-500/20 text-blue-400' }
   }
 
   return (
@@ -338,7 +336,7 @@ export default function MenuManagement({ onBack }: Props) {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-white font-bold">Menu Management</h1>
+            <h1 className="text-white font-bold">Item Management</h1>
             <p className="text-gray-400 text-xs">
               {items.length} items · {categories.length} categories
             </p>
@@ -689,14 +687,10 @@ export default function MenuManagement({ onBack }: Props) {
                   <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
                     Routes To *
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {[
-                      ['kitchen', '🍳 Kitchen', 'red'],
-                      ['bar', '🍺 Bar', 'blue'],
-                      ['griller', '🔥 Griller', 'orange'],
-                      ['shisha', '💨 Shisha', 'rose'],
-                      ['games', '🎮 Games', 'amber'],
-                      ['mixologist', '🍸 Mixologist', 'green'],
+                      ['kitchen', '📦 Stock Room', 'red'],
+                      ['general', '📋 General', 'blue'],
                     ].map(([val, label, color]) => (
                       <button
                         key={val}
