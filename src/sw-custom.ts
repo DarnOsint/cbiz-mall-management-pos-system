@@ -26,7 +26,15 @@ registerRoute(
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => {
-  event.waitUntil((self as any).clients.claim())
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(
+        names
+          .filter((n) => n.includes('icon') || n.includes('image') || n.includes('pwa') || n.includes('workbox'))
+          .map((n) => caches.delete(n))
+      )
+    ).then(() => (self as any).clients.claim())
+  )
 })
 
 // ── Push notifications ─────────────────────────────────────────────────────
