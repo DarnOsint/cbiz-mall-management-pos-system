@@ -32,10 +32,10 @@ const inferDestination = (row: any): string => {
     return v
   }
 
-  const raw = normalize(row?.destination || row?.menu_items?.menu_categories?.destination || '')
+  const raw = normalize(row?.destination || '')
   if (raw) return raw
-  const name = (row?.menu_items?.name || '').toLowerCase()
-  const catName = (row?.menu_items?.menu_categories?.name || '').toLowerCase()
+  const name = (row?.item?.name || '').toLowerCase()
+  const catName = (row?.item?.item_categories?.name || '').toLowerCase()
   if (catName.includes('kitchen') || name.includes('kitchen')) return 'stock_room'
   if (catName.includes('grill') || name.includes('grill')) return 'griller'
   if (catName.includes('shisha') || name.includes('shisha') || name.includes('hookah'))
@@ -99,7 +99,7 @@ export default function StationSalesTab({ destination, label }: Props) {
       const { data } = await supabase
         .from('order_items')
         .select(
-          'quantity, unit_price, total_price, status, return_accepted, created_at, destination, menu_items(name, menu_categories(name, destination)), orders(status, profiles(full_name), tables(name, table_categories(name)))'
+          'quantity, unit_price, total_price, status, return_accepted, created_at, destination, item(name, item_categories(name)), orders(status, profiles(full_name))'
         )
         .gte('created_at', dayStart.toISOString())
         .lt('created_at', dayEnd.toISOString())
@@ -116,9 +116,9 @@ export default function StationSalesTab({ destination, label }: Props) {
         if (item.orders?.status === 'cancelled') continue
         if (item.status === 'cancelled') continue
         if (inferDestination(item) !== destination) continue
-        const name = item.menu_items?.name || 'Item'
+        const name = item.item?.name || 'Item'
         const rev = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
-        const zone = item.orders?.tables?.table_categories?.name || 'Walk-in'
+        const zone = 'Walk-in'
         const staff = item.orders?.profiles?.full_name || 'Unknown'
         const time = new Date(item.created_at).toLocaleTimeString('en-NG', {
           hour: '2-digit',

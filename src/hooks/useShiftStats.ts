@@ -12,7 +12,7 @@ interface ShiftOrder {
     status: string
     return_requested: boolean
     return_accepted: boolean
-    menu_items: { name: string } | null
+    item: { name: string } | null
   }>
 }
 
@@ -49,11 +49,11 @@ export function useShiftStats(profileId?: string) {
         supabase
           .from('orders')
           .select(
-            `id, total_amount, closed_at, tables(name),
+            `id, total_amount, closed_at,
             order_items(
               quantity, total_price, status,
               return_requested, return_accepted,
-              menu_items(name)
+              item(name)
             )`
           )
           .eq('staff_id', profileId)

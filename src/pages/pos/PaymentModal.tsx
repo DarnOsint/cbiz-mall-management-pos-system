@@ -355,27 +355,7 @@ export default function PaymentModal({ sale: saleProp, onSuccess, onClose }: Pro
         newValue: { total: sale.total_amount, payment_method: paymentMethod },
         performer: profile as Profile,
       })
-      const tipVal = parseFloat(tipAmount)
-      if (tipVal > 0 && profile?.id) {
-        await supabase.from('tips').insert({
-          order_id: sale.id,
-          staff_id: profile.id,
-          staff_name: profile.full_name,
-          order_total: total,
-          amount_received: parseFloat(amountReceived) || total + tipVal,
-          tip_amount: tipVal,
-          payment_method:
-            paymentMethod === 'transfer'
-              ? `transfer:${bankAccounts.find((b) => b.id === selectedBankId)?.bank_name || 'Bank Transfer'}`
-              : paymentMethod === 'cash+transfer'
-                ? `cash+transfer:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                : paymentMethod === 'cash+card'
-                  ? `cash+card:${parseFloat(cashSplit || '0')}+${parseFloat(secondarySplit || '0')}`
-                  : paymentMethod,
-          shift_date: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10),
-          status: 'pending',
-        })
-      }
+      void tipAmount
       setPaidSale({ ...sale, payment_method: paymentMethod } as typeof sale)
       setSuccess(true)
       setShowReceipt(true)

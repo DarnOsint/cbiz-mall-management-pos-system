@@ -164,12 +164,12 @@ export default function Debtors({ onBack, embedded = false }: Props) {
       if (orderIds.length > 0) {
         const { data: ois } = await supabase
           .from('order_items')
-          .select('order_id, quantity, menu_items(name)')
+          .select('order_id, quantity, item(name)')
           .in('order_id', orderIds)
         const oiMap: Record<string, string[]> = {}
         for (const oi of (ois || []) as any[]) {
           if (!oiMap[oi.order_id]) oiMap[oi.order_id] = []
-          oiMap[oi.order_id].push(`${oi.quantity}x ${oi.menu_items?.name || 'Item'}`)
+          oiMap[oi.order_id].push(`${oi.quantity}x ${oi.item?.name || 'Item'}`)
         }
         setDebtorItems(oiMap)
       }

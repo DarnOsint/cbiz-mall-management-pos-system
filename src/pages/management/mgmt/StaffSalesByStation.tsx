@@ -67,7 +67,7 @@ export default function StaffSalesByStation({
       const { data, error } = await supabase
         .from('order_items')
         .select(
-          'quantity, total_price, destination, created_at, status, return_requested, return_accepted, menu_items(name, menu_categories(destination)), orders(profiles(full_name))'
+          'quantity, total_price, destination, created_at, status, return_requested, return_accepted, item(name), orders(profiles(full_name))'
         )
         .gte('created_at', start)
         .lte('created_at', end)
@@ -89,16 +89,11 @@ export default function StaffSalesByStation({
           return_requested?: boolean
           return_accepted?: boolean
           orders?: { profiles?: { full_name?: string | null } | null } | null
-          menu_items?: {
+          item?: {
             name?: string | null
-            menu_categories?: { destination?: string | null } | null
           } | null
         }) => {
-          const dest = (
-            oi.destination ||
-            oi.menu_items?.menu_categories?.destination ||
-            ''
-          ).toLowerCase()
+          const dest = (oi.destination || '').toLowerCase()
           // Exclude anything returned or pending return, and cancelled items
           if (oi.return_accepted || oi.return_requested) return
           if ((oi.status || '').toLowerCase() === 'cancelled') return
@@ -110,7 +105,7 @@ export default function StaffSalesByStation({
 
           const arr = itemsMap[name] || []
           arr.push({
-            name: oi.menu_items?.name || 'Item',
+            name: oi.item?.name || 'Item',
             qty: oi.quantity || 0,
             total: oi.total_price || 0,
             at: oi.created_at || '',

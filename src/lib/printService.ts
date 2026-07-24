@@ -74,7 +74,7 @@ export function buildReceiptData(
   const grouped = new Map<string, { qty: number; total: number; price: number }>()
   billableItems.forEach((item) => {
     const name =
-      (item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+      (item as unknown as { item?: { name: string } }).item?.name ||
       (item as unknown as { modifier_notes?: string }).modifier_notes ||
       'Item'
     const existing = grouped.get(name)

@@ -179,7 +179,7 @@ export default function ReturnedDrinksTab() {
       if (r.item_name) {
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' })
         const { data: stockRow, error: stockErr } = await supabase
-          .from('bar_chiller_stock')
+          .from('chiller_stock')
           .select('id, sold_qty')
           .eq('date', today)
           .eq('item_name', r.item_name)
@@ -188,7 +188,7 @@ export default function ReturnedDrinksTab() {
         if (stockRow?.id) {
           const newSold = Math.max(0, (stockRow.sold_qty || 0) - (r.quantity || 1))
           const { error: updStockErr } = await supabase
-            .from('bar_chiller_stock')
+            .from('chiller_stock')
             .update({ sold_qty: newSold, updated_at: new Date().toISOString() })
             .eq('id', stockRow.id)
           if (updStockErr) throw updStockErr

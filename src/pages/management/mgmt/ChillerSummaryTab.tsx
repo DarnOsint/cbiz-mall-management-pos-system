@@ -61,7 +61,7 @@ export default function ChillerSummaryTab() {
 
     const [entriesRes, soldRes, acceptedRes, prevRes] = await Promise.all([
       supabase
-        .from('bar_chiller_stock')
+        .from('chiller_stock')
         .select(
           'id, date, item_name, unit, opening_qty, received_qty, sold_qty, void_qty, closing_qty, note, updated_at'
         )
@@ -69,7 +69,7 @@ export default function ChillerSummaryTab() {
         .order('item_name'),
       supabase
         .from('order_items')
-        .select('quantity, status, return_accepted, menu_items(name), orders(status)')
+        .select('quantity, status, return_accepted, item(name), orders(status)')
         .eq('destination', 'bar')
         .gte('created_at', dayStart.toISOString())
         .lte('created_at', dayEnd.toISOString()),
@@ -80,7 +80,7 @@ export default function ChillerSummaryTab() {
         .gte('requested_at', dayStart.toISOString())
         .lte('requested_at', dayEnd.toISOString()),
       supabase
-        .from('bar_chiller_stock')
+        .from('chiller_stock')
         .select('item_name, opening_qty, received_qty, sold_qty, void_qty, closing_qty')
         .lt('date', d)
         .order('date', { ascending: false }),
@@ -89,7 +89,7 @@ export default function ChillerSummaryTab() {
     // Carry over from latest available date if empty
     if (!entriesRes.data || entriesRes.data.length === 0) {
       const { data: latestRows } = await supabase
-        .from('bar_chiller_stock')
+        .from('chiller_stock')
         .select(
           'id, date, item_name, unit, opening_qty, received_qty, sold_qty, void_qty, closing_qty, note, updated_at'
         )
@@ -104,7 +104,7 @@ export default function ChillerSummaryTab() {
         const [{ data: prevSold }, { data: prevAccepted }] = await Promise.all([
           supabase
             .from('order_items')
-            .select('quantity, status, return_accepted, menu_items(name), orders(status)')
+            .select('quantity, status, return_accepted, item(name), orders(status)')
             .eq('destination', 'bar')
             .gte('created_at', prevStart.toISOString())
             .lte('created_at', prevEnd.toISOString()),
@@ -121,13 +121,13 @@ export default function ChillerSummaryTab() {
             quantity: number
             status: string
             return_accepted?: boolean
-            menu_items: { name: string } | null
+            item: { name: string } | null
             orders: { status: string } | null
           }>) {
             if (item.return_accepted) continue
             if (item.orders?.status === 'cancelled') continue
             if (item.status === 'cancelled') continue
-            const name = item.menu_items?.name
+            const name = item.item?.name
             if (name) prevSoldMap[name] = (prevSoldMap[name] || 0) + item.quantity
           }
         }
@@ -173,7 +173,7 @@ export default function ChillerSummaryTab() {
         })
         if (seedRows.length > 0) {
           const { data: inserted, error } = await supabase
-            .from('bar_chiller_stock')
+            .from('chiller_stock')
             .insert(seedRows)
             .select(
               'id, date, item_name, unit, opening_qty, received_qty, sold_qty, void_qty, closing_qty, note, updated_at'
@@ -211,13 +211,13 @@ export default function ChillerSummaryTab() {
         quantity: number
         status: string
         return_accepted?: boolean
-        menu_items: { name: string } | null
+        item: { name: string } | null
         orders: { status: string } | null
       }>) {
         if (item.return_accepted) continue
         if (item.orders?.status === 'cancelled') continue
         if (item.status === 'cancelled') continue
-        const name = item.menu_items?.name
+        const name = item.item?.name
         if (name) map[name] = (map[name] || 0) + item.quantity
       }
     }

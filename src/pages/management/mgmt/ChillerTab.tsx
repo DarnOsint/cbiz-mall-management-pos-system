@@ -53,14 +53,14 @@ export default function ChillerTab() {
 
     const [{ data: entries }, { data: soldData }] = await Promise.all([
       supabase
-        .from('bar_chiller_stock')
+        .from('chiller_stock')
         .select('id, item_name, unit, opening_qty, received_qty, void_qty, note')
         .eq('date', d)
         .order('item_name'),
       supabase
         .from('order_items')
         .select(
-          'quantity, unit_price, total_price, status, return_accepted, menu_items(name), orders(status, tables(name, table_categories(name)))'
+          'quantity, unit_price, total_price, status, return_accepted, item(name), orders(status)'
         )
         .eq('destination', 'bar')
         .gte('created_at', dayStart.toISOString())
@@ -79,18 +79,17 @@ export default function ChillerTab() {
         total_price: number
         status: string
         return_accepted?: boolean
-        menu_items: { name: string } | null
+        item: { name: string } | null
         orders: {
           status: string
-          tables?: { name: string; table_categories?: { name: string } } | null
         } | null
       }>) {
         if (item.return_accepted) continue
         if (item.orders?.status === 'cancelled') continue
         if (item.status === 'cancelled') continue
-        const name = item.menu_items?.name
+        const name = item.item?.name
         const rev = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
-        const zone = item.orders?.tables?.table_categories?.name || 'Walk-in'
+        const zone = 'Walk-in'
         if (name) {
           soldMap[name] = (soldMap[name] || 0) + item.quantity
           totalSalesRevenue += rev
@@ -194,15 +193,15 @@ export default function ChillerTab() {
         updated_at: new Date().toISOString(),
       }
       if (row.id) {
-        await supabase.from('bar_chiller_stock').update(payload).eq('id', row.id)
+        await supabase.from('chiller_stock').update(payload).eq('id', row.id)
       } else {
-        await supabase.from('bar_chiller_stock').insert(payload)
+        await supabase.from('chiller_stock').insert(payload)
       }
       count++
     }
     await audit({
       action: 'CHILLER_MGMT_EDIT',
-      entity: 'bar_chiller_stock',
+      entity: 'chiller_stock',
       entityName: `${count} items on ${date}`,
       newValue: edited,
       performer: profile as Profile,
@@ -227,7 +226,7 @@ export default function ChillerTab() {
     setSaving(true)
     try {
       // 1. Add to chiller for today
-      await supabase.from('bar_chiller_stock').insert({
+      await supabase.from('chiller_stock').insert({
         date,
         item_name: name,
         unit: newItem.unit,
@@ -261,21 +260,20 @@ export default function ChillerTab() {
 
       // 3. Check if item exists in bar menu — if not, create it
       const { data: menuExists } = await supabase
-        .from('menu_items')
+        .from('item')
         .select('id')
         .eq('name', name)
         .limit(1)
       let menuItemId = menuExists?.[0]?.id
       if (!menuItemId) {
         const { data: catData } = await supabase
-          .from('menu_categories')
+          .from('item_categories')
           .select('id')
           .eq('name', 'Drinks')
-          .eq('destination', 'bar')
           .single()
         if (catData) {
           const { data: inserted } = await supabase
-            .from('menu_items')
+            .from('item')
             .insert({ name, category_id: catData.id, price: 0, is_available: true })
             .select('id')
             .single()
@@ -284,7 +282,7 @@ export default function ChillerTab() {
           if (menuItemId) {
             await supabase
               .from('inventory')
-              .update({ menu_item_id: menuItemId })
+              .update({ item_id: menuItemId })
               .eq('item_name', name)
           }
         }
@@ -318,7 +316,7 @@ export default function ChillerTab() {
 
       await audit({
         action: 'CHILLER_ITEM_ADDED',
-        entity: 'bar_chiller_stock',
+        entity: 'chiller_stock',
         entityName: name,
         newValue: { quantity: qty, unit: newItem.unit, date },
         performer: profile as Profile,

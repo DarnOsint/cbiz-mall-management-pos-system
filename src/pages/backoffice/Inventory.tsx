@@ -54,10 +54,10 @@ interface RestockEntry {
   restocked_by_name?: string
   restocked_at: string
 }
-interface MenuItem {
+interface Item {
   id: string
   name: string
-  menu_categories?: { name?: string; destination?: string } | null
+  item_categories?: { name?: string } | null
 }
 interface ItemForm {
   item_name: string
@@ -121,7 +121,7 @@ export default function Inventory({ onBack }: Props) {
   const [showRestock, setShowRestock] = useState(false)
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [saving, setSaving] = useState(false)
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [menuItems, setMenuItems] = useState<Item[]>([])
   const [itemForm, setItemForm] = useState<ItemForm>(blankItemForm)
   const [restockForm, setRestockForm] = useState<RestockForm>(blankRestockForm)
   const fi = (v: Partial<ItemForm>) => setItemForm((p) => ({ ...p, ...v }))
@@ -144,17 +144,15 @@ export default function Inventory({ onBack }: Props) {
         return q.limit(200)
       })(),
       supabase
-        .from('menu_items')
-        .select('id, name, menu_categories(name, destination)')
+        .from('item')
+        .select('id, name, item_categories(name)')
         .eq('is_available', true)
         .order('name'),
     ])
     if (invRes.data) setItems(invRes.data as InventoryItem[])
     if (logRes.data) setRestockLog(logRes.data as RestockEntry[])
     if (menuRes.data)
-      setMenuItems(
-        (menuRes.data as MenuItem[]).filter((i) => i.menu_categories?.destination === 'bar')
-      )
+      setMenuItems(menuRes.data as Item[])
     setLoading(false)
   }
 

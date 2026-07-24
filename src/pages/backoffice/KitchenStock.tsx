@@ -267,14 +267,14 @@ export default function KitchenStock({ onBack }: Props) {
 
   useEffect(() => {
     supabase
-      .from('menu_items')
+      .from('item')
       .select('name')
       .eq('is_available', true)
       .then(({ data }) => setMenuItems((data || []).map((i: { name: string }) => i.name)))
   }, [])
 
   const loadBenchmarks = useCallback(async () => {
-    const { data } = await supabase.from('kitchen_stock_benchmarks').select('*')
+    const { data } = await supabase.from('stock_room_benchmarks').select('*')
     const map: Record<string, Benchmark> = {}
     ;(data || []).forEach((b: Benchmark) => {
       map[b.item_name] = b
@@ -295,7 +295,7 @@ export default function KitchenStock({ onBack }: Props) {
     }
     const { data: items } = await supabase
       .from('order_items')
-      .select('quantity, menu_items(name)')
+      .select('quantity, item(name)')
       .in(
         'order_id',
         orders.map((o: { id: string }) => o.id)
@@ -303,8 +303,8 @@ export default function KitchenStock({ onBack }: Props) {
       .eq('destination', 'kitchen')
     const map: Record<string, number> = {}
     ;(items || ([] as any[])).forEach(
-      (i: { quantity: number; menu_items?: { name?: string } | null }) => {
-        const n = i.menu_items?.name
+      (i: { quantity: number; item?: { name?: string } | null }) => {
+        const n = i.item?.name
         if (n) map[n] = (map[n] || 0) + i.quantity
       }
     )
@@ -316,7 +316,7 @@ export default function KitchenStock({ onBack }: Props) {
       setLoading(true)
       await Promise.all([loadSoldQty(d), loadBenchmarks()])
       const { data } = await supabase
-        .from('kitchen_stock')
+        .from('stock_room')
         .select('*')
         .eq('date', d)
         .order('item_name')
@@ -353,7 +353,7 @@ export default function KitchenStock({ onBack }: Props) {
       return
     }
     setSaving(true)
-    const { error } = await supabase.from('kitchen_stock').insert({
+    const { error } = await supabase.from('stock_room').insert({
       date,
       item_name: form.item_name.trim(),
       unit: form.unit,
@@ -388,7 +388,7 @@ export default function KitchenStock({ onBack }: Props) {
 
   const saveEdit = async (id: string) => {
     const { error } = await supabase
-      .from('kitchen_stock')
+      .from('stock_room')
       .update({
         opening_qty: parseFloat(String(editVals.opening_qty)) || 0,
         received_qty: parseFloat(String(editVals.received_qty)) || 0,
@@ -408,7 +408,7 @@ export default function KitchenStock({ onBack }: Props) {
 
   const syncSold = async (entry: StockEntry) => {
     await supabase
-      .from('kitchen_stock')
+      .from('stock_room')
       .update({ sold_qty: soldMap[entry.item_name] || 0, updated_at: new Date().toISOString() })
       .eq('id', entry.id)
     loadEntries(date)
@@ -416,7 +416,7 @@ export default function KitchenStock({ onBack }: Props) {
 
   const deleteEntry = async (id: string) => {
     if (!confirm('Delete this stock entry?')) return
-    const { error } = await supabase.from('kitchen_stock').delete().eq('id', id)
+    const { error } = await supabase.from('stock_room').delete().eq('id', id)
     if (error) {
       toast.error('Error', 'Failed to delete item: ' + error.message)
       return
@@ -453,7 +453,7 @@ export default function KitchenStock({ onBack }: Props) {
       return
     }
     const expectedYield = cookedQty / rawQty
-    const { error } = await supabase.from('kitchen_stock_benchmarks').upsert(
+    const { error } = await supabase.from('stock_room_benchmarks').upsert(
       {
         item_name: itemName,
         raw_qty: rawQty,
@@ -480,7 +480,7 @@ export default function KitchenStock({ onBack }: Props) {
   const deleteBenchmark = async (itemName: string) => {
     if (!confirm(`Remove benchmark for ${itemName}?`)) return
     const { error: bErr } = await supabase
-      .from('kitchen_stock_benchmarks')
+      .from('stock_room_benchmarks')
       .delete()
       .eq('item_name', itemName)
     if (bErr) console.error('Failed to delete benchmark:', bErr.message)

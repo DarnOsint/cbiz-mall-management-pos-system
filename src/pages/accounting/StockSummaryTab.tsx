@@ -40,7 +40,7 @@ export default function StockSummaryTab({ type }: Props) {
     byZone: Record<string, number>
   }>({ revenue: 0, qty: 0, byZone: {} })
 
-  const tableName = type === 'bar' ? 'bar_chiller_stock' : 'kitchen_stock'
+  const tableName = type === 'bar' ? 'chiller_stock' : 'stock_room'
   const destination = type === 'bar' ? 'bar' : 'kitchen'
   const label = type === 'bar' ? 'Chiller' : 'Stock Room'
   const Icon = type === 'bar' ? Package : Box
@@ -63,7 +63,7 @@ export default function StockSummaryTab({ type }: Props) {
         supabase
           .from('order_items')
           .select(
-            'quantity, unit_price, total_price, status, return_accepted, menu_items(name), orders(status, tables(table_categories(name)))'
+            'quantity, unit_price, total_price, status, return_accepted, item(name), orders(status)'
           )
           .eq('destination', destination)
           .gte('created_at', dayStart.toISOString())
@@ -82,15 +82,15 @@ export default function StockSummaryTab({ type }: Props) {
           total_price: number
           status: string
           return_accepted?: boolean
-          menu_items: { name: string } | null
-          orders: { status: string; tables?: { table_categories?: { name: string } } | null } | null
+          item: { name: string } | null
+          orders: { status: string } | null
         }>) {
           if (item.return_accepted) continue
           if (item.orders?.status === 'cancelled') continue
           if (item.status === 'cancelled') continue
-          const name = item.menu_items?.name
+          const name = item.item?.name
           const rev = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
-          const zone = item.orders?.tables?.table_categories?.name || 'Walk-in'
+          const zone = 'Walk-in'
           if (name) {
             soldMap[name] = (soldMap[name] || 0) + item.quantity
             salesRev += rev

@@ -132,19 +132,13 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
   // Load chiller menu items
   useEffect(() => {
     supabase
-      .from('menu_items')
-      .select('name, menu_categories(destination)')
+      .from('item')
+      .select('name')
       .eq('is_available', true)
       .order('name')
       .then(({ data }) => {
         if (data) {
-          const drinks = (
-            data as unknown as Array<{
-              name: string
-              menu_categories: { destination: string } | null
-            }>
-          )
-            .filter((i) => i.menu_categories?.destination === 'bar')
+          const drinks = (data as Array<{ name: string }>)
             .map((i) => ({ name: i.name, unit: 'bottles' }))
           setMenuDrinks(drinks)
         }
@@ -160,7 +154,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
     const [{ data }, { data: acceptedReturns }] = await Promise.all([
       supabase
         .from('order_items')
-        .select('quantity, status, return_accepted, menu_items(name), orders(status)')
+        .select('quantity, status, return_accepted, item(name), orders(status)')
         .eq('destination', 'bar')
         .gte('created_at', dayStart.toISOString())
         .lte('created_at', dayEnd.toISOString()),
@@ -177,7 +171,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
       quantity: number
       status: string
       return_accepted?: boolean
-      menu_items: { name: string } | null
+      item: { name: string } | null
       orders: { status: string } | null
     }>) {
       // Exclude returned items
@@ -186,7 +180,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
       if (item.orders?.status === 'cancelled') continue
       // Exclude cancelled order items
       if (item.status === 'cancelled') continue
-      const name = item.menu_items?.name
+      const name = item.item?.name
       if (name) map[name] = (map[name] || 0) + item.quantity
     }
     const acceptedMap = buildAcceptedReturnsMap(
@@ -212,7 +206,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
     const [{ data }, { data: acceptedReturns }] = await Promise.all([
       supabase
         .from('order_items')
-        .select('quantity, return_accepted, menu_items(name), orders(status)')
+        .select('quantity, return_accepted, item(name), orders(status)')
         .eq('destination', 'bar')
         .gte('created_at', dayStart.toISOString())
         .lte('created_at', dayEnd.toISOString()),
@@ -228,12 +222,12 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
       for (const item of data as unknown as Array<{
         quantity: number
         return_accepted?: boolean
-        menu_items: { name: string } | null
+        item: { name: string } | null
         orders: { status: string } | null
       }>) {
         if (item.return_accepted) continue
         if (item.orders?.status === 'cancelled') continue
-        const name = item.menu_items?.name
+        const name = item.item?.name
         if (name) map[name] = (map[name] || 0) + item.quantity
       }
     }
@@ -263,7 +257,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
 
       // Find the most recent stock entry ever saved for each item (no date limit)
       const { data: prevData } = await supabase
-        .from('bar_chiller_stock')
+        .from('chiller_stock')
         .select('date, item_name, opening_qty, received_qty, sold_qty, void_qty, closing_qty')
         .lt('date', d)
         .order('date', { ascending: false })
@@ -301,7 +295,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
       const dayEnd = new Date(dayStart)
       dayEnd.setDate(dayEnd.getDate() + 1)
       const [{ data: todayData }, { data: pendingRequests }] = await Promise.all([
-        supabase.from('bar_chiller_stock').select('*').eq('date', d).order('item_name'),
+        supabase.from('chiller_stock').select('*').eq('date', d).order('item_name'),
         supabase
           .from('void_requests')
           .select('item_name, quantity')
@@ -389,7 +383,7 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
         const closing = Math.max(0, entry.opening_qty + entry.received_qty - posSold - approvedVoid)
         if (posSold > 0 || entry.received_qty > 0 || approvedVoid > 0) {
           await supabase
-            .from('bar_chiller_stock')
+            .from('chiller_stock')
             .update({
               sold_qty: posSold,
               closing_qty: closing,
@@ -451,10 +445,10 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
       }
 
       if (entry.id) {
-        await supabase.from('bar_chiller_stock').update(row).eq('id', entry.id)
+        await supabase.from('chiller_stock').update(row).eq('id', entry.id)
         await audit({
           action: 'update',
-          entity: 'bar_chiller_stock',
+          entity: 'chiller_stock',
           entityId: entry.id,
           entityName: name,
           newValue: row,
@@ -462,14 +456,14 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
         })
       } else {
         const { data: inserted } = await supabase
-          .from('bar_chiller_stock')
+          .from('chiller_stock')
           .insert(row)
           .select('id')
           .single()
         const newId = inserted?.id
         await audit({
           action: 'create',
-          entity: 'bar_chiller_stock',
+          entity: 'chiller_stock',
           entityId: newId,
           entityName: name,
           newValue: row,
@@ -521,10 +515,10 @@ export default function BarChillerStock({ onBack, embedded = false }: Props) {
     })
     setHasChanges(true)
     if (entry?.id) {
-      await supabase.from('bar_chiller_stock').delete().eq('id', entry.id)
+      await supabase.from('chiller_stock').delete().eq('id', entry.id)
       await audit({
         action: 'delete',
-        entity: 'bar_chiller_stock',
+        entity: 'chiller_stock',
         entityId: entry.id,
         entityName: itemName,
         oldValue: entry,

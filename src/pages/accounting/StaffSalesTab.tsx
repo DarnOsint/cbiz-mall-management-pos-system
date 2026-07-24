@@ -23,14 +23,13 @@ interface StaffSale {
   order_type: string
   created_at: string
   closed_at?: string
-  tables?: { name: string; table_categories?: { name: string } } | null
   order_items?: Array<{
     quantity: number
     total_price: number
     destination?: string
-    menu_items?: {
+    item?: {
       name: string
-      menu_categories?: { name: string; destination?: string } | null
+      item_categories?: { name: string } | null
     } | null
     modifier_notes?: string
     return_requested?: boolean
@@ -184,7 +183,7 @@ export default function StaffSalesTab() {
     const { data } = await supabase
       .from('orders')
       .select(
-        'id, status, total_amount, payment_method, order_type, created_at, closed_at, tables(name, table_categories(name)), order_items(quantity, total_price, destination, modifier_notes, return_requested, return_accepted, status, menu_items(name, menu_categories(name, destination)))'
+        'id, status, total_amount, payment_method, order_type, created_at, closed_at, order_items(quantity, total_price, destination, modifier_notes, return_requested, return_accepted, status, item(name, item_categories(name)))'
       )
       .eq('staff_id', staffId)
       .or(
@@ -288,18 +287,18 @@ export default function StaffSalesTab() {
 
     for (const order of sales) {
       for (const item of validItems(order.order_items)) {
-        const itemName = item.menu_items?.name || item.modifier_notes || 'Item'
-        const categoryName = item.menu_items?.menu_categories?.name || ''
+        const itemName = item.item?.name || item.modifier_notes || 'Item'
+        const categoryName = item.item?.item_categories?.name || ''
         const station = normalizeDestination(
-          item.destination || item.menu_items?.menu_categories?.destination,
-          item.menu_items?.name,
+          item.destination,
+          item.item?.name,
           categoryName
         )
         const qty = item.quantity || 0
         const amount = item.total_price || 0
 
         if (station === 'bar') {
-          const bucket = getBarBucket(item.menu_items?.name, categoryName)
+          const bucket = getBarBucket(item.item?.name, categoryName)
           addToBucket(summary.bar, itemName, qty, amount)
           addToBucket(summary.bar[bucket], itemName, qty, amount)
           continue
@@ -496,8 +495,7 @@ export default function StaffSalesTab() {
                 ) : (
                   <div className="space-y-2">
                     {sales.map((o, idx) => {
-                      const zone = (o.tables as unknown as { table_categories?: { name: string } })
-                        ?.table_categories?.name
+                      const zone = 'Walk-in'
                       const pm =
                         o.payment_method === 'cash'
                           ? 'Cash'
@@ -527,7 +525,7 @@ export default function StaffSalesTab() {
                             <div className="flex items-center gap-2">
                               <span className="text-gray-600 text-xs">{idx + 1}.</span>
                               <span className="text-white text-sm font-semibold">
-                                {o.tables?.name || o.order_type}
+                                {o.order_type}
                               </span>
                               {zone && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
@@ -559,7 +557,7 @@ export default function StaffSalesTab() {
                                       {item.quantity}x
                                     </td>
                                     <td className="text-gray-300 py-0.5">
-                                      {item.menu_items?.name || item.modifier_notes || 'Item'}
+                                      {item.item?.name || item.modifier_notes || 'Item'}
                                     </td>
                                     <td className="text-gray-400 py-0.5 text-right pl-2">
                                       {formatPrice(item.total_price || 0)}

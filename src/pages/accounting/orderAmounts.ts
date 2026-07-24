@@ -6,11 +6,10 @@ type SaleItemWithReturns = {
   status?: string
   destination?: string
   modifier_notes?: string
-  menu_items?: {
+  item?: {
     name?: string
-    menu_categories?: {
+    item_categories?: {
       name?: string
-      destination?: string
     } | null
   } | null
   return_requested?: boolean

@@ -28,7 +28,7 @@ interface OpenOrder {
     id: string
     status: string
     destination: string
-    menu_items?: { name: string } | null
+    item?: { name: string } | null
   }>
 }
 interface ActiveShift {
@@ -37,13 +37,6 @@ interface ActiveShift {
   staff_name: string
   role: string
   clock_in: string
-}
-interface WaiterCall {
-  id: string
-  table_name: string
-  staff_name: string | null
-  status: string
-  created_at: string
 }
 interface VoidEntry {
   id: string
@@ -118,7 +111,7 @@ function SupervisorDashboardInner() {
   const { profile, signOut } = useAuth()
   const [orders, setOrders] = useState<OpenOrder[]>([])
   const [shifts, setShifts] = useState<ActiveShift[]>([])
-  const [calls, setCalls] = useState<WaiterCall[]>([])
+  const [calls, setCalls] = useState<Array<Record<string, unknown>>>([])
   const [voids, setVoids] = useState<VoidEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<
@@ -132,31 +125,19 @@ function SupervisorDashboardInner() {
     const today = new Date()
     today.setHours(23, 0, 0, 0)
     if (new Date().getHours() < 8) today.setDate(today.getDate() - 1)
-    const [oR, cR, vR] = await Promise.all([
+    const [oR] = await Promise.all([
       supabase
         .from('orders')
         .select(
-          'id,created_at,order_type,tables(name),profiles(full_name),order_items(id,status,destination,menu_items(name))'
+          'id,created_at,order_type,profiles(full_name),order_items(id,status,destination,item(name))'
         )
         .eq('status', 'open')
         .order('created_at', { ascending: true }),
-      supabase
-        .from('waiter_calls')
-        .select('id,table_name,waitron_name,status,created_at')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('void_log')
-        .select('id,menu_item_name,total_value,approved_by_name,created_at')
-        .gte('created_at', today.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(30),
     ])
     setOrders(((oR.data || []) as unknown as Array<OpenOrder & { tables?: OpenOrder['areas'] }>).map(o => ({ ...o, areas: o.areas ?? o.tables ?? null })) as OpenOrder[])
     setShifts([])
-    setCalls(((cR.data || []) as unknown as Array<WaiterCall & { waitron_name?: string }>).map(c => ({ ...c, staff_name: c.staff_name ?? (c as unknown as { waitron_name?: string }).waitron_name ?? null })) as WaiterCall[])
-    setVoids((vR.data || []) as VoidEntry[])
+    setCalls([] as Array<Record<string, unknown>>)
+    setVoids([] as unknown as VoidEntry[])
     setPendingStore(0)
     setLoading(false)
   }, [])
@@ -168,8 +149,6 @@ function SupervisorDashboardInner() {
       .channel('supervisor-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'waiter_calls' }, fetchAll)
-
       .subscribe()
     return () => {
       supabase.removeChannel(ch)
@@ -413,33 +392,12 @@ function SupervisorDashboardInner() {
             ))
           ))}
 
-        {tab === 'calls' &&
-          (calls.length === 0 ? (
+        {tab === 'calls' && (
             <div className="flex flex-col items-center justify-center py-16 text-gray-600">
               <Phone size={36} className="mb-3 opacity-30" />
               <p className="font-medium">No pending service calls</p>
             </div>
-          ) : (
-            calls.map((call) => (
-              <div
-                key={call.id}
-                className="bg-gray-900 border border-amber-500/30 rounded-2xl px-4 py-3 flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-white font-bold">{call.table_name}</p>
-                  <p className="text-gray-500 text-xs">
-                    {call.staff_name ? `Staff: ${call.staff_name}` : 'Unassigned'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-amber-400 text-xs font-bold">{elapsed(call.created_at)} ago</p>
-                  <span className="text-xs bg-amber-500/20 text-amber-400 rounded-lg px-2 py-0.5">
-                    Pending
-                  </span>
-                </div>
-              </div>
-            ))
-          ))}
+        )}
 
         {tab === 'voids' &&
           (voids.length === 0 ? (

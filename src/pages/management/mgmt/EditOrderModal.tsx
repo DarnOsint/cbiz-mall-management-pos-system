@@ -9,24 +9,24 @@ import type { Profile } from '../../../types'
 
 interface SaleItem {
   id: string
-  menu_item_id: string
+  item_id: string
   quantity: number
   unit_price: number
   total_price: number
   status: string
   destination: string
   modifier_notes?: string | null
-  menu_items?: {
+  item?: {
     name: string
-    menu_categories?: { name?: string; destination?: string } | null
+    item_categories?: { name?: string } | null
   } | null
 }
 
-interface MenuItem {
+interface Item {
   id: string
   name: string
   price: number
-  menu_categories?: { name?: string; destination?: string } | null
+  item_categories?: { name?: string } | null
 }
 
 interface Sale {
@@ -48,23 +48,23 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
   const { profile } = useAuth()
   const toast = useToast()
   const [items, setItems] = useState<SaleItem[]>(order.order_items || [])
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [menuItems, setMenuItems] = useState<Item[]>([])
   const [menuSearch, setMenuSearch] = useState('')
   const [showMenu, setShowMenu] = useState(false)
   const [saving, setSaving] = useState(false)
   const [removedIds, setRemovedIds] = useState<string[]>([])
   const [addedItems, setAddedItems] = useState<
-    Array<{ tempId: string; menuItem: MenuItem; quantity: number }>
+    Array<{ tempId: string; menuItem: Item; quantity: number }>
   >([])
 
   useEffect(() => {
     supabase
-      .from('menu_items')
-      .select('id, name, price, menu_categories(name, destination)')
+      .from('item')
+      .select('id, name, price, item_categories(name)')
       .eq('is_available', true)
       .order('name')
       .then(({ data }) => {
-        if (data) setMenuItems(data as MenuItem[])
+        if (data) setMenuItems(data as Item[])
       })
   }, [])
 
@@ -77,7 +77,7 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
     setRemovedIds((prev) => [...prev, itemId])
   }
 
-  const addMenuItem = (mi: MenuItem) => {
+  const addMenuItem = (mi: Item) => {
     const existing = addedItems.find((a) => a.menuItem.id === mi.id)
     if (existing) {
       setAddedItems((prev) =>
@@ -118,7 +118,7 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
         const removed = (order.order_items || []).find((i) => i.id === id)
         await supabase.from('order_items').delete().eq('id', id)
         if (removed) {
-          changes.push(`Removed ${removed.quantity}x ${removed.menu_items?.name || 'item'}`)
+          changes.push(`Removed ${removed.quantity}x ${removed.item?.name || 'item'}`)
         }
       }
 
@@ -132,12 +132,11 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
         await supabase.from('order_items').insert({
           id: crypto.randomUUID(),
           order_id: order.id,
-          menu_item_id: added.menuItem.id,
+          item_id: added.menuItem.id,
           quantity: added.quantity,
           unit_price: added.menuItem.price,
           total_price: added.menuItem.price * added.quantity,
           status: 'pending',
-          destination: added.menuItem.menu_categories?.destination || 'bar',
           created_at: new Date().toISOString(),
         })
         changes.push(`Added ${added.quantity}x ${added.menuItem.name}`)
@@ -223,7 +222,7 @@ export default function EditOrderModal({ order, onClose, onSaved }: Props) {
                   >
                     <div className="flex-1 min-w-0 mr-3">
                       <p className="text-white text-sm font-medium truncate">
-                        {item.menu_items?.name ||
+                        {item.item?.name ||
                           (item as unknown as { modifier_notes?: string }).modifier_notes ||
                           'Item'}
                       </p>

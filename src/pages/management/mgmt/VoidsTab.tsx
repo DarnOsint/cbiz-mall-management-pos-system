@@ -70,7 +70,7 @@ export default function VoidsTab() {
         resolved_by_name: profile?.full_name,
       })
       .eq('id', v.id)
-    const tableName = v.station === 'kitchen' ? 'kitchen_stock' : 'bar_chiller_stock'
+    const tableName = v.station === 'kitchen' ? 'stock_room' : 'chiller_stock'
     const { data: stockRow } = await supabase
       .from(tableName)
       .select('id, void_qty, opening_qty, received_qty, sold_qty')

@@ -11,7 +11,7 @@ const mockData = [
     created_at: new Date().toISOString(),
     return_accepted: false,
     orders: { profiles: { full_name: 'Alex' } },
-    menu_items: { name: 'Beer', menu_categories: { destination: 'bar' } },
+    item: { name: 'Beer' },
   },
   {
     // Should be excluded from totals because it was approved (return_accepted)
@@ -21,7 +21,7 @@ const mockData = [
     created_at: new Date().toISOString(),
     return_accepted: true,
     orders: { profiles: { full_name: 'Alex' } },
-    menu_items: { name: 'Whisky', menu_categories: { destination: 'bar' } },
+    item: { name: 'Whisky' },
   },
 ]
 

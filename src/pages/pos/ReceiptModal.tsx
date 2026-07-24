@@ -590,7 +590,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span style={{ flex: 1 }}>
-                        {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                        {(item as unknown as { item?: { name: string } }).item?.name ||
                           item.id}{' '}
                         [RETURNED]
                       </span>
@@ -790,7 +790,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span style={{ flex: 1 }}>
-                        {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                        {(item as unknown as { item?: { name: string } }).item?.name ||
                           item.id}{' '}
                         [RETURNED]
                       </span>

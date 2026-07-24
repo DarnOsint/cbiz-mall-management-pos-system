@@ -201,7 +201,7 @@ export default function MonthEnd() {
 
     // Payments received against debtors in this period
     const debtorPayments = await supabase
-      .from('debtor_payments')
+      .from('debt_payments')
       .select('amount')
       .gte('created_at', startISO)
       .lte('created_at', endISO)
@@ -236,7 +236,7 @@ export default function MonthEnd() {
   const loadSystemStock = async (periodId: string, startDate: string, endDate: string) => {
     // Get the most recent closing stock entry per item up to period end
     const { data } = await supabase
-      .from('kitchen_stock_entries')
+      .from('stock_room_entries')
       .select('item_name, unit, closing_qty, date')
       .lte('date', endDate)
       .order('date', { ascending: false })

@@ -222,14 +222,14 @@ export default function Reports() {
         supabase
           .from('orders')
           .select(
-            '*, profiles(full_name), tables(name, table_categories(name)), order_items(total_price, return_requested, return_accepted, status)'
+            '*, profiles(full_name), order_items(total_price, return_requested, return_accepted, status)'
           )
           .gte('created_at', start)
           .lte('created_at', end),
         supabase
           .from('order_items')
           .select(
-            '*, menu_items(name, price, menu_categories(name, destination)), orders(created_at, status)'
+            '*, item(name, price, item_categories(name)), orders(created_at, status)'
           )
           .gte('created_at', start)
           .lte('created_at', end),
@@ -264,10 +264,10 @@ export default function Reports() {
         return_accepted?: boolean | null
         order_id?: string
         orders?: { created_at?: string; status?: string } | null
-        menu_items?: {
+        item?: {
           name?: string
           price?: number
-          menu_categories?: { name?: string; destination?: string } | null
+          item_categories?: { name?: string } | null
         } | null
       }[]
       const payouts = (payoutsRes.data || []) as Payout[]
@@ -339,7 +339,7 @@ export default function Reports() {
 
       const categoryMap: Record<string, CategoryStat> = {}
       filteredItems.forEach((item) => {
-        const cat = item.menu_items?.menu_categories?.name || 'Unknown'
+        const cat = item.item?.item_categories?.name || 'Unknown'
         if (!categoryMap[cat]) categoryMap[cat] = { name: cat, revenue: 0, quantity: 0 }
         const revenue = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
         categoryMap[cat].revenue += revenue
@@ -348,7 +348,7 @@ export default function Reports() {
 
       const itemMap: Record<string, ItemStat> = {}
       filteredItems.forEach((item) => {
-        const n = item.menu_items?.name || 'Unknown'
+        const n = item.item?.name || 'Unknown'
         if (!itemMap[n]) itemMap[n] = { name: n, quantity: 0, revenue: 0, returned: 0 }
         const revenue = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
         itemMap[n].quantity += item.quantity || 0

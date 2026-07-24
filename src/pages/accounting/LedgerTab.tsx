@@ -532,7 +532,7 @@ export default function LedgerTab({ dateRange }: Props) {
                           <div>
                             <p className="text-white text-sm font-medium">
                               {item.quantity}x{' '}
-                              {item.menu_items?.name || item.modifier_notes || 'Item'}
+                              {item.item?.name || item.modifier_notes || 'Item'}
                             </p>
                             <p className="text-gray-500 text-xs mt-1">
                               {item.destination || 'station not set'}

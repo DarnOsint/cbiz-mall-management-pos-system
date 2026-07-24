@@ -25,7 +25,6 @@ interface DeleteRequest {
 
 interface OrderRow {
   id: string
-  table_id?: string
   total_amount?: number
   created_at: string
   order_type?: string
@@ -33,16 +32,16 @@ interface OrderRow {
   profiles?: { full_name: string } | null
   order_items?: Array<{
     id: string
-    menu_item_id: string
+    item_id: string
     quantity: number
     unit_price: number
     total_price: number
     status: string
     destination: string
     modifier_notes?: string | null
-    menu_items?: {
+    item?: {
       name: string
-      menu_categories?: { name?: string; destination?: string } | null
+      item_categories?: { name?: string } | null
     } | null
   }>
 }
@@ -141,7 +140,7 @@ export default function OpenOrdersTab() {
     const { data, error } = await supabase
       .from('orders')
       .select(
-        '*, table_id, areas(name, area_categories(name)), profiles(full_name), order_items(*, menu_items(name, menu_categories(name, destination)))'
+        '*, table_id, areas(name, area_categories(name)), profiles(full_name), order_items(*, item(name, item_categories(name)))'
       )
       .eq('status', 'open')
       .order('created_at', { ascending: false })
@@ -295,10 +294,6 @@ export default function OpenOrdersTab() {
                           .from('order_items')
                           .update({ status: 'delivered' })
                           .eq('order_id', order.id)
-                        await supabase
-                          .from('tables')
-                          .update({ status: 'available', assigned_staff: null })
-                          .eq('id', order.table_id)
                         fetchOrders()
                       }}
                       className="flex items-center gap-1 text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg px-2 py-1 transition-colors"
@@ -311,7 +306,7 @@ export default function OpenOrdersTab() {
                   {visibleItems.map((item) => (
                     <div key={String(item.id)} className="flex justify-between text-sm">
                       <span className="text-gray-300">
-                        {item.quantity}x {item.menu_items?.name}
+                        {item.quantity}x {item.item?.name}
                       </span>
                       <span className="text-gray-400">{formatPrice(item.total_price)}</span>
                     </div>
