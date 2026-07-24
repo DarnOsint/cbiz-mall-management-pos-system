@@ -59,7 +59,7 @@ export default function POS() {
     setLoading(true)
     setMenuError(null)
     const { data, error } = await supabase
-      .from('items')
+      .from('item')
       .select('*, item_categories(name, id, sort_order, is_active)')
       .eq('is_active', true)
       .order('sort_order', { nullsFirst: false })

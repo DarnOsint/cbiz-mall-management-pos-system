@@ -70,7 +70,7 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
     const load = async () => {
       const [itemsRes, catsRes] = await Promise.all([
         supabase
-          .from('items')
+          .from('item')
           .select('*, item_categories(id, name)')
           .eq('is_active', true)
           .eq('is_available', true)
@@ -205,7 +205,7 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
         const product = items.find((i) => i.id === item.id)
         if (product) {
           await supabase
-            .from('items')
+            .from('item')
             .update({ stock_quantity: product.stock_quantity - item.quantity })
             .eq('id', item.id)
         }
