@@ -43,9 +43,10 @@ interface Props {
   staffId: string
   onSuccess: () => void
   onClose: () => void
+  shiftId?: string | null
 }
 
-export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
+export default function CashSaleModal({ staffId, onSuccess, onClose, shiftId }: Props) {
   const { profile } = useAuth()
   const toast = useToast()
 
@@ -57,8 +58,9 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string>('All')
   const [customerName, setCustomerName] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'credit'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'credit' | 'mtn_momo' | 'zain_cash' | 'airtel_money'>('cash')
   const [cashTendered, setCashTendered] = useState('')
+  const [mobilePhone, setMobilePhone] = useState('')
   const [notes, setNotes] = useState('')
   const [processing, setProcessing] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -152,6 +154,7 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
   const total = cart.reduce((sum, c) => sum + c.total, 0)
   const change = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0
 
+  const isMobileMethod = () => ['mtn_momo', 'zain_cash', 'airtel_money'].includes(paymentMethod)
   const canPay = () => {
     if (processing || cart.length === 0) return false
     if (paymentMethod === 'credit' && !customerName.trim()) return false
@@ -159,6 +162,7 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
       const tendered = parseFloat(cashTendered)
       return !isNaN(tendered) && tendered >= total
     }
+    if (isMobileMethod()) return mobilePhone.trim().length >= 8
     return true
   }
 
@@ -177,7 +181,9 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
         staff_id: staffId,
         order_type: 'sale',
         status: 'paid',
-        payment_method: paymentMethod,
+        payment_method: ['mtn_momo', 'zain_cash', 'airtel_money'].includes(paymentMethod)
+          ? `${paymentMethod}:${mobilePhone}`
+          : paymentMethod,
         total_amount: total,
         customer_name: customerName.trim() || null,
         notes: notes.trim() || null,
@@ -220,6 +226,23 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
         performer: profile,
       })
 
+      if (shiftId) {
+        await supabase.from('cash_movements').insert({
+          id: crypto.randomUUID(),
+          shift_id: shiftId,
+          type: 'sale',
+          amount: total,
+          description: `Cash Sale — ${customerName.trim() || 'Walk-in'}`,
+          reference_id: orderId,
+          performed_by: staffId,
+          performed_by_name: profile?.full_name || 'Staff',
+          created_at: new Date().toISOString(),
+        })
+      }
+
+      const formattedPm = ['mtn_momo', 'zain_cash', 'airtel_money'].includes(paymentMethod)
+        ? `${paymentMethod}:${mobilePhone}`
+        : paymentMethod
       setCompletedOrder({
         order: { id: orderId },
         items: cart,
@@ -227,7 +250,7 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
         change,
         tendered: paymentMethod === 'cash' ? parseFloat(cashTendered) : total,
         customerName: customerName.trim(),
-        paymentMethod,
+        paymentMethod: formattedPm,
       })
       setSuccess(true)
     } catch (err) {
@@ -269,7 +292,13 @@ export default function CashSaleModal({ staffId, onSuccess, onClose }: Props) {
           ? 'BANK POS'
           : o.paymentMethod === 'transfer'
             ? 'TRANSFER'
-            : o.paymentMethod.toUpperCase()
+            : o.paymentMethod.startsWith('mtn_momo')
+              ? 'MTN MOMO'
+              : o.paymentMethod.startsWith('zain_cash')
+                ? 'ZAIN CASH'
+                : o.paymentMethod.startsWith('airtel_money')
+                  ? 'AIRTEL MONEY'
+                  : o.paymentMethod.toUpperCase()
     const orderRef = `CS-${o.order.id.slice(0, 8).toUpperCase()}`
 
     const grouped = new Map<string, { qty: number; total: number }>()
@@ -358,6 +387,19 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             <p className="text-gray-400 text-sm">
               {customerName ? `Sale for ${customerName}` : 'Cash sale processed'}
             </p>
+            <p className="text-gray-500 text-xs mt-1 capitalize">
+              Paid via {({
+                cash: 'Cash',
+                card: 'Bank POS',
+                transfer: 'Bank Transfer',
+                mtn_momo: 'MTN MoMo',
+                zain_cash: 'Zain Cash',
+                airtel_money: 'Airtel Money',
+              } as Record<string, string>)[paymentMethod] || paymentMethod}
+            </p>
+            {['mtn_momo', 'zain_cash', 'airtel_money'].includes(paymentMethod) && mobilePhone && (
+              <p className="text-gray-500 text-xs">{mobilePhone}</p>
+            )}
           </div>
           {paymentMethod === 'cash' && change > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
@@ -589,6 +631,9 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   {(
                     [
                       ['cash', 'Cash', Banknote],
+                      ['mtn_momo', 'MTN MoMo', Smartphone],
+                      ['zain_cash', 'Zain Cash', Smartphone],
+                      ['airtel_money', 'Airtel Money', Smartphone],
                       ['card', 'POS', CreditCard],
                       ['transfer', 'Transfer', Smartphone],
                       ['credit', 'Credit', Clock],
@@ -657,6 +702,26 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       </p>
                     </div>
                   </>
+                )}
+
+                {/* Mobile money phone input */}
+                {['mtn_momo', 'zain_cash', 'airtel_money'].includes(paymentMethod) && (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={mobilePhone}
+                      onChange={(e) => setMobilePhone(e.target.value)}
+                      placeholder="Mobile money phone number (0912 345 678)"
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2 text-center">
+                      <p className="text-amber-400 text-xs">
+                        Request {formatPrice(total)} via {
+                          ({ mtn_momo: 'MTN MoMo', zain_cash: 'Zain Cash', airtel_money: 'Airtel Money' } as Record<string, string>)[paymentMethod]
+                        } on this number
+                      </p>
+                    </div>
+                  </div>
                 )}
 
                 {/* Action buttons */}

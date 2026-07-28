@@ -6,6 +6,14 @@ import {
   Package,
   Lock,
   Building2,
+  Tag,
+  Percent,
+  RotateCcw,
+  DollarSign,
+  Printer,
+  Upload,
+  ArrowLeftRight,
+  Bell,
 } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import StaffManagement from './StaffManagement'
@@ -13,6 +21,14 @@ import MenuManagement from './MenuManagement'
 import Inventory from './Inventory'
 import ChangePassword from './ChangePassword'
 import MallManagement from './MallManagement'
+import DiscountManagement from './DiscountManagement'
+import TaxManagement from './TaxManagement'
+import RefundManagement from './RefundManagement'
+import ExpenseManagement from './ExpenseManagement'
+import ReceiptSettings from './ReceiptSettings'
+import BulkImport from './BulkImport'
+import StockTransfers from './StockTransfers'
+import StockAlerts from './StockAlerts'
 import type { Role } from '../../types'
 
 interface Section {
@@ -51,6 +67,14 @@ export default function BackOffice() {
       roles: ['owner', 'manager'],
     },
     {
+      id: 'stock_transfers',
+      label: 'Stock Transfers',
+      desc: 'Transfer stock between shop locations',
+      icon: ArrowLeftRight,
+      color: 'bg-cyan-500',
+      roles: ['owner', 'manager'],
+    },
+    {
       id: 'inventory',
       label: 'Inventory',
       desc: 'Stock levels, restocking, supplier logs',
@@ -59,11 +83,67 @@ export default function BackOffice() {
       roles: ['owner', 'manager'],
     },
     {
+      id: 'bulk-import',
+      label: 'Bulk Import',
+      desc: 'Import items in bulk from CSV',
+      icon: Upload,
+      color: 'bg-teal-500',
+      roles: ['owner', 'manager'],
+    },
+    {
       id: 'mall',
       label: 'Mall Management',
       desc: 'Shop floor plan, rent tracking & tenant management',
       icon: Building2,
       color: 'bg-purple-600',
+      roles: ['owner', 'manager'],
+    },
+    {
+      id: 'discounts',
+      label: 'Discounts',
+      desc: 'Create and manage discounts and promo codes',
+      icon: Tag,
+      color: 'bg-amber-500',
+      roles: ['owner', 'manager'],
+    },
+    {
+      id: 'refunds',
+      label: 'Refunds',
+      desc: 'Approve and manage refund requests',
+      icon: RotateCcw,
+      color: 'bg-red-500',
+      roles: ['owner', 'manager'],
+    },
+    {
+      id: 'expenses',
+      label: 'Expenses',
+      desc: 'Record and manage business expenses',
+      icon: DollarSign,
+      color: 'bg-red-500',
+      roles: ['owner', 'manager'],
+    },
+    {
+      id: 'tax',
+      label: 'Tax Rates',
+      desc: 'Manage tax rates and VAT settings',
+      icon: Percent,
+      color: 'bg-orange-500',
+      roles: ['owner', 'manager'],
+    },
+    {
+      id: 'receipt',
+      label: 'Receipt Settings',
+      desc: 'Customize receipt layout, logo, footer & terms',
+      icon: Printer,
+      color: 'bg-indigo-500',
+      roles: ['owner', 'manager'],
+    },
+    {
+      id: 'stockalerts',
+      label: 'Stock Alerts',
+      desc: 'Monitor low stock and out-of-stock items',
+      icon: Bell,
+      color: 'bg-amber-500',
       roles: ['owner', 'manager'],
     },
     {
@@ -91,9 +171,25 @@ export default function BackOffice() {
   if (activeSection === 'menu') return <MenuManagement onBack={() => setActiveSection(null)} />
   if (activeSection === 'changepassword')
     return <ChangePassword onBack={() => setActiveSection(null)} />
+  if (activeSection === 'stock_transfers')
+    return <StockTransfers onBack={() => setActiveSection(null)} />
   if (activeSection === 'inventory') return <Inventory onBack={() => setActiveSection(null)} />
   if (activeSection === 'mall')
     return <MallManagement onBack={() => setActiveSection(null)} />
+  if (activeSection === 'discounts')
+    return <DiscountManagement onBack={() => setActiveSection(null)} />
+  if (activeSection === 'tax')
+    return <TaxManagement onBack={() => setActiveSection(null)} />
+  if (activeSection === 'refunds')
+    return <RefundManagement onBack={() => setActiveSection(null)} />
+  if (activeSection === 'expenses')
+    return <ExpenseManagement onBack={() => setActiveSection(null)} />
+  if (activeSection === 'receipt')
+    return <ReceiptSettings onBack={() => setActiveSection(null)} />
+  if (activeSection === 'bulk-import')
+    return <BulkImport onBack={() => setActiveSection(null)} />
+  if (activeSection === 'stockalerts')
+    return <StockAlerts onBack={() => setActiveSection(null)} />
 
   return (
     <div className="min-h-full bg-gray-950">

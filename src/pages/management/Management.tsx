@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { LayoutDashboard, ShoppingBag, Shield } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, Shield, ReceiptText, TrendingDown, PieChart } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 
 import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
+import ShiftReport from './mgmt/ShiftReport'
+import ExpensesTab from './mgmt/ExpensesTab'
+import SalesByCategory from './mgmt/SalesByCategory'
 
 const sessionWindow = () => {
   const now = new Date()
@@ -36,6 +39,9 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'sales', label: 'Sales', icon: ShoppingBag },
   { id: 'activity', label: 'Activity Log', icon: Shield },
+  { id: 'shift', label: 'Shift Report', icon: ReceiptText },
+  { id: 'expenses', label: 'Expenses', icon: TrendingDown },
+  { id: 'category', label: 'Sales by Category', icon: PieChart },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -182,6 +188,9 @@ export default function Management() {
           <OverviewTab stats={stats} onTabChange={(id) => setActiveTab(id as TabId)} />
         )}
         {activeTab === 'sales' && <OpenOrdersTab />}
+        {activeTab === 'shift' && <ShiftReport />}
+        {activeTab === 'expenses' && <ExpensesTab />}
+        {activeTab === 'category' && <SalesByCategory />}
         {activeTab === 'activity' && (
           <div>
             <div className="flex items-center gap-3 mb-4">

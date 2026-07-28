@@ -37,6 +37,15 @@ export interface ItemCategory {
   created_at?: string
 }
 
+export interface TaxRate {
+  id: string
+  name: string
+  rate: number
+  is_default: boolean
+  is_active: boolean
+  created_at?: string
+}
+
 export interface Item {
   id: string
   name: string
@@ -54,6 +63,9 @@ export interface Item {
   created_at?: string
   updated_at?: string
   item_categories?: ItemCategory
+  tax_rate_id?: string | null
+  tax_inclusive?: boolean
+  tax_rates?: TaxRate | null
 }
 
 export interface SaleItem {
@@ -90,27 +102,33 @@ export type OrderItem = SaleItem
 
 export interface TillSession {
   id: string
-  staff_id: string
-  opening_float: number
-  closing_float?: number | null
-  total_sales: number
-  total_payouts: number
-  expected_cash: number
-  shortfall?: number
-  surplus?: number
   opened_at: string
-  closed_at?: string | null
+  closed_at: string | null
+  opened_by: string
+  closed_by: string | null
   status: 'open' | 'closed'
-  notes?: string | null
+  opening_cash: number
+  closing_cash: number | null
+  expected_cash: number | null
+  cash_variance: number | null
+  card_total: number
+  mobile_total: number
+  credit_total: number
+  total_sales: number
+  total_refunds: number
+  total_expenses: number
+  notes: string | null
 }
 
-export interface Payout {
+export interface CashMovement {
   id: string
-  till_session_id: string
+  shift_id: string
+  type: 'sale' | 'refund' | 'expense' | 'payout' | 'cash_in' | 'cash_out'
   amount: number
-  reason: string
-  category: string
-  staff_id: string
+  description: string | null
+  reference_id: string | null
+  performed_by: string
+  performed_by_name: string
   created_at: string
 }
 
@@ -203,6 +221,33 @@ export interface ReceiptData {
   qrUrl?: string
 }
 
+// ─── Customer types ─────────────────────────────────────────────────────────
+
+export interface Customer {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  loyalty_points: number
+  total_spent: number
+  visit_count: number
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerPurchase {
+  id: string
+  customer_id: string
+  order_id: string | null
+  amount_spent: number
+  points_earned: number
+  points_redeemed: number
+  created_at: string
+}
+
 // ─── Mall management types ──────────────────────────────────────────────────
 
 export interface MallFloor {
@@ -250,4 +295,58 @@ export interface AuditParams {
   oldValue?: unknown
   newValue?: unknown
   performer?: Pick<Profile, 'id' | 'full_name' | 'role'> | null
+}
+
+export type DiscountType = 'percentage' | 'fixed'
+export type DiscountAppliesTo = 'all' | 'item' | 'category'
+
+export interface Discount {
+  id: string
+  name: string
+  code: string | null
+  type: DiscountType
+  value: number
+  min_order_amount: number | null
+  max_discount_amount: number | null
+  applies_to: DiscountAppliesTo
+  item_id: string | null
+  category_id: string | null
+  starts_at: string | null
+  expires_at: string | null
+  usage_limit: number | null
+  usage_count: number
+  is_active: boolean
+  created_at: string
+}
+
+export interface OrderDiscount {
+  id: string
+  order_id: string
+  discount_id: string
+  discount_name: string
+  discount_type: DiscountType
+  discount_value: number
+  applied_amount: number
+  created_at?: string
+}
+
+export type RefundMethod = 'cash' | 'card' | 'transfer' | 'mobile'
+export type RefundStatus = 'pending' | 'approved' | 'rejected' | 'completed'
+
+export interface Refund {
+  id: string
+  order_id: string
+  order_item_id: string
+  customer_id?: string | null
+  item_name: string
+  quantity: number
+  unit_price: number
+  refund_amount: number
+  refund_method: RefundMethod
+  reason: string
+  status: RefundStatus
+  processed_by?: string | null
+  processed_by_name?: string | null
+  created_at: string
+  processed_at?: string | null
 }

@@ -5,6 +5,23 @@ import type { Sale, SaleItem } from '../../types'
 import { queuePrintJob, getPrintServiceUrl } from '../../lib/printService'
 import { useToast } from '../../context/ToastContext'
 
+interface ReceiptSettings {
+  shopName: string
+  address: string
+  phone: string
+  footerMessage: string
+  terms: string
+  logoUrl: string
+}
+
+function getReceiptSettings(): ReceiptSettings {
+  try {
+    const raw = localStorage.getItem('receiptSettings')
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { shopName: '', address: '', phone: '', footerMessage: '', terms: '', logoUrl: '' }
+}
+
 interface Props {
   order: Sale
   items: SaleItem[]
@@ -12,6 +29,10 @@ interface Props {
   tipAmount?: number
   amountReceived?: number
   autoPrint?: boolean
+  discountName?: string | null
+  discountType?: string | null
+  discountValue?: number | null
+  discountAmount?: number
   onClose: () => void
 }
 
@@ -45,6 +66,10 @@ export default function ReceiptModal({
   tipAmount = 0,
   amountReceived = 0,
   autoPrint = true,
+  discountName = null,
+  discountType = null,
+  discountValue = null,
+  discountAmount = 0,
   onClose,
 }: Props) {
   const toast = useToast()
@@ -75,7 +100,33 @@ export default function ReceiptModal({
     cash: 'Cash',
     card: 'Bank POS',
     transfer: 'Bank Transfer',
+    mtn_momo: 'MTN MoMo',
+    zain_cash: 'Zain Cash',
+    airtel_money: 'Airtel Money',
+    split: 'Split Payment',
   }
+  const getPaymentDisplay = (pm: string) => {
+    const mobiles = ['mtn_momo', 'zain_cash', 'airtel_money']
+    const base = mobiles.find((m) => pm.startsWith(m + ':'))
+    if (base) {
+      const phone = pm.split(':')[1]
+      return phone ? `${paymentLabel[base]} (${phone})` : paymentLabel[base]
+    }
+    return paymentLabel[pm] || pm
+  }
+
+  const parseSplitPayments = (notes?: string | null): { method: string; amount: number }[] | null => {
+    if (!notes) return null
+    try {
+      const parsed = JSON.parse(notes)
+      if (Array.isArray(parsed) && parsed.every((s: any) => s.method && typeof s.amount === 'number')) {
+        return parsed
+      }
+    } catch {}
+    return null
+  }
+
+  const splitPayments = parseSplitPayments((order as unknown as { notes?: string }).notes)
 
   const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
 
@@ -108,7 +159,31 @@ export default function ReceiptModal({
           ((i as unknown as { extra_charge?: number }).extra_charge || 0),
         0
       )
-  const total = subtotal
+  const rawTotal = subtotal
+  const receiptDiscount = isPaid ? discountAmount : 0
+  const total = Math.max(0, rawTotal - receiptDiscount)
+  const computedTax = billableItems.reduce((sum, i) => {
+    const tr = (i as any).items?.tax_rates
+    if (!tr?.rate) return sum
+    const inclusive = (i as any).items?.tax_inclusive !== false
+    const tp = (i as any).total_price || 0
+    if (inclusive) {
+      return sum + tp * (tr.rate / (100 + tr.rate))
+    }
+    const up = (i as any).unit_price || (i as any).items?.price || 0
+    return sum + up * ((i as any).quantity || 1) * (tr.rate / 100)
+  }, 0)
+  const computedTaxRate = billableItems.reduce((max, i) => {
+    const tr = (i as any).items?.tax_rates
+    return tr?.rate > max ? tr.rate : max
+  }, 0)
+  const computedTaxName = billableItems.reduce((name, i) => {
+    const tr = (i as any).items?.tax_rates
+    return tr?.name || name
+  }, '')
+  const receiptSettings = getReceiptSettings()
+  const shopName = receiptSettings.shopName || 'C.Biz POS'
+
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.origin}/receipt/${order.id}`)}&color=000000&bgcolor=ffffff`
 
   const handleThermalPrint = async () => {
@@ -225,7 +300,15 @@ export default function ReceiptModal({
           ? 'BANK POS'
           : pmRaw === 'credit'
             ? 'PAY LATER (DEBT)'
-            : pmRaw.toUpperCase()
+            : pmRaw.startsWith('mtn_momo')
+              ? (() => { const phone = pmRaw.replace('mtn_momo:', ''); return phone ? `MTN MOMO (${phone})` : 'MTN MOMO' })()
+              : pmRaw.startsWith('zain_cash')
+                ? (() => { const phone = pmRaw.replace('zain_cash:', ''); return phone ? `ZAIN CASH (${phone})` : 'ZAIN CASH' })()
+                : pmRaw.startsWith('airtel_money')
+                  ? (() => { const phone = pmRaw.replace('airtel_money:', ''); return phone ? `AIRTEL MONEY (${phone})` : 'AIRTEL MONEY' })()
+                  : pmRaw === 'split'
+                    ? 'SPLIT PAYMENT'
+                    : pmRaw.toUpperCase()
 
     const activeItems = items.filter(
       (i) =>
@@ -290,10 +373,30 @@ export default function ReceiptModal({
           ]
         : []
 
+    const discountLines =
+      receiptDiscount > 0 && discountName
+        ? [
+            fmtRow(
+              `Discount (${discountName}):`,
+              `-N${receiptDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            ),
+          ]
+        : []
+
+    const taxLines =
+      computedTax > 0
+        ? [
+            fmtRow(
+              `Tax (${computedTaxName} ${computedTaxRate}%):`,
+              `N${computedTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            ),
+          ]
+        : []
+
     if (type === 'internal') {
       const lines = [
         '',
-        centre('C.Biz POS'),
+        centre(shopName),
         centre('-- INTERNAL COPY --'),
         divider,
         fmtRow('Ref:', orderRef),
@@ -301,11 +404,25 @@ export default function ReceiptModal({
         fmtRow('Time:', formatTime(order.created_at)),
         fmtRow('Staff:', staffName || 'Staff'),
         fmtRow('Payment:', pmLabel),
+      ...(splitPayments ? splitPayments.map(s => fmtRow(`  ${({
+        cash: 'Cash',
+        card: 'Bank POS',
+        transfer: 'Transfer',
+        mtn_momo: 'MTN MoMo',
+        zain_cash: 'Zain Cash',
+        airtel_money: 'Airtel Money',
+      } as Record<string, string>)[s.method] || s.method}:`, `N${s.amount.toLocaleString()}`)) : []),
         divider,
         fmtRow('ITEM', 'AMOUNT'),
         divider,
         itemLines,
         solidDivider,
+        fmtRow(
+          'SUBTOTAL:',
+          `N${rawTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        ),
+        ...taxLines,
+        ...discountLines,
         fmtRow(
           'TOTAL:',
           `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -324,20 +441,42 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 </style></head><body>${lines}</body></html>`
     }
 
+    const settingsAddr = receiptSettings.address ? receiptSettings.address.split('\n').join(', ') : ''
+    const customerHeader = [
+      centre(shopName),
+      ...(settingsAddr ? [centre(settingsAddr)] : []),
+      ...(receiptSettings.phone ? [centre(receiptSettings.phone)] : []),
+      divider,
+    ].join('\n')
+
     const customerLines = [
       '',
-      centre('C.Biz POS'),
-      divider,
+      ...(receiptSettings.logoUrl ? ['[LOGO]'] : []),
+      customerHeader,
       fmtRow('Ref:', orderRef),
       fmtRow('Date:', formatDate(order.created_at)),
       fmtRow('Time:', formatTime(order.created_at)),
       fmtRow('Staff:', staffName || 'Staff'),
       fmtRow('Payment:', pmLabel),
-      divider,
-      fmtRow('ITEM', 'AMOUNT'),
+        ...(splitPayments ? splitPayments.map(s => fmtRow(`  ${({
+          cash: 'Cash',
+          card: 'Bank POS',
+          transfer: 'Transfer',
+          mtn_momo: 'MTN MoMo',
+          zain_cash: 'Zain Cash',
+          airtel_money: 'Airtel Money',
+        } as Record<string, string>)[s.method] || s.method}:`, `N${s.amount.toLocaleString()}`)) : []),
+        divider,
+        fmtRow('ITEM', 'AMOUNT'),
       divider,
       itemLines,
       solidDivider,
+      fmtRow(
+        'SUBTOTAL:',
+        `N${rawTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ),
+      ...taxLines,
+      ...discountLines,
       fmtRow(
         'TOTAL:',
         `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -347,6 +486,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
       '',
       centre('** PAYMENT CONFIRMED **'),
       '',
+      ...(receiptSettings.footerMessage
+        ? ['', centre(receiptSettings.footerMessage), '']
+        : ['', centre('Thank you for visiting!'), '']),
+      ...(receiptSettings.terms
+        ? ['', centre('--- T & C ---'), receiptSettings.terms, '']
+        : []),
     ].join('\n')
 
     return `<!DOCTYPE html>
@@ -498,9 +643,29 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 }}
               >
                 <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                  {receiptSettings.logoUrl && (
+                    <div style={{ marginBottom: '4px' }}>
+                      <img
+                        src={receiptSettings.logoUrl}
+                        alt="Logo"
+                        style={{ maxWidth: '100px', maxHeight: '50px', display: 'block', margin: '0 auto' }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </div>
+                  )}
                   <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
-                    C.Biz POS
+                    {shopName}
                   </div>
+                  {receiptSettings.address && (
+                    <div style={{ fontSize: '10px', color: '#555', marginTop: '2px', whiteSpace: 'pre-wrap' }}>
+                      {receiptSettings.address}
+                    </div>
+                  )}
+                  {receiptSettings.phone && (
+                    <div style={{ fontSize: '10px', color: '#555', marginTop: '1px' }}>
+                      {receiptSettings.phone}
+                    </div>
+                  )}
                   <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
                     — — — — — — — — — — — —
                   </div>
@@ -519,7 +684,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           : 'Counter',
                     ],
                     ['Staff', staffName],
-                    ['Payment', paymentLabel[order.payment_method!] || order.payment_method],
+                    ['Payment', getPaymentDisplay(order.payment_method!)],
                   ].map(([label, value]) => (
                     <div
                       key={label as string}
@@ -535,6 +700,25 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 </div>
+                {splitPayments && (
+                  <div style={{ marginBottom: '6px' }}>
+                    {splitPayments.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '10px',
+                          margin: '2px 0',
+                          color: '#555',
+                        }}
+                      >
+                        <span style={{ paddingLeft: '12px' }}>{paymentLabel[s.method] || s.method}</span>
+                        <span>{formatPrice(s.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
                 <div
                   style={{
@@ -598,7 +782,25 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatPrice(subtotal)]].map(([l, v]) => (
+                {[
+                  ['Subtotal', formatPrice(rawTotal)],
+                  ...(computedTax > 0
+                    ? [
+                        [
+                          `Tax (${computedTaxName} ${computedTaxRate}%)`,
+                          formatPrice(computedTax),
+                        ] as [string, string],
+                      ]
+                    : []),
+                  ...(receiptDiscount > 0 && discountName
+                    ? [
+                        [
+                          `Discount (${discountName}${discountType === 'percentage' && discountValue ? `, ${discountValue}%` : ''})`,
+                          `-${formatPrice(receiptDiscount)}`,
+                        ] as [string, string],
+                      ]
+                    : []),
+                ].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -606,6 +808,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       justifyContent: 'space-between',
                       fontSize: '11px',
                       margin: '3px 0',
+                      ...(l.startsWith('Discount') ? { color: '#16a34a' } : {}),
+                      ...(l.startsWith('Tax') ? { color: '#ea580c' } : {}),
                     }}
                   >
                     <span>{l}</span>
@@ -656,7 +860,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   </>
                 )}
-                {(order as unknown as { notes?: string }).notes && (
+                {(order as unknown as { notes?: string }).notes && !splitPayments && (
                   <div style={{ fontSize: '10px', marginTop: '6px', color: '#444' }}>
                     Note: {(order as unknown as { notes: string }).notes}
                   </div>
@@ -673,13 +877,17 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   </div>
                 </div>
                 <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
-                <div style={{ textAlign: 'center', fontSize: '10px', lineHeight: '1.6' }}>
-                  <div>Thank you for visiting!</div>
-                  <div style={{ color: '#666' }}>Please come again</div>
-                  <div style={{ marginTop: '4px', fontSize: '9px', color: '#888' }}>
-                    Powered by CbizOS
-                  </div>
+                <div style={{ textAlign: 'center', fontSize: '10px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                  {receiptSettings.footerMessage || 'Thank you for visiting!'}
                 </div>
+                {receiptSettings.terms && (
+                  <>
+                    <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
+                    <div style={{ fontSize: '9px', color: '#666', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
+                      {receiptSettings.terms}
+                    </div>
+                  </>
+                )}
                 <div style={{ marginTop: '16px' }} />
               </div>
             </div>
@@ -738,7 +946,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                           : 'Counter',
                     ],
                     ['Staff', staffName],
-                    ['Payment', paymentLabel[order.payment_method!] || order.payment_method],
+                    ['Payment', getPaymentDisplay(order.payment_method!)],
                   ].map(([label, value]) => (
                     <div
                       key={label as string}
@@ -754,6 +962,25 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 </div>
+                {splitPayments && (
+                  <div style={{ marginBottom: '6px' }}>
+                    {splitPayments.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '10px',
+                          margin: '2px 0',
+                          color: '#555',
+                        }}
+                      >
+                        <span style={{ paddingLeft: '12px' }}>{paymentLabel[s.method] || s.method}</span>
+                        <span>{formatPrice(s.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
                 <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '4px' }}>
                   ITEMS SOLD
@@ -798,7 +1025,25 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatPrice(subtotal)]].map(([l, v]) => (
+                {[
+                  ['Subtotal', formatPrice(rawTotal)],
+                  ...(computedTax > 0
+                    ? [
+                        [
+                          `Tax (${computedTaxName} ${computedTaxRate}%)`,
+                          formatPrice(computedTax),
+                        ] as [string, string],
+                      ]
+                    : []),
+                  ...(receiptDiscount > 0 && discountName
+                    ? [
+                        [
+                          `Discount (${discountName})`,
+                          `-${formatPrice(receiptDiscount)}`,
+                        ] as [string, string],
+                      ]
+                    : []),
+                ].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -806,6 +1051,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       justifyContent: 'space-between',
                       fontSize: '11px',
                       margin: '2px 0',
+                      ...(l.startsWith('Discount') ? { color: '#16a34a' } : {}),
+                      ...(l.startsWith('Tax') ? { color: '#ea580c' } : {}),
                     }}
                   >
                     <span>{l}</span>
@@ -854,7 +1101,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   </>
                 )}
-                {(order as unknown as { notes?: string }).notes && (
+                {(order as unknown as { notes?: string }).notes && !splitPayments && (
                   <div
                     style={{
                       fontSize: '10px',

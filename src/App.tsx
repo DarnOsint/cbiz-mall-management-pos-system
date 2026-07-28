@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/auth/Login'
 
 const POS = lazy(() => import('./pages/pos/POS'))
+const CustomerDisplay = lazy(() => import('./pages/CustomerDisplay'))
 const Management = lazy(() => import('./pages/management/Management'))
 const Executive = lazy(() => import('./pages/executive/Executive'))
 const Accounting = lazy(() => import('./pages/accounting/Accounting'))
@@ -18,6 +19,8 @@ const BackOffice = lazy(() => import('./pages/backoffice/BackOffice'))
 const MallManagement = lazy(() => import('./pages/backoffice/MallManagement'))
 const SupervisorDashboard = lazy(() => import('./pages/supervisor/SupervisorDashboard'))
 const MonthEnd = lazy(() => import('./pages/monthend/MonthEnd'))
+const Customers = lazy(() => import('./pages/customers/CustomerList'))
+const CustomerProfilePage = lazy(() => import('./pages/customers/CustomerProfile'))
 import type { Role } from './types'
 
 function ScrollToTop() {
@@ -223,6 +226,30 @@ function AppRoutes() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/customers"
+            element={
+              <PrivateRoute>
+                <RoleGuard allowed={['owner', 'manager']}>
+                  <EB title="Customers error">
+                    <Customers />
+                  </EB>
+                </RoleGuard>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/customers/:id"
+            element={
+              <PrivateRoute>
+                <RoleGuard allowed={['owner', 'manager']}>
+                  <EB title="Customer profile error">
+                    <CustomerProfilePage />
+                  </EB>
+                </RoleGuard>
+              </PrivateRoute>
+            }
+          />
 
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
@@ -234,6 +261,27 @@ function AppRoutes() {
 function AppInner() {
   const { profile } = useAuth()
   const { toasts, dismiss } = useNotifications(profile)
+  const location = useLocation()
+
+  if (location.pathname === '/customer-display') {
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-500 text-sm">Loading...</p>
+            </div>
+          </div>
+        }
+      >
+        <Routes>
+          <Route path="/customer-display" element={<CustomerDisplay />} />
+        </Routes>
+      </Suspense>
+    )
+  }
+
   return (
     <ToastProvider>
       <NotificationToast toasts={toasts} onDismiss={dismiss} />

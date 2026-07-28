@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
@@ -11,12 +11,17 @@ import {
   ShoppingBag,
   Search,
   X,
+  ScanBarcode,
+  RotateCcw,
+  Monitor,
 } from 'lucide-react'
 import SalePanel from './SalePanel'
 import ReceiptModal from './ReceiptModal'
 import PaymentModal from './PaymentModal'
 import CashSaleModal from './CashSaleModal'
-import type { Item, ItemCategory, Sale, SaleItem, Profile } from '../../types'
+import RefundModal from './RefundModal'
+import ShiftManager from '../../components/ShiftManager'
+import type { Item, ItemCategory, Sale, SaleItem, Profile, TaxRate, TillSession } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
 interface CartEntry {
@@ -47,20 +52,98 @@ export default function POS() {
   const [activeSale, setActiveSale] = useState<ActiveSaleWithItems | null>(null)
   const [showCashSale, setShowCashSale] = useState(false)
   const [reprintSale, setReprintSale] = useState<Sale | null>(null)
+  const [showRefundModal, setShowRefundModal] = useState(false)
+  const [refundOrderId, setRefundOrderId] = useState('')
+  const [refundOrderNumber, setRefundOrderNumber] = useState('')
+  const [recentSales, setRecentSales] = useState<Sale[]>([])
+  const [currentShift, setCurrentShift] = useState<TillSession | null>(null)
   const [mobileView, setMobileView] = useState<'items' | 'cart'>('items')
 
   const placingSaleRef = useRef(false)
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
+  const [barcodeValue, setBarcodeValue] = useState('')
+  const [scanning, setScanning] = useState(false)
 
   useEffect(() => {
     fetchItems()
+    fetchRecentSales()
+    fetchCurrentShift()
+    barcodeInputRef.current?.focus()
   }, [])
+
+  const fetchCurrentShift = async () => {
+    const { data } = await supabase
+      .from('till_sessions')
+      .select('*')
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (data) setCurrentShift(data as TillSession)
+  }
+
+  const fetchRecentSales = useCallback(async () => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('order_type', 'sale')
+      .eq('status', 'paid')
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (data) setRecentSales(data as Sale[])
+  }, [])
+
+  const handleBarcodeScan = async (code: string) => {
+    const trimmed = code.trim()
+    if (!trimmed) return
+    setScanning(true)
+    try {
+      let found: Item | null = null
+      const { data: directMatch } = await supabase
+        .from('item')
+        .select('*, item_categories(name, id, sort_order, is_active), tax_rates(id, name, rate)')
+        .eq('barcode', trimmed)
+        .eq('is_active', true)
+        .single()
+      if (directMatch) {
+        found = directMatch as Item
+      } else {
+        const { data: barcodeMatch } = await supabase
+          .from('item_barcodes')
+          .select('item_id')
+          .eq('barcode', trimmed)
+          .single()
+        if (barcodeMatch) {
+          const { data: itemData } = await supabase
+            .from('item')
+            .select('*, item_categories(name, id, sort_order, is_active), tax_rates(id, name, rate)')
+            .eq('id', barcodeMatch.item_id)
+            .eq('is_active', true)
+            .single()
+          if (itemData) found = itemData as Item
+        }
+      }
+      if (found) {
+        addToCart(found)
+        toast.success('Added', `${found.name} added to cart`)
+      } else {
+        toast.error('Not found', `No item with barcode: ${trimmed}`)
+      }
+    } catch {
+      toast.error('Scan error', 'Failed to look up barcode')
+    } finally {
+      setBarcodeValue('')
+      setScanning(false)
+      setTimeout(() => barcodeInputRef.current?.focus(), 0)
+    }
+  }
 
   const fetchItems = async () => {
     setLoading(true)
     setMenuError(null)
     const { data, error } = await supabase
       .from('item')
-      .select('*, item_categories(name, id, sort_order, is_active)')
+      .select('*, item_categories(name, id, sort_order, is_active), tax_rates(id, name, rate)')
       .eq('is_active', true)
       .order('sort_order', { nullsFirst: false })
       .order('name')
@@ -119,8 +202,28 @@ export default function POS() {
     setCart((prev) => prev.filter((e) => e.item.id !== itemId))
   }
 
-  const cartTotal = cart.reduce((sum, e) => sum + e.item.price * e.quantity, 0)
-  const cartItemCount = cart.reduce((sum, e) => sum + e.quantity, 0)
+  const { cartTotal, cartItemCount, cartTax } = useMemo(() => {
+    let total = 0
+    let tax = 0
+    let count = 0
+    for (const e of cart) {
+      count += e.quantity
+      const price = e.item.price
+      const qty = e.quantity
+      const rate = e.item.tax_rates?.rate || 0
+      const inclusive = e.item.tax_inclusive !== false
+      total += price * qty
+      if (rate > 0) {
+        if (inclusive) {
+          tax += price * qty * (rate / (100 + rate))
+        } else {
+          tax += price * qty * (rate / 100)
+          total += price * qty * (rate / 100)
+        }
+      }
+    }
+    return { cartTotal: total, cartItemCount: count, cartTax: tax }
+  }, [cart])
 
   const handlePlaceOrder = async () => {
     if (placingSaleRef.current || cart.length === 0 || !profile) return
@@ -169,7 +272,7 @@ export default function POS() {
       })
       const { data: freshOrder } = await supabase
         .from('orders')
-        .select('*, order_items(*, items(name, price))')
+        .select('*, order_items(*, items(name, price, tax_rate_id, tax_inclusive, tax_rates(id, name, rate)))')
         .eq('id', orderId)
         .single()
       if (freshOrder) {
@@ -193,6 +296,18 @@ export default function POS() {
 
   const openCashSale = () => {
     setShowCashSale(true)
+  }
+
+  const handleOpenRefund = (order: Sale) => {
+    setRefundOrderId(order.id)
+    setRefundOrderNumber(order.id.slice(0, 8).toUpperCase())
+    setShowRefundModal(true)
+  }
+
+  const handleRefundSuccess = () => {
+    setShowRefundModal(false)
+    setRefundOrderId('')
+    fetchRecentSales()
   }
 
   if (loading) {
@@ -226,6 +341,13 @@ export default function POS() {
               <span className="hidden sm:inline">Cash Sale</span>
             </button>
             <button
+              onClick={() => window.open('/customer-display', 'customer_display', 'width=800,height=900')}
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+              title="Customer Display"
+            >
+              <Monitor size={15} />
+            </button>
+            <button
               onClick={fetchItems}
               className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white active:rotate-180 transition-transform duration-300"
             >
@@ -245,113 +367,40 @@ export default function POS() {
         </div>
       </nav>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="hidden md:flex flex-1 flex-col overflow-hidden">
-          <div className="flex gap-1.5 px-4 py-2.5 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
-            <button
-              onClick={() => setActiveCategory('All')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === 'All' ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-            >
-              All
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.name)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === cat.name ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-          <div className="flex px-4 py-2 border-b border-gray-800 shrink-0">
-            <div className="flex items-center gap-2 flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-amber-500 transition-colors">
-              <Search size={16} className="text-gray-500 shrink-0" />
+      <ShiftManager currentShift={currentShift} onShiftChange={setCurrentShift} />
+
+      {currentShift && (
+        <>
+          <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 shrink-0 z-30">
+            <div className="flex items-center gap-2 max-w-xl mx-auto">
+              <ScanBarcode size={18} className="text-amber-500 shrink-0" />
               <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search items..."
-                className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
+                ref={barcodeInputRef}
+                value={barcodeValue}
+                onChange={(e) => setBarcodeValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleBarcodeScan(barcodeValue)
+                  }
+                }}
+                placeholder="Scan barcode..."
+                className="flex-1 bg-gray-800 border border-amber-500/40 text-white text-sm placeholder-gray-500 rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 transition-colors"
               />
-              {search && (
-                <button onClick={() => setSearch('')} className="text-gray-500 hover:text-white">
+              {barcodeValue && (
+                <button
+                  onClick={() => { setBarcodeValue(''); barcodeInputRef.current?.focus() }}
+                  className="text-gray-500 hover:text-white"
+                >
                   <X size={14} />
                 </button>
               )}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            {filteredItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mb-4">
-                  <ShoppingBag size={24} className="text-gray-600" />
-                </div>
-                <p className="text-gray-400 font-semibold mb-1">No items found</p>
-                {menuError ? (
-                  <div className="text-red-400 text-xs max-w-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                    {menuError}
-                  </div>
-                ) : (
-                  <p className="text-gray-600 text-xs max-w-xs">
-                    {items.length === 0
-                      ? 'Add items in the Back Office to get started.'
-                      : 'Try a different search or category.'}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {filteredItems.map((item) => {
-                  const cartEntry = cart.find((e) => e.item.id === item.id)
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => addToCart(item)}
-                      className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50 relative"
-                    >
-                      <div className="p-3">
-                        <p className="text-white text-sm font-medium leading-tight truncate">
-                          {item.name}
-                        </p>
-                        <p className="text-amber-400 text-sm font-bold mt-1">
-                          {formatPrice(item.price)}
-                        </p>
-                        {item.stock_quantity <= item.low_stock_threshold && item.stock_quantity > 0 && (
-                          <p className="text-orange-400 text-[10px] mt-0.5">Low stock</p>
-                        )}
-                        {item.stock_quantity === 0 && (
-                          <p className="text-red-400 text-[10px] mt-0.5">Out of stock</p>
-                        )}
-                      </div>
-                      {cartEntry && (
-                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
-                          {cartEntry.quantity}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div className="hidden md:flex w-[340px] min-w-[280px] border-l border-gray-800 flex-col overflow-hidden">
-          <SalePanel
-            cart={cart}
-            onUpdateQuantity={updateQuantity}
-            onRemoveItem={removeItem}
-            notes={notes}
-            onNotesChange={setNotes}
-            onPlaceOrder={handlePlaceOrder}
-            profile={profile}
-          />
-        </div>
-
-        <div className="md:hidden flex-1 flex flex-col overflow-hidden">
-          {mobileView === 'items' ? (
-            <>
-              <div className="flex gap-1.5 px-3 py-2 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
+          <div className="flex-1 flex overflow-hidden">
+            <div className="hidden md:flex flex-1 flex-col overflow-hidden">
+              <div className="flex gap-1.5 px-4 py-2.5 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
                 <button
                   onClick={() => setActiveCategory('All')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === 'All' ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
@@ -368,7 +417,7 @@ export default function POS() {
                   </button>
                 ))}
               </div>
-              <div className="flex px-3 py-2 border-b border-gray-800 shrink-0">
+              <div className="flex px-4 py-2 border-b border-gray-800 shrink-0">
                 <div className="flex items-center gap-2 flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-amber-500 transition-colors">
                   <Search size={16} className="text-gray-500 shrink-0" />
                   <input
@@ -384,14 +433,27 @@ export default function POS() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-3">
+              <div className="flex-1 overflow-y-auto p-4">
                 {filteredItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                    <ShoppingBag size={24} className="text-gray-600 mb-3" />
-                    <p className="text-gray-400 text-sm">No items found</p>
+                    <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mb-4">
+                      <ShoppingBag size={24} className="text-gray-600" />
+                    </div>
+                    <p className="text-gray-400 font-semibold mb-1">No items found</p>
+                    {menuError ? (
+                      <div className="text-red-400 text-xs max-w-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                        {menuError}
+                      </div>
+                    ) : (
+                      <p className="text-gray-600 text-xs max-w-xs">
+                        {items.length === 0
+                          ? 'Add items in the Back Office to get started.'
+                          : 'Try a different search or category.'}
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                     {filteredItems.map((item) => {
                       const cartEntry = cart.find((e) => e.item.id === item.id)
                       return (
@@ -407,6 +469,12 @@ export default function POS() {
                             <p className="text-amber-400 text-sm font-bold mt-1">
                               {formatPrice(item.price)}
                             </p>
+                            {item.stock_quantity <= item.low_stock_threshold && item.stock_quantity > 0 && (
+                              <p className="text-orange-400 text-[10px] mt-0.5">Low stock</p>
+                            )}
+                            {item.stock_quantity === 0 && (
+                              <p className="text-red-400 text-[10px] mt-0.5">Out of stock</p>
+                            )}
                           </div>
                           {cartEntry && (
                             <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
@@ -419,29 +487,9 @@ export default function POS() {
                   </div>
                 )}
               </div>
-              {cart.length > 0 && (
-                <div className="shrink-0 border-t border-gray-800 bg-gray-900 p-3">
-                  <button
-                    onClick={() => setMobileView('cart')}
-                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <ShoppingCart size={16} />
-                    View Cart ({cartItemCount}) — {formatPrice(cartTotal)}
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col h-full overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 shrink-0">
-                <button
-                  onClick={() => setMobileView('items')}
-                  className="text-amber-500 text-sm font-medium"
-                >
-                  ← Items
-                </button>
-                <span className="text-white font-bold text-sm">Cart ({cartItemCount})</span>
-              </div>
+            </div>
+
+            <div className="hidden md:flex w-[340px] min-w-[280px] border-l border-gray-800 flex-col">
               <div className="flex-1 overflow-hidden">
                 <SalePanel
                   cart={cart}
@@ -453,10 +501,154 @@ export default function POS() {
                   profile={profile}
                 />
               </div>
+              <div className="shrink-0 border-t border-gray-800">
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-900">
+                  <h3 className="text-white text-xs font-bold uppercase tracking-wider">Recent Sales</h3>
+                  <span className="text-gray-500 text-[10px]">{recentSales.length}</span>
+                </div>
+                <div className="max-h-[220px] overflow-y-auto bg-gray-900/50">
+                  {recentSales.length === 0 ? (
+                    <div className="px-4 py-6 text-center">
+                      <p className="text-gray-600 text-xs">No recent sales</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-800/50">
+                      {recentSales.map((order) => (
+                        <div key={order.id} className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-800/30 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-xs font-medium truncate">
+                              #{order.id.slice(0, 8).toUpperCase()}
+                            </p>
+                            <p className="text-gray-500 text-[10px]">
+                              {new Date(order.created_at).toLocaleDateString()} &middot; {formatPrice(order.total_amount)}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleOpenRefund(order)}
+                            className="shrink-0 flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-red-500/20 hover:border-red-500/40 transition-colors"
+                          >
+                            <RotateCcw size={11} />
+                            Refund
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+              {mobileView === 'items' ? (
+                <>
+                  <div className="flex gap-1.5 px-3 py-2 overflow-x-auto border-b border-gray-800 shrink-0 bg-gray-900/50">
+                    <button
+                      onClick={() => setActiveCategory('All')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === 'All' ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                    >
+                      All
+                    </button>
+                    {categories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setActiveCategory(cat.name)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${activeCategory === cat.name ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex px-3 py-2 border-b border-gray-800 shrink-0">
+                    <div className="flex items-center gap-2 flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-amber-500 transition-colors">
+                      <Search size={16} className="text-gray-500 shrink-0" />
+                      <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search items..."
+                        className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
+                      />
+                      {search && (
+                        <button onClick={() => setSearch('')} className="text-gray-500 hover:text-white">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3">
+                    {filteredItems.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                        <ShoppingBag size={24} className="text-gray-600 mb-3" />
+                        <p className="text-gray-400 text-sm">No items found</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {filteredItems.map((item) => {
+                          const cartEntry = cart.find((e) => e.item.id === item.id)
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => addToCart(item)}
+                              className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50 relative"
+                            >
+                              <div className="p-3">
+                                <p className="text-white text-sm font-medium leading-tight truncate">
+                                  {item.name}
+                                </p>
+                                <p className="text-amber-400 text-sm font-bold mt-1">
+                                  {formatPrice(item.price)}
+                                </p>
+                              </div>
+                              {cartEntry && (
+                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
+                                  {cartEntry.quantity}
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {cart.length > 0 && (
+                    <div className="shrink-0 border-t border-gray-800 bg-gray-900 p-3">
+                      <button
+                        onClick={() => setMobileView('cart')}
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <ShoppingCart size={16} />
+                        View Cart ({cartItemCount}) — {formatPrice(cartTotal)}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 shrink-0">
+                    <button
+                      onClick={() => setMobileView('items')}
+                      className="text-amber-500 text-sm font-medium"
+                    >
+                      ← Items
+                    </button>
+                    <span className="text-white font-bold text-sm">Cart ({cartItemCount})</span>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <SalePanel
+                      cart={cart}
+                      onUpdateQuantity={updateQuantity}
+                      onRemoveItem={removeItem}
+                      notes={notes}
+                      onNotesChange={setNotes}
+                      onPlaceOrder={handlePlaceOrder}
+                      profile={profile}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {showPayment && activeSale && (
         <PaymentModal
@@ -466,6 +658,16 @@ export default function POS() {
             setShowPayment(false)
             setActiveSale(null)
           }}
+          shiftId={currentShift?.id}
+        />
+      )}
+
+      {showRefundModal && (
+        <RefundModal
+          orderId={refundOrderId}
+          orderNumber={refundOrderNumber}
+          onClose={() => setShowRefundModal(false)}
+          onSuccess={handleRefundSuccess}
         />
       )}
 
@@ -474,6 +676,7 @@ export default function POS() {
           staffId={profile!.id}
           onSuccess={() => setShowCashSale(false)}
           onClose={() => setShowCashSale(false)}
+          shiftId={currentShift?.id}
         />
       )}
 

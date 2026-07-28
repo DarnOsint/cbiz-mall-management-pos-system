@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { requestPushPermission } from '../hooks/usePushNotifications'
+import StockAlertBell from './StockAlertBell'
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -38,6 +39,7 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'POS', icon: ShoppingBag, path: '/pos' },
     { label: 'Reports', icon: TrendingUp, path: '/reports' },
     { label: 'Inventory', icon: Package, path: '/backoffice' },
+    { label: 'Customers', icon: Users, path: '/customers' },
     { label: 'Mall', icon: Building2, path: '/mallmanagement' },
     { label: 'Month End', icon: CalendarDays, path: '/month-end' },
   ],
@@ -135,6 +137,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <p className="text-amber-500 text-xs capitalize">{profile.role}</p>
               </div>
               <div className="flex items-center gap-1">
+                <StockAlertBell />
                 {notifPermission === 'granted' && (
                   <Bell size={12} className="text-green-400" aria-label="Notifications enabled" />
                 )}
@@ -185,6 +188,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="text-white font-bold text-sm">C.Biz POS</span>
             </div>
             <div className="flex items-center gap-2">
+              <StockAlertBell />
               {navItems.length > 1 && (
                 <button
                   onClick={() => setDrawerOpen(true)}
