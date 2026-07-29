@@ -259,6 +259,12 @@ export interface MallShop {
   monthly_rent: number
   is_active: boolean
   is_occupied: boolean
+  lease_start_date: string | null
+  lease_end_date: string | null
+  deposit_amount: number
+  shop_category: string | null
+  email: string | null
+  notes: string | null
   created_at: string
   updated_at: string
 }
@@ -270,6 +276,8 @@ export interface MallRentPayment {
   amount_paid: number
   paid_at: string
   notes: string | null
+  recorded_by: string | null
+  recorded_by_name: string | null
   created_at: string
 }
 

@@ -7,7 +7,10 @@ import { audit } from '../../lib/audit'
 import {
   ArrowLeft, Plus, X, Building2, Search, DollarSign,
   CalendarDays, Users, Trash2, Edit3, Grid3X3,
-  Move, Maximize
+  Move, Maximize, LayoutDashboard, Map, FileText,
+  Download, Info, Phone, Mail, Tag, CreditCard,
+  Clock, AlertTriangle, ChevronRight, Store,
+  BarChart3, Percent, Home, KeyRound
 } from 'lucide-react'
 import type { MallFloor, MallShop, MallRentPayment, Profile } from '../../types'
 
@@ -19,6 +22,19 @@ const GRID_COLS = 12
 const GRID_ROWS = 8
 const CELL_SIZE = 72
 const MIN_SHOP_SIZE = 1
+
+const SHOP_CATEGORIES = [
+  'Retail', 'Food & Beverage', 'Services', 'Entertainment',
+  'Fashion', 'Electronics', 'Other'
+] as const
+
+function fmtUSD(amount: number): string {
+  return `$${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function fmtUSDshort(amount: number): string {
+  return `$${Number(amount || 0).toLocaleString('en-US')}`
+}
 
 function calcRentStatus(shop: MallShop, payments: MallRentPayment[]): {
   label: string; color: string; remainingMonths: number; daysUntilDue: number
@@ -60,11 +76,15 @@ export default function MallManagement({ onBack }: Props) {
   const [rentPayments, setRentPayments] = useState<Record<string, MallRentPayment[]>>({})
   const [loading, setLoading] = useState(true)
 
+  const [activeTab, setActiveTab] = useState<'overview' | 'floor-plan' | 'tenants' | 'reports'>('overview')
+
   const [showShopForm, setShowShopForm] = useState(false)
   const [editingShop, setEditingShop] = useState<MallShop | null>(null)
   const [shopForm, setShopForm] = useState({
     shop_number: '', shop_name: '', pos_x: 0, pos_y: 0, width: 2, height: 2,
-    tenant_name: '', tenant_phone: '', monthly_rent: '', is_occupied: false
+    tenant_name: '', tenant_phone: '', monthly_rent: '', is_occupied: false,
+    lease_start_date: '', lease_end_date: '', deposit_amount: '',
+    shop_category: '', email: '', notes: ''
   })
   const [savingShop, setSavingShop] = useState(false)
 
@@ -78,12 +98,18 @@ export default function MallManagement({ onBack }: Props) {
   const [savingRent, setSavingRent] = useState(false)
 
   const [selectedShop, setSelectedShop] = useState<string | null>(null)
+  const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'plan' | 'list'>('plan')
 
   const [resizing, setResizing] = useState<string | null>(null)
   const [resizeDir, setResizeDir] = useState<'se' | 'e' | 's' | null>(null)
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, w: 0, h: 0, px: 0, py: 0 })
+
+  const [tenantSearch, setTenantSearch] = useState('')
+  const [tenantFilterFloor, setTenantFilterFloor] = useState('')
+  const [showTenantDetail, setShowTenantDetail] = useState(false)
+  const [tenantDetailShop, setTenantDetailShop] = useState<MallShop | null>(null)
 
   const fetchData = async () => {
     const { data: floorsData } = await supabase
@@ -129,6 +155,8 @@ export default function MallManagement({ onBack }: Props) {
      s.shop_name.toLowerCase().includes(search.toLowerCase()) ||
      (s.tenant_name || '').toLowerCase().includes(search.toLowerCase()))
   )
+
+  const activeFloorObj = floors.find(f => f.id === activeFloor)
 
   // ── Drag & Resize handlers ──
   const handleMouseDown = useCallback((e: React.MouseEvent, shopId: string, dir: 'se' | 'e' | 's') => {
@@ -185,7 +213,7 @@ export default function MallManagement({ onBack }: Props) {
   }, [resizing, handleMouseMove, handleMouseUp])
 
   const handleDragStart = useCallback((e: React.MouseEvent, shopId: string) => {
-    if ((e.target as HTMLElement).closest('.resize-handle')) return
+    if ((e.target as HTMLElement).closest('.resize-handle') || (e.target as HTMLElement).closest('.info-btn')) return
     e.preventDefault()
     const shop = shops.find(s => s.id === shopId)
     if (!shop) return
@@ -228,7 +256,12 @@ export default function MallManagement({ onBack }: Props) {
   // ── CRUD handlers ──
   const openNewShop = () => {
     setEditingShop(null)
-    setShopForm({ shop_number: '', shop_name: '', pos_x: 0, pos_y: 0, width: 2, height: 2, tenant_name: '', tenant_phone: '', monthly_rent: '', is_occupied: false })
+    setShopForm({
+      shop_number: '', shop_name: '', pos_x: 0, pos_y: 0, width: 2, height: 2,
+      tenant_name: '', tenant_phone: '', monthly_rent: '', is_occupied: false,
+      lease_start_date: '', lease_end_date: '', deposit_amount: '',
+      shop_category: '', email: '', notes: ''
+    })
     setShowShopForm(true)
   }
 
@@ -238,7 +271,13 @@ export default function MallManagement({ onBack }: Props) {
       shop_number: shop.shop_number, shop_name: shop.shop_name,
       pos_x: shop.pos_x, pos_y: shop.pos_y, width: shop.width, height: shop.height,
       tenant_name: shop.tenant_name || '', tenant_phone: shop.tenant_phone || '',
-      monthly_rent: String(shop.monthly_rent), is_occupied: shop.is_occupied
+      monthly_rent: String(shop.monthly_rent), is_occupied: shop.is_occupied,
+      lease_start_date: shop.lease_start_date || '',
+      lease_end_date: shop.lease_end_date || '',
+      deposit_amount: String(shop.deposit_amount || 0),
+      shop_category: shop.shop_category || '',
+      email: shop.email || '',
+      notes: shop.notes || ''
     })
     setShowShopForm(true)
   }
@@ -258,6 +297,12 @@ export default function MallManagement({ onBack }: Props) {
         tenant_phone: shopForm.tenant_phone.trim() || null,
         monthly_rent: parseFloat(shopForm.monthly_rent) || 0,
         is_occupied: shopForm.is_occupied,
+        lease_start_date: shopForm.lease_start_date || null,
+        lease_end_date: shopForm.lease_end_date || null,
+        deposit_amount: parseFloat(shopForm.deposit_amount) || 0,
+        shop_category: shopForm.shop_category || null,
+        email: shopForm.email.trim() || null,
+        notes: shopForm.notes.trim() || null,
         updated_at: new Date().toISOString()
       }
       if (editingShop) {
@@ -340,7 +385,9 @@ export default function MallManagement({ onBack }: Props) {
     try {
       const { error } = await supabase.from('mall_rent_payments').insert({
         shop_id: rentShop.id, months_paid: months, amount_paid: amount,
-        notes: rentForm.notes.trim() || null
+        notes: rentForm.notes.trim() || null,
+        recorded_by: profile?.id || null,
+        recorded_by_name: profile?.full_name || null
       })
       if (error) throw error
       await audit({ action: 'MALL_RENT_PAID', entity: 'mall_rent_payment', entityName: rentShop.shop_name, newValue: { months, amount, shop: rentShop.shop_name }, performer: profile as Profile })
@@ -353,6 +400,120 @@ export default function MallManagement({ onBack }: Props) {
     } finally {
       setSavingRent(false)
     }
+  }
+
+  const showShopDetail = (shop: MallShop) => {
+    setSelectedShop(shop.id)
+    setShowDetailPanel(true)
+  }
+
+  const handleShopPlanClick = (shop: MallShop) => {
+    openEditShop(shop)
+  }
+
+  const handleShopInfoClick = (e: React.MouseEvent, shop: MallShop) => {
+    e.stopPropagation()
+    if (selectedShop === shop.id && showDetailPanel) {
+      setShowDetailPanel(false)
+      setSelectedShop(null)
+    } else {
+      setSelectedShop(shop.id)
+      setShowDetailPanel(true)
+    }
+  }
+
+  // ── Overview data ──
+  const overviewStats = (() => {
+    const totalShops = shops.length
+    const occupied = shops.filter(s => s.is_occupied).length
+    const vacant = totalShops - occupied
+    const occupancyRate = totalShops > 0 ? Math.round((occupied / totalShops) * 100) : 0
+    const totalMonthlyRent = shops.filter(s => s.is_occupied).reduce((sum, s) => sum + s.monthly_rent, 0)
+    const totalDeposits = shops.filter(s => s.is_occupied).reduce((sum, s) => sum + (s.deposit_amount || 0), 0)
+
+    const now = new Date()
+    const thisMonth = now.getMonth()
+    const thisYear = now.getFullYear()
+
+    const rentCollectedThisMonth = Object.values(rentPayments).flat().filter(p => {
+      const d = new Date(p.paid_at)
+      return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+    }).reduce((sum, p) => sum + p.amount_paid, 0)
+
+    const overdueCount = shops.filter(s => {
+      if (!s.is_occupied) return false
+      const status = calcRentStatus(s, rentPayments[s.id] || [])
+      return status.label === 'Overdue'
+    }).length
+
+    return { totalShops, occupied, vacant, occupancyRate, totalMonthlyRent, totalDeposits, rentCollectedThisMonth, overdueCount }
+  })()
+
+  const recentPayments = Object.entries(rentPayments).flatMap(([shopId, payments]) =>
+    payments.map(p => ({ ...p, shop: shops.find(s => s.id === shopId) }))
+  ).sort((a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime()).slice(0, 5)
+
+  // ── Tenants data ──
+  const tenantList = shops.filter(s => s.is_occupied || s.tenant_name).map(s => ({
+    ...s,
+    floorName: floors.find(f => f.id === s.floor_id)?.name || 'Unknown'
+  })).filter(s => {
+    if (tenantSearch) {
+      const q = tenantSearch.toLowerCase()
+      if (!s.shop_number.toLowerCase().includes(q) &&
+          !s.shop_name.toLowerCase().includes(q) &&
+          !(s.tenant_name || '').toLowerCase().includes(q) &&
+          !(s.email || '').toLowerCase().includes(q) &&
+          !(s.tenant_phone || '').toLowerCase().includes(q)) return false
+    }
+    if (tenantFilterFloor && s.floor_id !== tenantFilterFloor) return false
+    return true
+  })
+
+  // ── Reports data ──
+  const occupancyReport = floors.map(floor => {
+    const floorShops = shops.filter(s => s.floor_id === floor.id)
+    const total = floorShops.length
+    const occ = floorShops.filter(s => s.is_occupied).length
+    return { floor: floor.name, total, occupied: occ, vacant: total - occ, rate: total > 0 ? Math.round((occ / total) * 100) : 0 }
+  })
+
+  const now = new Date()
+  const thisMonth = now.getMonth()
+  const thisYear = now.getFullYear()
+
+  const rentCollectionReport = floors.map(floor => {
+    const floorShops = shops.filter(s => s.floor_id === floor.id)
+    const occupiedShops = floorShops.filter(s => s.is_occupied)
+    const expected = occupiedShops.reduce((sum, s) => sum + s.monthly_rent, 0)
+    const collected = occupiedShops.reduce((sum, s) => {
+      const payments = rentPayments[s.id] || []
+      return sum + payments.filter(p => {
+        const d = new Date(p.paid_at)
+        return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+      }).reduce((ps, p) => ps + p.amount_paid, 0)
+    }, 0)
+    return { floor: floor.name, expected, collected, outstanding: expected - collected }
+  })
+
+  const sixtyDaysFromNow = new Date()
+  sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60)
+
+  const leasesExpiring = shops.filter(s => {
+    if (!s.lease_end_date || !s.is_occupied) return false
+    const end = new Date(s.lease_end_date)
+    return end <= sixtyDaysFromNow && end >= now
+  }).map(s => ({
+    ...s,
+    floorName: floors.find(f => f.id === s.floor_id)?.name || 'Unknown',
+    daysLeft: Math.ceil((new Date(s.lease_end_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  })).sort((a, b) => new Date(a.lease_end_date!).getTime() - new Date(b.lease_end_date!).getTime())
+
+  // ── Export helpers ──
+  const exportCSV = (filename: string, headers: string[], rows: string[][]) => {
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n')
+    console.log(`CSV Export — ${filename}:\n${csv}`)
+    window.alert(`CSV data for "${filename}" logged to console.\n\nPreview:\n${rows.slice(0, 3).map(r => r.join(' | ')).join('\n')}`)
   }
 
   if (loading) return (
@@ -371,7 +532,7 @@ export default function MallManagement({ onBack }: Props) {
     <div className="min-h-full bg-gray-950">
       <div className="p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <button onClick={handleBack} className="text-gray-400 hover:text-white p-1">
               <ArrowLeft size={20} />
@@ -381,322 +542,803 @@ export default function MallManagement({ onBack }: Props) {
               <p className="text-gray-500 text-sm mt-0.5">Manage shops, floor plan & rent tracking</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode(viewMode === 'plan' ? 'list' : 'plan')}
-              className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm transition-colors"
-            >
-              <Grid3X3 size={14} />
-              {viewMode === 'plan' ? 'List' : 'Plan'}
-            </button>
-            <button
-              onClick={openNewFloor}
-              className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm transition-colors"
-            >
-              <Building2 size={14} /> Add Floor
-            </button>
-            <button
-              onClick={openNewShop}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
-            >
-              <Plus size={15} /> Add Shop
-            </button>
-          </div>
         </div>
 
-        {/* Floor tabs */}
-        <div className="flex items-center gap-2 mb-4 overflow-x-auto">
-          {floors.map((floor) => (
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 mb-6 border-b border-gray-800 pb-2 overflow-x-auto">
+          {[
+            { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
+            { id: 'floor-plan' as const, label: 'Floor Plan', icon: Map },
+            { id: 'tenants' as const, label: 'Tenants', icon: Users },
+            { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
+          ].map(tab => (
             <button
-              key={floor.id}
-              onClick={() => setActiveFloor(floor.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
-                activeFloor === floor.id
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === tab.id
                   ? 'bg-amber-500 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
-              {floor.name}
+              <tab.icon size={16} />
+              {tab.label}
             </button>
           ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-4 max-w-md">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search shops by number, name or tenant..."
-            className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-          />
-        </div>
-
-        {viewMode === 'plan' ? (
-          /* ─── FLOOR PLAN VIEW ─── */
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 overflow-auto">
-            <div className="flex items-center gap-3 mb-3 text-[10px] text-gray-500">
-              <Move size={12} /> Drag shops to move them
-              <Maximize size={12} /> Drag corners to resize
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-green-600 inline-block" /> Paid</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-yellow-500 inline-block" /> Due soon</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-600 inline-block" /> Overdue</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-gray-600 inline-block" /> Vacant</span>
-            </div>
-            <div
-              ref={planRef}
-              className="relative select-none"
-              style={{
-                width: GRID_COLS * CELL_SIZE,
-                height: GRID_ROWS * CELL_SIZE,
-                minWidth: GRID_COLS * CELL_SIZE,
-              }}
-            >
-              {Array.from({ length: GRID_COLS }).map((_, x) => (
-                <div
-                  key={`gx-${x}`}
-                  className="absolute top-0 bottom-0 border-l border-gray-800/50"
-                  style={{ left: x * CELL_SIZE }}
-                />
-              ))}
-              {Array.from({ length: GRID_ROWS }).map((_, y) => (
-                <div
-                  key={`gy-${y}`}
-                  className="absolute left-0 right-0 border-t border-gray-800/50"
-                  style={{ top: y * CELL_SIZE }}
-                />
-              ))}
-
-              {currentFloorsShops.map((shop) => {
-                const payments = rentPayments[shop.id] || []
-                const status = calcRentStatus(shop, payments)
-                const isSelected = selectedShop === shop.id
-                return (
-                  <div
-                    key={shop.id}
-                    onMouseDown={(e) => handleDragStart(e, shop.id)}
-                    onClick={() => setSelectedShop(isSelected ? null : shop.id)}
-                    className={`absolute border-2 rounded-lg flex flex-col items-center justify-center text-xs font-medium cursor-grab active:cursor-grabbing transition-colors ${
-                      isSelected ? 'border-amber-400 z-10' : 'border-gray-700'
-                    } ${status.color} bg-opacity-90`}
-                    style={{
-                      left: shop.pos_x * CELL_SIZE + 2,
-                      top: shop.pos_y * CELL_SIZE + 2,
-                      width: shop.width * CELL_SIZE - 4,
-                      height: shop.height * CELL_SIZE - 4,
-                    }}
-                  >
-                    <span className="text-white font-bold text-xs leading-tight text-center px-1">
-                      {shop.shop_number}
-                    </span>
-                    <span className="text-white/80 text-[10px] leading-tight text-center px-1 truncate max-w-full">
-                      {shop.shop_name}
-                    </span>
-                    {shop.is_occupied && shop.tenant_name && (
-                      <span className="text-white/60 text-[9px] leading-tight truncate max-w-full px-1">
-                        {shop.tenant_name}
-                      </span>
-                    )}
-                    {!shop.is_occupied && (
-                      <span className="text-white/40 text-[9px] leading-tight">Vacant</span>
-                    )}
-
-                    {/* Resize handles */}
-                    <div
-                      className="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-se-resize bg-white/20 hover:bg-white/40 rounded-bl-lg rounded-tr-lg"
-                      onMouseDown={(e) => handleMouseDown(e, shop.id, 'se')}
-                    />
-                    <div
-                      className="resize-handle absolute top-0 right-0 w-2 h-full cursor-e-resize bg-white/10 hover:bg-white/30 rounded-r"
-                      style={{ right: -1 }}
-                      onMouseDown={(e) => handleMouseDown(e, shop.id, 'e')}
-                    />
-                    <div
-                      className="resize-handle absolute bottom-0 left-0 w-full h-2 cursor-s-resize bg-white/10 hover:bg-white/30 rounded-b"
-                      style={{ bottom: -1 }}
-                      onMouseDown={(e) => handleMouseDown(e, shop.id, 's')}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          /* ─── LIST VIEW ─── */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {currentFloorsShops.map((shop) => {
-              const payments = rentPayments[shop.id] || []
-              const status = calcRentStatus(shop, payments)
-              const isSelected = selectedShop === shop.id
-              return (
-                <div
-                  key={shop.id}
-                  className={`bg-gray-900 border rounded-2xl p-4 ${isSelected ? 'border-amber-500' : 'border-gray-800'}`}
-                  onClick={() => setSelectedShop(isSelected ? null : shop.id)}
+          <div className="ml-auto flex items-center gap-2">
+            {activeTab === 'floor-plan' && (
+              <>
+                <button
+                  onClick={() => setViewMode(viewMode === 'plan' ? 'list' : 'plan')}
+                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm transition-colors"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${status.color}`} />
-                      <h3 className="text-white font-semibold text-sm">{shop.shop_number}</h3>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {shop.is_occupied && (
-                        <span className="text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">Occupied</span>
-                      )}
-                      {!shop.is_occupied && (
-                        <span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded-full">Vacant</span>
-                      )}
-                      <span className="text-[10px] text-gray-500">{status.label}</span>
-                    </div>
-                  </div>
-                  <p className="text-gray-300 text-xs font-medium">{shop.shop_name}</p>
-                  {shop.is_occupied && shop.tenant_name && (
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <Users size={11} className="text-gray-500" />
-                      <span className="text-gray-400 text-xs">{shop.tenant_name}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1 mt-1">
-                    <DollarSign size={11} className="text-gray-500" />
-                    <span className="text-gray-400 text-xs">₦{shop.monthly_rent.toLocaleString()}/mo</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleOccupied(shop) }}
-                      className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-colors ${
-                        shop.is_occupied
-                          ? 'bg-gray-800 text-gray-400 hover:text-white'
-                          : 'bg-green-600 hover:bg-green-500 text-white'
-                      }`}
-                    >
-                      {shop.is_occupied ? 'Vacate' : 'Occupy'}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openAddRent(shop) }}
-                      className="flex items-center gap-1 text-xs bg-green-600 hover:bg-green-500 text-white px-2.5 py-1 rounded-lg transition-colors"
-                    >
-                      <CalendarDays size={11} /> Pay Rent
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openEditShop(shop) }}
-                      className="text-xs text-amber-400 hover:text-amber-300 p-1"
-                    >
-                      <Edit3 size={12} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteShop(shop) }}
-                      className="text-xs text-red-400 hover:text-red-300 p-1"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-            {currentFloorsShops.length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <p className="text-gray-500 text-sm">No shops on this floor. Add your first shop.</p>
-              </div>
+                  <Grid3X3 size={14} />
+                  {viewMode === 'plan' ? 'List' : 'Plan'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (selectedShop) setShowDetailPanel(!showDetailPanel)
+                    else if (currentFloorsShops.length > 0) {
+                      setSelectedShop(currentFloorsShops[0].id)
+                      setShowDetailPanel(true)
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm transition-colors ${
+                    showDetailPanel && selectedShop
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
+                  }`}
+                >
+                  <Info size={14} />
+                  Details
+                </button>
+                <button
+                  onClick={openNewFloor}
+                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm transition-colors"
+                >
+                  <Building2 size={14} /> Add Floor
+                </button>
+                <button
+                  onClick={openNewShop}
+                  className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+                >
+                  <Plus size={15} /> Add Shop
+                </button>
+              </>
+            )}
+            {activeTab === 'overview' && (
+              <button
+                onClick={openNewShop}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+              >
+                <Plus size={15} /> Add Shop
+              </button>
+            )}
+            {activeTab === 'tenants' && (
+              <button
+                onClick={openNewShop}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+              >
+                <Plus size={15} /> Add Shop
+              </button>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Selected shop detail */}
-        {(() => {
-          const shop = shops.find(s => s.id === selectedShop)
-          if (!shop) return null
-          const payments = rentPayments[shop.id] || []
-          const status = calcRentStatus(shop, payments)
-          return (
-            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-white font-bold text-lg">{shop.shop_name}</h3>
-                  <p className="text-gray-400 text-sm">Shop {shop.shop_number}</p>
+        {/* ─── OVERVIEW TAB ─── */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Stats cards row 1 */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-blue-500/10 p-2.5 rounded-xl"><Store size={18} className="text-blue-400" /></div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleOccupied(shop)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                      shop.is_occupied
-                        ? 'bg-gray-800 text-gray-400 hover:text-white'
-                        : 'bg-green-600 hover:bg-green-500 text-white'
-                    }`}
-                  >
-                    {shop.is_occupied ? 'Vacate' : 'Occupy'}
-                  </button>
-                  <button
-                    onClick={() => openAddRent(shop)}
-                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-xl text-sm font-medium transition-colors"
-                  >
-                    <CalendarDays size={14} /> Record Payment
-                  </button>
-                  <button
-                    onClick={() => openEditShop(shop)}
-                    className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-xl text-sm transition-colors"
-                  >
-                    <Edit3 size={14} /> Edit
-                  </button>
-                </div>
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide">Total Shops</p>
+                <p className="text-white text-2xl font-bold mt-1">{overviewStats.totalShops}</p>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-gray-800 rounded-xl p-3">
-                  <p className="text-gray-500 text-xs">Status</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className={`w-3 h-3 rounded-full ${status.color}`} />
-                    <span className="text-white font-medium text-sm">{shop.is_occupied ? 'Occupied' : 'Vacant'} — {status.label}</span>
-                  </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-green-500/10 p-2.5 rounded-xl"><Building2 size={18} className="text-green-400" /></div>
                 </div>
-                <div className="bg-gray-800 rounded-xl p-3">
-                  <p className="text-gray-500 text-xs">Tenant</p>
-                  <p className="text-white font-medium text-sm">{shop.tenant_name || 'N/A'}</p>
-                  {shop.tenant_phone && <p className="text-gray-400 text-xs mt-0.5">{shop.tenant_phone}</p>}
-                </div>
-                <div className="bg-gray-800 rounded-xl p-3">
-                  <p className="text-gray-500 text-xs">Monthly Rent</p>
-                  <p className="text-white font-medium text-sm">₦{shop.monthly_rent.toLocaleString()}</p>
-                </div>
-                <div className="bg-gray-800 rounded-xl p-3">
-                  <p className="text-gray-500 text-xs">Position</p>
-                  <p className="text-white font-medium text-sm">X:{shop.pos_x} Y:{shop.pos_y}</p>
-                  <p className="text-gray-400 text-xs">{shop.width}x{shop.height} cells</p>
-                </div>
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide">Occupied</p>
+                <p className="text-white text-2xl font-bold mt-1">{overviewStats.occupied}</p>
               </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-gray-600/10 p-2.5 rounded-xl"><Home size={18} className="text-gray-400" /></div>
+                </div>
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide">Vacant</p>
+                <p className="text-white text-2xl font-bold mt-1">{overviewStats.vacant}</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-amber-500/10 p-2.5 rounded-xl"><Percent size={18} className="text-amber-400" /></div>
+                </div>
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide">Occupancy Rate</p>
+                <p className="text-white text-2xl font-bold mt-1">{overviewStats.occupancyRate}%</p>
+              </div>
+            </div>
 
-              <div>
-                <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Payment History</h4>
-                {payments.length === 0 ? (
+            {/* Stats cards row 2 */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Total Monthly Rent</p>
+                <p className="text-white text-2xl font-bold">{fmtUSDshort(overviewStats.totalMonthlyRent)}</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Rent Collected This Month</p>
+                <p className="text-green-400 text-2xl font-bold">{fmtUSDshort(overviewStats.rentCollectedThisMonth)}</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Overdue Accounts</p>
+                <p className={`text-2xl font-bold ${overviewStats.overdueCount > 0 ? 'text-red-400' : 'text-white'}`}>{overviewStats.overdueCount}</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Total Deposits Held</p>
+                <p className="text-white text-2xl font-bold">{fmtUSDshort(overviewStats.totalDeposits)}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recent Activity */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                  <Clock size={16} className="text-gray-400" />
+                  Recent Activity
+                </h3>
+                {recentPayments.length === 0 ? (
                   <p className="text-gray-600 text-sm">No payments recorded yet.</p>
                 ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {[...payments].reverse().map((payment) => (
-                      <div key={payment.id} className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                        <div>
-                          <p className="text-white text-sm font-medium">
-                            {payment.months_paid} month{payment.months_paid > 1 ? 's' : ''}
-                          </p>
-                          {payment.notes && <p className="text-gray-500 text-xs mt-0.5">{payment.notes}</p>}
+                  <div className="space-y-3">
+                    {recentPayments.map(p => (
+                      <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-green-500/10 p-1.5 rounded-lg"><DollarSign size={14} className="text-green-400" /></div>
+                          <div>
+                            <p className="text-white text-sm font-medium">{p.shop?.shop_name || 'Unknown'}</p>
+                            <p className="text-gray-500 text-xs">{p.months_paid} month{p.months_paid > 1 ? 's' : ''} · {new Date(p.paid_at).toLocaleDateString()}</p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-amber-400 font-medium text-sm">₦{payment.amount_paid.toLocaleString()}</p>
-                          <p className="text-gray-500 text-xs">{new Date(payment.paid_at).toLocaleDateString()}</p>
-                        </div>
+                        <span className="text-green-400 font-medium text-sm">{fmtUSD(p.amount_paid)}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Quick Actions */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <h3 className="text-white font-semibold mb-4">Quick Actions</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={openNewShop}
+                    className="flex flex-col items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl p-5 transition-colors"
+                  >
+                    <Plus size={22} className="text-amber-400" />
+                    <span className="text-white text-sm font-medium">Add Shop</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const firstOverdue = shops.find(s => {
+                        if (!s.is_occupied) return false
+                        const st = calcRentStatus(s, rentPayments[s.id] || [])
+                        return st.label === 'Overdue'
+                      })
+                      if (firstOverdue) openAddRent(firstOverdue)
+                      else {
+                        const occupied = shops.filter(s => s.is_occupied)
+                        if (occupied.length > 0) openAddRent(occupied[0])
+                        else toast.info('No Shops', 'No occupied shops to record rent for')
+                      }
+                    }}
+                    className="flex flex-col items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl p-5 transition-colors"
+                  >
+                    <DollarSign size={22} className="text-green-400" />
+                    <span className="text-white text-sm font-medium">Record Rent</span>
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('reports') }}
+                    className="flex flex-col items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl p-5 transition-colors"
+                  >
+                    <BarChart3 size={22} className="text-blue-400" />
+                    <span className="text-white text-sm font-medium">View Reports</span>
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('tenants') }}
+                    className="flex flex-col items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl p-5 transition-colors"
+                  >
+                    <Users size={22} className="text-purple-400" />
+                    <span className="text-white text-sm font-medium">Tenants</span>
+                  </button>
+                </div>
+              </div>
             </div>
-          )
-        })()}
+          </div>
+        )}
+
+        {/* ─── FLOOR PLAN TAB ─── */}
+        {activeTab === 'floor-plan' && (
+          <>
+            {/* Floor tabs */}
+            <div className="flex items-center gap-2 mb-4 overflow-x-auto">
+              {floors.map((floor) => (
+                <button
+                  key={floor.id}
+                  onClick={() => setActiveFloor(floor.id)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
+                    activeFloor === floor.id
+                      ? 'bg-amber-500 text-black'
+                      : 'bg-gray-800 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {floor.name}
+                </button>
+              ))}
+              {floors.length === 0 && (
+                <span className="text-gray-500 text-sm">No floors yet. Add a floor to get started.</span>
+              )}
+            </div>
+
+            {/* Search */}
+            <div className="relative mb-4 max-w-md">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search shops by number, name or tenant..."
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {viewMode === 'plan' ? (
+              /* ─── FLOOR PLAN VIEW ─── */
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 overflow-auto">
+                <div className="flex items-center gap-3 mb-3 text-[10px] text-gray-500">
+                  <Move size={12} /> Drag shops to move them
+                  <Maximize size={12} /> Drag corners to resize
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-green-600 inline-block" /> Paid</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-yellow-500 inline-block" /> Due soon</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-600 inline-block" /> Overdue</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-gray-600 inline-block" /> Vacant</span>
+                </div>
+                <div
+                  ref={planRef}
+                  className="relative select-none"
+                  style={{
+                    width: GRID_COLS * CELL_SIZE,
+                    height: GRID_ROWS * CELL_SIZE,
+                    minWidth: GRID_COLS * CELL_SIZE,
+                  }}
+                >
+                  {Array.from({ length: GRID_COLS }).map((_, x) => (
+                    <div
+                      key={`gx-${x}`}
+                      className="absolute top-0 bottom-0 border-l border-gray-800/50"
+                      style={{ left: x * CELL_SIZE }}
+                    />
+                  ))}
+                  {Array.from({ length: GRID_ROWS }).map((_, y) => (
+                    <div
+                      key={`gy-${y}`}
+                      className="absolute left-0 right-0 border-t border-gray-800/50"
+                      style={{ top: y * CELL_SIZE }}
+                    />
+                  ))}
+
+                  {currentFloorsShops.map((shop) => {
+                    const payments = rentPayments[shop.id] || []
+                    const status = calcRentStatus(shop, payments)
+                    return (
+                      <div
+                        key={shop.id}
+                        onMouseDown={(e) => handleDragStart(e, shop.id)}
+                        onClick={() => handleShopPlanClick(shop)}
+                        className={`absolute border-2 rounded-lg flex flex-col items-center justify-center text-xs font-medium cursor-grab active:cursor-grabbing transition-colors group ${
+                          selectedShop === shop.id ? 'border-amber-400 z-10' : 'border-gray-700'
+                        } ${status.color} bg-opacity-90`}
+                        style={{
+                          left: shop.pos_x * CELL_SIZE + 2,
+                          top: shop.pos_y * CELL_SIZE + 2,
+                          width: shop.width * CELL_SIZE - 4,
+                          height: shop.height * CELL_SIZE - 4,
+                        }}
+                      >
+                        <span className="text-white font-bold text-xs leading-tight text-center px-1">
+                          {shop.shop_number}
+                        </span>
+                        <span className="text-white/80 text-[10px] leading-tight text-center px-1 truncate max-w-full">
+                          {shop.shop_name}
+                        </span>
+                        {shop.is_occupied && shop.tenant_name && (
+                          <span className="text-white/60 text-[9px] leading-tight truncate max-w-full px-1">
+                            {shop.tenant_name}
+                          </span>
+                        )}
+                        {!shop.is_occupied && (
+                          <span className="text-white/40 text-[9px] leading-tight">Vacant</span>
+                        )}
+
+                        {/* Info button overlay on hover */}
+                        <button
+                          className="info-btn absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/80 rounded-full p-0.5 text-gray-300 hover:text-white z-20"
+                          onClick={(e) => handleShopInfoClick(e, shop)}
+                          title="View details"
+                        >
+                          <Info size={10} />
+                        </button>
+
+                        {/* Resize handles */}
+                        <div
+                          className="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-se-resize bg-white/20 hover:bg-white/40 rounded-bl-lg rounded-tr-lg"
+                          onMouseDown={(e) => handleMouseDown(e, shop.id, 'se')}
+                        />
+                        <div
+                          className="resize-handle absolute top-0 right-0 w-2 h-full cursor-e-resize bg-white/10 hover:bg-white/30 rounded-r"
+                          style={{ right: -1 }}
+                          onMouseDown={(e) => handleMouseDown(e, shop.id, 'e')}
+                        />
+                        <div
+                          className="resize-handle absolute bottom-0 left-0 w-full h-2 cursor-s-resize bg-white/10 hover:bg-white/30 rounded-b"
+                          style={{ bottom: -1 }}
+                          onMouseDown={(e) => handleMouseDown(e, shop.id, 's')}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* ─── LIST VIEW ─── */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {currentFloorsShops.map((shop) => {
+                  const payments = rentPayments[shop.id] || []
+                  const status = calcRentStatus(shop, payments)
+                  const isSelected = selectedShop === shop.id
+                  return (
+                    <div
+                      key={shop.id}
+                      className={`bg-gray-900 border rounded-2xl p-4 cursor-pointer transition-colors ${
+                        isSelected ? 'border-amber-500' : 'border-gray-800 hover:border-gray-700'
+                      }`}
+                      onClick={() => {
+                        if (selectedShop === shop.id && showDetailPanel) {
+                          setShowDetailPanel(false)
+                          setSelectedShop(null)
+                        } else {
+                          setSelectedShop(shop.id)
+                          setShowDetailPanel(true)
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${status.color}`} />
+                          <h3 className="text-white font-semibold text-sm">{shop.shop_number}</h3>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {shop.is_occupied && (
+                            <span className="text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">Occupied</span>
+                          )}
+                          {!shop.is_occupied && (
+                            <span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded-full">Vacant</span>
+                          )}
+                          <span className="text-[10px] text-gray-500">{status.label}</span>
+                        </div>
+                      </div>
+                      <p className="text-gray-300 text-xs font-medium">{shop.shop_name}</p>
+                      {shop.is_occupied && shop.tenant_name && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <Users size={11} className="text-gray-500" />
+                          <span className="text-gray-400 text-xs">{shop.tenant_name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 mt-1">
+                        <DollarSign size={11} className="text-gray-500" />
+                        <span className="text-gray-400 text-xs">{fmtUSDshort(shop.monthly_rent)}/mo</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleOccupied(shop) }}
+                          className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-colors ${
+                            shop.is_occupied
+                              ? 'bg-gray-800 text-gray-400 hover:text-white'
+                              : 'bg-green-600 hover:bg-green-500 text-white'
+                          }`}
+                        >
+                          {shop.is_occupied ? 'Vacate' : 'Occupy'}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openAddRent(shop) }}
+                          className="flex items-center gap-1 text-xs bg-green-600 hover:bg-green-500 text-white px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          <CalendarDays size={11} /> Pay Rent
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openEditShop(shop) }}
+                          className="text-xs text-amber-400 hover:text-amber-300 p-1"
+                        >
+                          <Edit3 size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteShop(shop) }}
+                          className="text-xs text-red-400 hover:text-red-300 p-1"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+                {currentFloorsShops.length === 0 && (
+                  <div className="col-span-full text-center py-12">
+                    <p className="text-gray-500 text-sm">No shops on this floor. Add your first shop.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Selected shop detail panel */}
+            {showDetailPanel && (() => {
+              const shop = shops.find(s => s.id === selectedShop)
+              if (!shop) return null
+              const payments = rentPayments[shop.id] || []
+              const status = calcRentStatus(shop, payments)
+              return (
+                <div className="mt-4 bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-white font-bold text-lg">{shop.shop_name}</h3>
+                      <p className="text-gray-400 text-sm">Shop {shop.shop_number} · {activeFloorObj?.name || ''}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleOccupied(shop)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+                          shop.is_occupied
+                            ? 'bg-gray-800 text-gray-400 hover:text-white'
+                            : 'bg-green-600 hover:bg-green-500 text-white'
+                        }`}
+                      >
+                        {shop.is_occupied ? 'Vacate' : 'Occupy'}
+                      </button>
+                      <button
+                        onClick={() => openAddRent(shop)}
+                        className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-xl text-sm font-medium transition-colors"
+                      >
+                        <CalendarDays size={14} /> Record Payment
+                      </button>
+                      <button
+                        onClick={() => openEditShop(shop)}
+                        className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-xl text-sm transition-colors"
+                      >
+                        <Edit3 size={14} /> Edit
+                      </button>
+                      <button
+                        onClick={() => { setShowDetailPanel(false); setSelectedShop(null) }}
+                        className="text-gray-400 hover:text-white p-1"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Status</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className={`w-3 h-3 rounded-full ${status.color}`} />
+                        <span className="text-white font-medium text-sm">{shop.is_occupied ? 'Occupied' : 'Vacant'} — {status.label}</span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Tenant</p>
+                      <p className="text-white font-medium text-sm">{shop.tenant_name || 'N/A'}</p>
+                      {shop.tenant_phone && <p className="text-gray-400 text-xs mt-0.5">{shop.tenant_phone}</p>}
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Monthly Rent</p>
+                      <p className="text-white font-medium text-sm">{fmtUSDshort(shop.monthly_rent)}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Position</p>
+                      <p className="text-white font-medium text-sm">X:{shop.pos_x} Y:{shop.pos_y}</p>
+                      <p className="text-gray-400 text-xs">{shop.width}x{shop.height} cells</p>
+                    </div>
+                  </div>
+
+                  {shop.shop_category && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="bg-gray-800 rounded-xl p-3">
+                        <p className="text-gray-500 text-xs">Category</p>
+                        <p className="text-white font-medium text-sm">{shop.shop_category}</p>
+                      </div>
+                      {shop.lease_start_date && (
+                        <div className="bg-gray-800 rounded-xl p-3">
+                          <p className="text-gray-500 text-xs">Lease</p>
+                          <p className="text-white font-medium text-sm">
+                            {new Date(shop.lease_start_date).toLocaleDateString()} — {shop.lease_end_date ? new Date(shop.lease_end_date).toLocaleDateString() : 'Open'}
+                          </p>
+                        </div>
+                      )}
+                      {shop.deposit_amount > 0 && (
+                        <div className="bg-gray-800 rounded-xl p-3">
+                          <p className="text-gray-500 text-xs">Deposit</p>
+                          <p className="text-white font-medium text-sm">{fmtUSDshort(shop.deposit_amount)}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Payment History</h4>
+                    {payments.length === 0 ? (
+                      <p className="text-gray-600 text-sm">No payments recorded yet.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {[...payments].reverse().map((payment) => (
+                          <div key={payment.id} className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                            <div>
+                              <p className="text-white text-sm font-medium">
+                                {payment.months_paid} month{payment.months_paid > 1 ? 's' : ''}
+                              </p>
+                              {payment.notes && <p className="text-gray-500 text-xs mt-0.5">{payment.notes}</p>}
+                              {payment.recorded_by_name && <p className="text-gray-600 text-xs mt-0.5">Recorded by {payment.recorded_by_name}</p>}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-amber-400 font-medium text-sm">{fmtUSD(payment.amount_paid)}</p>
+                              <p className="text-gray-500 text-xs">{new Date(payment.paid_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+          </>
+        )}
+
+        {/* ─── TENANTS TAB ─── */}
+        {activeTab === 'tenants' && (
+          <div className="space-y-4">
+            {/* Filters */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 max-w-xs">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  value={tenantSearch}
+                  onChange={(e) => setTenantSearch(e.target.value)}
+                  placeholder="Search by name, shop, phone, email..."
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <select
+                value={tenantFilterFloor}
+                onChange={(e) => setTenantFilterFloor(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              >
+                <option value="">All Floors</option>
+                {floors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+              <span className="text-gray-500 text-sm">{tenantList.length} tenant{tenantList.length !== 1 ? 's' : ''}</span>
+            </div>
+
+            {/* Table */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-800 bg-gray-900/50">
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Shop #</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Shop Name</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Floor</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Tenant</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Phone</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Email</th>
+                      <th className="text-right text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Rent/mo</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Lease End</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Status</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {tenantList.map(shop => {
+                      const payments = rentPayments[shop.id] || []
+                      const status = calcRentStatus(shop, payments)
+                      return (
+                        <tr
+                          key={shop.id}
+                          className="hover:bg-gray-800/50 transition-colors cursor-pointer"
+                          onClick={() => { setTenantDetailShop(shop); setShowTenantDetail(true) }}
+                        >
+                          <td className="px-4 py-3 text-white font-medium">{shop.shop_number}</td>
+                          <td className="px-4 py-3 text-gray-300">{shop.shop_name}</td>
+                          <td className="px-4 py-3 text-gray-400">{shop.floorName}</td>
+                          <td className="px-4 py-3 text-white">{shop.tenant_name || '-'}</td>
+                          <td className="px-4 py-3 text-gray-400">{shop.tenant_phone || '-'}</td>
+                          <td className="px-4 py-3 text-gray-400">{shop.email || '-'}</td>
+                          <td className="px-4 py-3 text-right text-white font-medium">{fmtUSDshort(shop.monthly_rent)}</td>
+                          <td className="px-4 py-3 text-gray-400">{shop.lease_end_date ? new Date(shop.lease_end_date).toLocaleDateString() : '-'}</td>
+                          <td className="px-4 py-3">
+                            {!shop.is_occupied ? (
+                              <span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">Vacant</span>
+                            ) : status.label === 'Overdue' ? (
+                              <span className="text-[10px] text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">Overdue</span>
+                            ) : (
+                              <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Active</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openEditShop(shop) }}
+                              className="text-gray-500 hover:text-amber-400 p-1"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {tenantList.length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="text-center py-12 text-gray-500 text-sm">No tenants found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── REPORTS TAB ─── */}
+        {activeTab === 'reports' && (
+          <div className="space-y-8">
+            {/* Occupancy Report */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <Building2 size={16} className="text-gray-400" />
+                  Occupancy Report
+                </h3>
+                <button
+                  onClick={() => exportCSV('occupancy-report', ['Floor', 'Total Shops', 'Occupied', 'Vacant', 'Occupancy %'], occupancyReport.map(r => [r.floor, String(r.total), String(r.occupied), String(r.vacant), `${r.rate}%`]))}
+                  className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Download size={12} /> Export CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-800">
+                      <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Floor</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Total Shops</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Occupied</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Vacant</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Occupancy %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {occupancyReport.map(r => (
+                      <tr key={r.floor} className="hover:bg-gray-800/30">
+                        <td className="px-3 py-2.5 text-white font-medium">{r.floor}</td>
+                        <td className="px-3 py-2.5 text-gray-300 text-right">{r.total}</td>
+                        <td className="px-3 py-2.5 text-green-400 text-right">{r.occupied}</td>
+                        <td className="px-3 py-2.5 text-gray-400 text-right">{r.vacant}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className={`font-medium ${r.rate >= 80 ? 'text-green-400' : r.rate >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{r.rate}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Rent Collection Report */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <DollarSign size={16} className="text-gray-400" />
+                  Rent Collection — {now.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h3>
+                <button
+                  onClick={() => exportCSV('rent-collection', ['Floor', 'Expected', 'Collected', 'Outstanding'], rentCollectionReport.map(r => [r.floor, fmtUSD(r.expected), fmtUSD(r.collected), fmtUSD(r.outstanding)]))}
+                  className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Download size={12} /> Export CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-800">
+                      <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Floor</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Expected</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Collected</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Outstanding</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Collection %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {rentCollectionReport.map(r => {
+                      const pct = r.expected > 0 ? Math.round((r.collected / r.expected) * 100) : 0
+                      return (
+                        <tr key={r.floor} className="hover:bg-gray-800/30">
+                          <td className="px-3 py-2.5 text-white font-medium">{r.floor}</td>
+                          <td className="px-3 py-2.5 text-gray-300 text-right">{fmtUSDshort(r.expected)}</td>
+                          <td className="px-3 py-2.5 text-green-400 text-right">{fmtUSDshort(r.collected)}</td>
+                          <td className="px-3 py-2.5 text-red-400 text-right">{r.outstanding > 0 ? fmtUSDshort(r.outstanding) : '$0'}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            <span className={`font-medium ${pct >= 90 ? 'text-green-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{pct}%</span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Lease Expiry Report */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <CalendarDays size={16} className="text-gray-400" />
+                  Leases Expiring Within 60 Days
+                </h3>
+                <button
+                  onClick={() => exportCSV('leases-expiring', ['Shop #', 'Shop Name', 'Floor', 'Tenant', 'Lease End', 'Days Left'], leasesExpiring.map(r => [r.shop_number, r.shop_name, r.floorName, r.tenant_name || '', r.lease_end_date ? new Date(r.lease_end_date).toLocaleDateString() : '', String(r.daysLeft)]))}
+                  className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Download size={12} /> Export CSV
+                </button>
+              </div>
+              {leasesExpiring.length === 0 ? (
+                <p className="text-gray-600 text-sm py-4">No leases expiring within the next 60 days.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-800">
+                        <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Shop #</th>
+                        <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Shop Name</th>
+                        <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Floor</th>
+                        <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Tenant</th>
+                        <th className="text-left text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Lease End</th>
+                        <th className="text-right text-gray-400 font-medium px-3 py-2.5 text-xs uppercase tracking-wide">Days Left</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800">
+                      {leasesExpiring.map(r => (
+                        <tr key={r.id} className="hover:bg-gray-800/30">
+                          <td className="px-3 py-2.5 text-white font-medium">{r.shop_number}</td>
+                          <td className="px-3 py-2.5 text-gray-300">{r.shop_name}</td>
+                          <td className="px-3 py-2.5 text-gray-400">{r.floorName}</td>
+                          <td className="px-3 py-2.5 text-white">{r.tenant_name || '-'}</td>
+                          <td className="px-3 py-2.5 text-gray-300">{new Date(r.lease_end_date!).toLocaleDateString()}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            <span className={`font-medium ${r.daysLeft <= 7 ? 'text-red-400' : r.daysLeft <= 30 ? 'text-amber-400' : 'text-yellow-400'}`}>{r.daysLeft}d</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── SHOP FORM MODAL ─── */}
       {showShopForm && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl w-full max-w-md border border-gray-800 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-800">
+          <div className="bg-gray-900 rounded-2xl w-full max-w-lg border border-gray-800 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
               <h3 className="text-white font-bold">{editingShop ? 'Edit Shop' : 'Add Shop'}</h3>
               <button onClick={() => { setShowShopForm(false); setEditingShop(null) }} className="text-gray-400 hover:text-white"><X size={20} /></button>
             </div>
@@ -711,17 +1353,32 @@ export default function MallManagement({ onBack }: Props) {
                   <input value={shopForm.shop_name} onChange={(e) => setShopForm({ ...shopForm, shop_name: e.target.value })} placeholder="e.g. Fashion Hub" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
               </div>
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={shopForm.is_occupied}
-                    onChange={(e) => setShopForm({ ...shopForm, is_occupied: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500"
-                  />
-                  <span className="text-white text-sm font-medium">Occupied</span>
-                </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs font-medium block mb-1">Shop Category</label>
+                  <select
+                    value={shopForm.shop_category}
+                    onChange={(e) => setShopForm({ ...shopForm, shop_category: e.target.value })}
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">Select category</option>
+                    {SHOP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer mt-6">
+                    <input
+                      type="checkbox"
+                      checked={shopForm.is_occupied}
+                      onChange={(e) => setShopForm({ ...shopForm, is_occupied: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-white text-sm font-medium">Occupied</span>
+                  </label>
+                </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-gray-400 text-xs font-medium block mb-1">Position X (col)</label>
@@ -732,6 +1389,7 @@ export default function MallManagement({ onBack }: Props) {
                   <input type="number" min={0} max={GRID_ROWS - 1} value={shopForm.pos_y} onChange={(e) => setShopForm({ ...shopForm, pos_y: parseInt(e.target.value) || 0 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-gray-400 text-xs font-medium block mb-1">Width (cells)</label>
@@ -742,22 +1400,55 @@ export default function MallManagement({ onBack }: Props) {
                   <input type="number" min={1} max={GRID_ROWS} value={shopForm.height} onChange={(e) => setShopForm({ ...shopForm, height: parseInt(e.target.value) || 1 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Tenant Name</label>
-                  <input value={shopForm.tenant_name} onChange={(e) => setShopForm({ ...shopForm, tenant_name: e.target.value })} placeholder="Tenant name" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+
+              <div className="border-t border-gray-800 pt-4">
+                <h4 className="text-gray-300 text-sm font-medium mb-3">Tenant Information</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-gray-400 text-xs font-medium block mb-1">Tenant Name</label>
+                    <input value={shopForm.tenant_name} onChange={(e) => setShopForm({ ...shopForm, tenant_name: e.target.value })} placeholder="Tenant name" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-xs font-medium block mb-1">Tenant Phone</label>
+                    <input value={shopForm.tenant_phone} onChange={(e) => setShopForm({ ...shopForm, tenant_phone: e.target.value })} placeholder="Phone number" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Tenant Phone</label>
-                  <input value={shopForm.tenant_phone} onChange={(e) => setShopForm({ ...shopForm, tenant_phone: e.target.value })} placeholder="Phone number" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                <div className="mt-3">
+                  <label className="text-gray-400 text-xs font-medium block mb-1">Email</label>
+                  <input value={shopForm.email} onChange={(e) => setShopForm({ ...shopForm, email: e.target.value })} placeholder="tenant@email.com" type="email" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
               </div>
+
+              <div className="border-t border-gray-800 pt-4">
+                <h4 className="text-gray-300 text-sm font-medium mb-3">Lease & Financial Details</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-gray-400 text-xs font-medium block mb-1">Monthly Rent ($)</label>
+                    <input value={shopForm.monthly_rent} onChange={(e) => setShopForm({ ...shopForm, monthly_rent: e.target.value })} placeholder="e.g. 1500" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-xs font-medium block mb-1">Deposit Amount ($)</label>
+                    <input value={shopForm.deposit_amount} onChange={(e) => setShopForm({ ...shopForm, deposit_amount: e.target.value })} placeholder="e.g. 3000" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="text-gray-400 text-xs font-medium block mb-1">Lease Start Date</label>
+                    <input type="date" value={shopForm.lease_start_date} onChange={(e) => setShopForm({ ...shopForm, lease_start_date: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-xs font-medium block mb-1">Lease End Date</label>
+                    <input type="date" value={shopForm.lease_end_date} onChange={(e) => setShopForm({ ...shopForm, lease_end_date: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="text-gray-400 text-xs font-medium block mb-1">Monthly Rent (₦)</label>
-                <input value={shopForm.monthly_rent} onChange={(e) => setShopForm({ ...shopForm, monthly_rent: e.target.value })} placeholder="e.g. 50000" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                <label className="text-gray-400 text-xs font-medium block mb-1">Notes</label>
+                <textarea value={shopForm.notes} onChange={(e) => setShopForm({ ...shopForm, notes: e.target.value })} placeholder="Additional notes about this shop or tenant" rows={3} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
               </div>
             </div>
-            <div className="p-5 border-t border-gray-800 flex gap-2 justify-end">
+            <div className="p-5 border-t border-gray-800 flex gap-2 justify-end sticky bottom-0 bg-gray-900">
               <button onClick={() => { setShowShopForm(false); setEditingShop(null) }} className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium">Cancel</button>
               <button onClick={saveShop} disabled={savingShop} className="bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors">
                 {savingShop ? 'Saving...' : editingShop ? 'Update' : 'Add Shop'}
@@ -797,7 +1488,8 @@ export default function MallManagement({ onBack }: Props) {
             </div>
             <div className="p-5 space-y-4">
               <div><label className="text-gray-400 text-xs font-medium block mb-1">Months Paid *</label><input type="number" min={1} value={rentForm.months_paid} onChange={(e) => setRentForm({ ...rentForm, months_paid: e.target.value })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" /></div>
-              <div><label className="text-gray-400 text-xs font-medium block mb-1">Amount Paid (₦) *</label><input value={rentForm.amount_paid} onChange={(e) => setRentForm({ ...rentForm, amount_paid: e.target.value })} placeholder="e.g. 50000" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" /></div>
+              <div><label className="text-gray-400 text-xs font-medium block mb-1">Amount Paid ($) *</label><input value={rentForm.amount_paid} onChange={(e) => setRentForm({ ...rentForm, amount_paid: e.target.value })} placeholder="e.g. 1500" className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" /></div>
+              <div><label className="text-gray-400 text-xs font-medium block mb-1">Recorded By</label><input value={profile?.full_name || ''} disabled className="w-full bg-gray-800/50 border border-gray-700 text-gray-400 rounded-xl px-3 py-2 text-sm cursor-not-allowed" /></div>
               <div><label className="text-gray-400 text-xs font-medium block mb-1">Notes</label><textarea value={rentForm.notes} onChange={(e) => setRentForm({ ...rentForm, notes: e.target.value })} placeholder="Optional notes" rows={2} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" /></div>
             </div>
             <div className="p-5 border-t border-gray-800 flex gap-2 justify-end">
@@ -807,6 +1499,142 @@ export default function MallManagement({ onBack }: Props) {
           </div>
         </div>
       )}
+
+      {/* ─── TENANT DETAIL MODAL ─── */}
+      {showTenantDetail && tenantDetailShop && (() => {
+        const shop = tenantDetailShop
+        const payments = rentPayments[shop.id] || []
+        const status = calcRentStatus(shop, payments)
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-2xl w-full max-w-lg border border-gray-800 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-5 border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
+                <h3 className="text-white font-bold">Tenant Details</h3>
+                <button onClick={() => { setShowTenantDetail(false); setTenantDetailShop(null) }} className="text-gray-400 hover:text-white"><X size={20} /></button>
+              </div>
+              <div className="p-5 space-y-5">
+                {/* Shop & Tenant Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800 rounded-xl p-4">
+                    <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Shop</p>
+                    <p className="text-white font-semibold">{shop.shop_number} — {shop.shop_name}</p>
+                    <p className="text-gray-400 text-xs mt-0.5">{floors.find(f => f.id === shop.floor_id)?.name || 'Unknown'}</p>
+                  </div>
+                  <div className="bg-gray-800 rounded-xl p-4">
+                    <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Status</p>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${status.color}`} />
+                      <span className="text-white font-medium text-sm">{shop.is_occupied ? 'Occupied' : 'Vacant'} — {status.label}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                <div>
+                  <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Contact Information</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Tenant Name</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.tenant_name || '-'}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Phone</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.tenant_phone || '-'}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Email</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.email || '-'}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Category</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.shop_category || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lease & Financial */}
+                <div>
+                  <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Lease & Financial</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Monthly Rent</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{fmtUSDshort(shop.monthly_rent)}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Deposit</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.deposit_amount > 0 ? fmtUSDshort(shop.deposit_amount) : '-'}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Lease Start</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.lease_start_date ? new Date(shop.lease_start_date).toLocaleDateString() : '-'}</p>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-500 text-xs">Lease End</p>
+                      <p className="text-white text-sm font-medium mt-0.5">{shop.lease_end_date ? new Date(shop.lease_end_date).toLocaleDateString() : '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {shop.notes && (
+                  <div>
+                    <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Notes</h4>
+                    <div className="bg-gray-800 rounded-xl p-3">
+                      <p className="text-gray-300 text-sm whitespace-pre-wrap">{shop.notes}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment History */}
+                <div>
+                  <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Payment History</h4>
+                  {payments.length === 0 ? (
+                    <p className="text-gray-600 text-sm">No payments recorded yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {[...payments].reverse().map(p => (
+                        <div key={p.id} className="bg-gray-800 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                          <div>
+                            <p className="text-white text-sm font-medium">{p.months_paid} month{p.months_paid > 1 ? 's' : ''}</p>
+                            {p.notes && <p className="text-gray-500 text-xs mt-0.5">{p.notes}</p>}
+                            {p.recorded_by_name && <p className="text-gray-600 text-xs mt-0.5">by {p.recorded_by_name}</p>}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-amber-400 font-medium text-sm">{fmtUSD(p.amount_paid)}</p>
+                            <p className="text-gray-500 text-xs">{new Date(p.paid_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => { setShowTenantDetail(false); setTenantDetailShop(null); openEditShop(shop) }}
+                    className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+                  >
+                    <Edit3 size={14} /> Edit Shop
+                  </button>
+                  <button
+                    onClick={() => { setShowTenantDetail(false); setTenantDetailShop(null); openAddRent(shop) }}
+                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-sm transition-colors"
+                  >
+                    <CalendarDays size={14} /> Record Payment
+                  </button>
+                  <button
+                    onClick={() => { setShowTenantDetail(false); setTenantDetailShop(null) }}
+                    className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
