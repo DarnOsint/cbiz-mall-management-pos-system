@@ -42,7 +42,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (loading || (user && !profile))
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-amber-500">Loading...</div>
+        <div className="space-y-4 w-full max-w-md px-4">
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-1/2" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-2/3" />
+        </div>
       </div>
     )
 
@@ -56,7 +62,13 @@ function RoleGuard({ children, allowed }: { children: React.ReactNode; allowed: 
   if (loading || (user && !profile))
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-amber-500">Loading...</div>
+        <div className="space-y-4 w-full max-w-md px-4">
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-1/2" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-2/3" />
+        </div>
       </div>
     )
   if (!profile) return <Navigate to="/login" />
@@ -69,7 +81,13 @@ function RoleRoute() {
   if (loading || (user && !profile))
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-amber-500">Loading...</div>
+        <div className="space-y-4 w-full max-w-md px-4">
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-1/2" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-2/3" />
+        </div>
       </div>
     )
   if (!profile) return <Navigate to="/login" />
@@ -90,10 +108,7 @@ function AppRoutes() {
       <Suspense
         fallback={
           <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-500 text-sm">Loading...</p>
-            </div>
+            <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
           </div>
         }
       >
@@ -268,10 +283,7 @@ function AppInner() {
       <Suspense
         fallback={
           <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-500 text-sm">Loading...</p>
-            </div>
+            <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
           </div>
         }
       >

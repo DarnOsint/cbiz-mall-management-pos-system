@@ -367,7 +367,7 @@ export default function Inventory({ onBack }: Props) {
 
       <div className="p-6">
         {loading ? (
-          <div className="text-amber-500 text-center py-12">Loading...</div>
+          <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : view === 'stock' ? (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

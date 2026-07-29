@@ -164,7 +164,7 @@ export default function OpenOrdersTab() {
   useVisibilityInterval(fetchDeleteRequests, 30_000, [fetchDeleteRequests])
 
   if (loading)
-    return <div className="flex items-center justify-center p-8 text-amber-500">Loading...</div>
+    return <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
 
   return (
     <>

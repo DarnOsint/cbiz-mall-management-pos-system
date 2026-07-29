@@ -7,7 +7,6 @@ import {
   Lock,
   Building2,
   Tag,
-  Percent,
   RotateCcw,
   DollarSign,
   Printer,
@@ -22,7 +21,6 @@ import Inventory from './Inventory'
 import ChangePassword from './ChangePassword'
 import MallManagement from './MallManagement'
 import DiscountManagement from './DiscountManagement'
-import TaxManagement from './TaxManagement'
 import RefundManagement from './RefundManagement'
 import ExpenseManagement from './ExpenseManagement'
 import ReceiptSettings from './ReceiptSettings'
@@ -123,14 +121,6 @@ export default function BackOffice() {
       roles: ['owner', 'manager'],
     },
     {
-      id: 'tax',
-      label: 'Tax Rates',
-      desc: 'Manage tax rates and VAT settings',
-      icon: Percent,
-      color: 'bg-orange-500',
-      roles: ['owner', 'manager'],
-    },
-    {
       id: 'receipt',
       label: 'Receipt Settings',
       desc: 'Customize receipt layout, logo, footer & terms',
@@ -158,8 +148,14 @@ export default function BackOffice() {
 
   if (!profile)
     return (
-      <div className="min-h-full bg-gray-950 flex items-center justify-center">
-        <div className="text-amber-500">Loading...</div>
+      <div className="min-h-full bg-gray-950 flex items-center justify-center h-full py-16">
+        <div className="space-y-4 w-full max-w-md px-4">
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-1/2" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-2/3" />
+        </div>
       </div>
     )
 
@@ -176,8 +172,6 @@ export default function BackOffice() {
     return <MallManagement onBack={() => setActiveSection(null)} />
   if (activeSection === 'discounts')
     return <DiscountManagement onBack={() => setActiveSection(null)} />
-  if (activeSection === 'tax')
-    return <TaxManagement onBack={() => setActiveSection(null)} />
   if (activeSection === 'refunds')
     return <RefundManagement onBack={() => setActiveSection(null)} />
   if (activeSection === 'expenses')

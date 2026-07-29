@@ -28,31 +28,12 @@ export default function SalePanel({
   onPlaceOrder,
   profile,
 }: Props) {
-  const { subtotal, tax, grandTotal } = useMemo(() => {
-    let s = 0
-    let t = 0
+  const { grandTotal } = useMemo(() => {
     let gt = 0
     for (const entry of cart) {
-      const price = entry.item.price
-      const qty = entry.quantity
-      const tr = entry.item.tax_rates
-      const inclusive = entry.item.tax_inclusive !== false
-      const rate = tr?.rate || 0
-      s += price * qty
-      if (rate > 0) {
-        if (inclusive) {
-          t += price * qty * (rate / (100 + rate))
-          gt += price * qty
-        } else {
-          const taxAmount = price * qty * (rate / 100)
-          t += taxAmount
-          gt += price * qty + taxAmount
-        }
-      } else {
-        gt += price * qty
-      }
+      gt += entry.item.price * entry.quantity
     }
-    return { subtotal: s, tax: t, grandTotal: gt }
+    return { grandTotal: gt }
   }, [cart])
 
   return (
@@ -124,18 +105,6 @@ export default function SalePanel({
           onChange={(e) => onNotesChange(e.target.value)}
           className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 mb-3"
         />
-        {cart.length > 0 && tax > 0 && (
-          <div className="space-y-1 mb-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Subtotal</span>
-              <span className="text-gray-300">{formatPrice(subtotal)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Tax</span>
-              <span className="text-orange-400">{formatPrice(tax)}</span>
-            </div>
-          </div>
-        )}
         <div className="flex justify-between items-center mb-3">
           <span className="text-gray-400 text-sm font-bold">Total</span>
           <PriceDisplay

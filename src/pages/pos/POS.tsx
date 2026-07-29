@@ -21,7 +21,7 @@ import PaymentModal from './PaymentModal'
 import CashSaleModal from './CashSaleModal'
 import RefundModal from './RefundModal'
 import ShiftManager from '../../components/ShiftManager'
-import type { Item, ItemCategory, Sale, SaleItem, Profile, TaxRate, TillSession } from '../../types'
+import type { Item, ItemCategory, Sale, SaleItem, Profile, TillSession } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
 interface CartEntry {
@@ -101,7 +101,7 @@ export default function POS() {
       let found: Item | null = null
       const { data: directMatch } = await supabase
         .from('item')
-        .select('*, item_categories(name, id, sort_order, is_active), tax_rates(id, name, rate)')
+        .select('*, item_categories(name, id, sort_order, is_active)')
         .eq('barcode', trimmed)
         .eq('is_active', true)
         .single()
@@ -116,7 +116,7 @@ export default function POS() {
         if (barcodeMatch) {
           const { data: itemData } = await supabase
             .from('item')
-            .select('*, item_categories(name, id, sort_order, is_active), tax_rates(id, name, rate)')
+            .select('*, item_categories(name, id, sort_order, is_active)')
             .eq('id', barcodeMatch.item_id)
             .eq('is_active', true)
             .single()
@@ -143,7 +143,7 @@ export default function POS() {
     setMenuError(null)
     const { data, error } = await supabase
       .from('item')
-      .select('*, item_categories(name, id, sort_order, is_active), tax_rates(id, name, rate)')
+      .select('*, item_categories(name, id, sort_order, is_active)')
       .eq('is_active', true)
       .order('sort_order', { nullsFirst: false })
       .order('name')
@@ -202,27 +202,14 @@ export default function POS() {
     setCart((prev) => prev.filter((e) => e.item.id !== itemId))
   }
 
-  const { cartTotal, cartItemCount, cartTax } = useMemo(() => {
+  const { cartTotal, cartItemCount } = useMemo(() => {
     let total = 0
-    let tax = 0
     let count = 0
     for (const e of cart) {
       count += e.quantity
-      const price = e.item.price
-      const qty = e.quantity
-      const rate = e.item.tax_rates?.rate || 0
-      const inclusive = e.item.tax_inclusive !== false
-      total += price * qty
-      if (rate > 0) {
-        if (inclusive) {
-          tax += price * qty * (rate / (100 + rate))
-        } else {
-          tax += price * qty * (rate / 100)
-          total += price * qty * (rate / 100)
-        }
-      }
+      total += e.item.price * e.quantity
     }
-    return { cartTotal: total, cartItemCount: count, cartTax: tax }
+    return { cartTotal: total, cartItemCount: count }
   }, [cart])
 
   const handlePlaceOrder = async () => {
@@ -272,7 +259,7 @@ export default function POS() {
       })
       const { data: freshOrder } = await supabase
         .from('orders')
-        .select('*, order_items(*, items(name, price, tax_rate_id, tax_inclusive, tax_rates(id, name, rate)))')
+        .select('*, order_items(*, items(name, price))')
         .eq('id', orderId)
         .single()
       if (freshOrder) {
@@ -312,8 +299,14 @@ export default function POS() {
 
   if (loading) {
     return (
-      <div className="min-h-full bg-gray-950 flex items-center justify-center">
-        <div className="text-amber-500">Loading...</div>
+      <div className="min-h-full bg-gray-950 flex items-center justify-center h-full py-16">
+        <div className="space-y-4 w-full max-w-md px-4">
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-1/2" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-2/3" />
+        </div>
       </div>
     )
   }

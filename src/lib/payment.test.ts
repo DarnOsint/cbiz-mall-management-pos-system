@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_VAT_RATE,
-  calcVat,
   calcTotal,
   calcChange,
   canProcess,
@@ -31,30 +29,12 @@ function makeItem(id: string, total_price: number): OrderItem {
   }
 }
 
-// ─── VAT & totals ─────────────────────────────────────────────────────────
-
-describe('calcVat', () => {
-  it('calculates 7.5% of subtotal', () => {
-    expect(calcVat(1000)).toBeCloseTo(75)
-    expect(calcVat(0)).toBe(0)
-    expect(calcVat(200)).toBeCloseTo(15)
-  })
-
-  it('uses DEFAULT_VAT_RATE constant', () => {
-    expect(DEFAULT_VAT_RATE).toBe(0.075)
-    expect(calcVat(100)).toBe(100 * DEFAULT_VAT_RATE)
-  })
-})
+// ─── Basic totals ─────────────────────────────────────────────────────────
 
 describe('calcTotal', () => {
-  it('adds VAT to subtotal', () => {
-    expect(calcTotal(1000)).toBeCloseTo(1075)
+  it('returns subtotal unchanged', () => {
+    expect(calcTotal(1000)).toBe(1000)
     expect(calcTotal(0)).toBe(0)
-  })
-
-  it('is always greater than subtotal for positive amounts', () => {
-    const sub = 5000
-    expect(calcTotal(sub)).toBeGreaterThan(sub)
   })
 })
 

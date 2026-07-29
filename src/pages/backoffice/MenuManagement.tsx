@@ -5,7 +5,6 @@ import { useAuth } from '../../context/AuthContext'
 import { ArrowLeft, Plus, Edit2, X, Save, ToggleLeft, ToggleRight, Search, Tag, ScanBarcode } from 'lucide-react'
 import { formatPrice } from '../../lib/currency'
 import { useToast } from '../../context/ToastContext'
-import type { TaxRate } from '../../types'
 
 interface ItemCategory {
   id: string
@@ -20,9 +19,6 @@ interface Item {
   is_available: boolean
   category_id: string
   item_categories?: ItemCategory | null
-  tax_rate_id?: string | null
-  tax_inclusive?: boolean
-  tax_rates?: TaxRate | null
   barcode?: string | null
 }
 interface ItemForm {
@@ -32,8 +28,6 @@ interface ItemForm {
   description: string
   image_url: string
   is_available: boolean
-  tax_rate_id: string
-  tax_inclusive: boolean
   barcode: string
 }
 interface CatForm {
@@ -47,7 +41,6 @@ interface Props {
 export default function MenuManagement({ onBack }: Props) {
   const [items, setItems] = useState<Item[]>([])
   const [categories, setCategories] = useState<ItemCategory[]>([])
-  const [taxRates, setTaxRates] = useState<TaxRate[]>([])
   const [loading, setLoading] = useState(true)
   const { profile } = useAuth()
   const toast = useToast()
@@ -66,21 +59,17 @@ export default function MenuManagement({ onBack }: Props) {
     description: '',
     image_url: '',
     is_available: true,
-    tax_rate_id: '',
-    tax_inclusive: true,
     barcode: '',
   })
   const [catForm, setCatForm] = useState<CatForm>({ name: '' })
 
   const fetchAll = useCallback(async () => {
-    const [itemsRes, catsRes, taxRes] = await Promise.all([
-      supabase.from('item').select('*, item_categories(id, name), tax_rates(id, name, rate)').order('name'),
+    const [itemsRes, catsRes] = await Promise.all([
+      supabase.from('item').select('*, item_categories(id, name)').order('name'),
       supabase.from('item_categories').select('*').order('name'),
-      supabase.from('tax_rates').select('*').order('name'),
     ])
     if (itemsRes.data) setItems(itemsRes.data)
     if (catsRes.data) setCategories(catsRes.data)
-    if (taxRes.data) setTaxRates(taxRes.data)
     setLoading(false)
   }, [])
 
@@ -97,8 +86,6 @@ export default function MenuManagement({ onBack }: Props) {
       description: '',
       image_url: '',
       is_available: true,
-      tax_rate_id: taxRates.find((t) => t.is_default)?.id || '',
-      tax_inclusive: true,
       barcode: '',
     })
     setShowItemModal(true)
@@ -112,8 +99,6 @@ export default function MenuManagement({ onBack }: Props) {
       description: item.description || '',
       image_url: item.image_url || '',
       is_available: item.is_available,
-      tax_rate_id: item.tax_rate_id || '',
-      tax_inclusive: item.tax_inclusive !== false,
       barcode: item.barcode || '',
     })
     setShowItemModal(true)
@@ -171,8 +156,6 @@ export default function MenuManagement({ onBack }: Props) {
       description: itemForm.description,
       image_url: itemForm.image_url || null,
       is_available: itemForm.is_available,
-      tax_rate_id: itemForm.tax_rate_id || null,
-      tax_inclusive: itemForm.tax_inclusive,
       barcode: itemForm.barcode || null,
     }
     let savedItemId: string | undefined
@@ -353,7 +336,7 @@ export default function MenuManagement({ onBack }: Props) {
 
       <div className="p-6">
         {loading ? (
-          <div className="text-amber-500 text-center py-12">Loading...</div>
+          <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : view === 'items' ? (
           <>
             <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -413,11 +396,6 @@ export default function MenuManagement({ onBack }: Props) {
                       <h3 className="text-white font-medium text-sm truncate">{item.name}</h3>
                       <div className="flex items-center gap-2">
                         <p className="text-amber-400 font-bold text-sm">{formatPrice(item.price)}</p>
-                        {item.tax_rates && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">
-                            {item.tax_rates.name} {item.tax_rates.rate}%
-                          </span>
-                        )}
                       </div>
                       {item.barcode && (
                         <p className="text-gray-500 text-[10px] mt-1">Code: {item.barcode}</p>
@@ -532,45 +510,6 @@ export default function MenuManagement({ onBack }: Props) {
                     placeholder="0"
                   />
                 </div>
-                <div>
-                  <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
-                    Tax Rate
-                  </label>
-                  <select
-                    value={itemForm.tax_rate_id}
-                    onChange={(e) => setItemForm({ ...itemForm, tax_rate_id: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="">No tax</option>
-                    {taxRates.filter((t) => t.is_active).map((tr) => (
-                      <option key={tr.id} value={tr.id}>
-                        {tr.name} — {tr.rate}%
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
-                  <div>
-                    <span className="text-white text-sm">Tax Inclusive</span>
-                    <p className="text-gray-500 text-xs mt-0.5">
-                      {itemForm.tax_inclusive
-                        ? 'Price includes tax'
-                        : 'Tax added on top of price'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      setItemForm({ ...itemForm, tax_inclusive: !itemForm.tax_inclusive })
-                    }
-                  >
-                    {itemForm.tax_inclusive ? (
-                      <ToggleRight size={24} className="text-green-400" />
-                    ) : (
-                      <ToggleLeft size={24} className="text-gray-500" />
-                    )}
-                  </button>
-                </div>
-
                 <div>
                   <label className="text-gray-400 text-xs uppercase tracking-wide block mb-1">
                     <span className="flex items-center gap-1"><ScanBarcode size={12} /> Barcode</span>

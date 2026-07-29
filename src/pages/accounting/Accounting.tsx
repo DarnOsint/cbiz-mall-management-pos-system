@@ -280,7 +280,7 @@ export default function Accounting() {
         )}
         <div className="ml-auto flex items-center gap-3">
           <span className="text-gray-600 text-xs">
-            {loading ? 'Loading...' : `${paidCount} completed sales`}
+            {loading ? <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin inline-block" /> : `${paidCount} completed sales`}
           </span>
           <HelpTooltip
             storageKey="accounting"

@@ -237,7 +237,7 @@ export default function ExpenseManagement({ onBack }: Props) {
         </div>
 
         {loading ? (
-          <div className="text-amber-500 text-center py-12">Loading...</div>
+          <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mx-auto mb-4">

@@ -37,15 +37,6 @@ export interface ItemCategory {
   created_at?: string
 }
 
-export interface TaxRate {
-  id: string
-  name: string
-  rate: number
-  is_default: boolean
-  is_active: boolean
-  created_at?: string
-}
-
 export interface Item {
   id: string
   name: string
@@ -63,9 +54,6 @@ export interface Item {
   created_at?: string
   updated_at?: string
   item_categories?: ItemCategory
-  tax_rate_id?: string | null
-  tax_inclusive?: boolean
-  tax_rates?: TaxRate | null
 }
 
 export interface SaleItem {

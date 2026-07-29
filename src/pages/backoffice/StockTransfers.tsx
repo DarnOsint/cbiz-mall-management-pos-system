@@ -193,6 +193,7 @@ export default function StockTransfers({ onBack }: Props) {
 
   const handleCancel = async (transfer: StockTransfer) => {
     if (!profile) return
+    if (!confirm(`Cancel transfer of "${transfer.item_name}" (${transfer.quantity})? This cannot be undone.`)) return
     setProcessing(transfer.id)
     try {
       const { error } = await supabase
@@ -374,7 +375,7 @@ export default function StockTransfers({ onBack }: Props) {
         {tab === 'pending' && (
           <>
             {loading ? (
-              <div className="text-center py-12 text-amber-500">Loading...</div>
+              <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
             ) : pending.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mx-auto mb-4">
@@ -465,7 +466,7 @@ export default function StockTransfers({ onBack }: Props) {
               </div>
             </div>
             {loading ? (
-              <div className="text-center py-12 text-amber-500">Loading...</div>
+              <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
             ) : history.length === 0 ? (
               <div className="text-center py-16">
                 <div className="w-16 h-16 rounded-2xl bg-gray-800 border border-gray-700 flex items-center justify-center mx-auto mb-4">

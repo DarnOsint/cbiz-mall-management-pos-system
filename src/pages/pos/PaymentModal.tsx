@@ -30,7 +30,7 @@ interface SaleItemExtended {
   status?: string
   modifier_notes?: string | null
   created_at?: string
-  items?: { name: string; price: number; tax_rate_id?: string | null; tax_inclusive?: boolean; tax_rates?: { id: string; name: string; rate: number } | null } | null
+  items?: { name: string; price: number } | null
 }
 interface SaleExtended {
   id: string
@@ -64,7 +64,7 @@ export default function PaymentModal({ sale: saleProp, onSuccess, onClose, shift
   const refreshSale = async () => {
     const { data } = await supabase
       .from('orders')
-      .select('*, order_items(*, items(name, price, tax_rate_id, tax_inclusive, tax_rates(id, name, rate)))')
+      .select('*, order_items(*, items(name, price))')
       .eq('id', sale.id)
       .single()
     if (data) {
@@ -142,19 +142,7 @@ export default function PaymentModal({ sale: saleProp, onSuccess, onClose, shift
   }, [customerSearch, showCustomerSearch])
 
   const billableItems = (sale?.order_items || [])
-  const activeItemsTotal = billableItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
-  const computedTax = billableItems.reduce((sum, i) => {
-    const tr = (i as any).items?.tax_rates
-    if (!tr?.rate) return sum
-    const inclusive = (i as any).items?.tax_inclusive !== false
-    const tp = i.total_price || 0
-    if (inclusive) {
-      return sum + tp * (tr.rate / (100 + tr.rate))
-    }
-    const up = (i as any).unit_price || (i as any).items?.price || 0
-    return sum + up * i.quantity * (tr.rate / 100)
-  }, 0)
-  const subtotal = activeItemsTotal
+  const subtotal = billableItems.reduce((sum, i) => sum + (i.total_price || 0), 0)
   const total = Math.max(0, subtotal - discountAmount)
 
   const pointsToEarn = Math.floor(total / 100)
@@ -668,18 +656,6 @@ export default function PaymentModal({ sale: saleProp, onSuccess, onClose, shift
               </div>
             )}
             <div className="border-t border-gray-700 pt-3 space-y-2">
-              {(computedTax > 0 || appliedDiscount) && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Subtotal</span>
-                  <span className="text-gray-400">{formatPrice(subtotal)}</span>
-                </div>
-              )}
-              {computedTax > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-orange-400">Tax</span>
-                  <span className="text-orange-400">{formatPrice(computedTax)}</span>
-                </div>
-              )}
               {appliedDiscount && (
                 <div className="flex justify-between text-sm">
                   <span className="text-green-400">Discount</span>

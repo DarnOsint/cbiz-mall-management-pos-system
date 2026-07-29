@@ -162,25 +162,6 @@ export default function ReceiptModal({
   const rawTotal = subtotal
   const receiptDiscount = isPaid ? discountAmount : 0
   const total = Math.max(0, rawTotal - receiptDiscount)
-  const computedTax = billableItems.reduce((sum, i) => {
-    const tr = (i as any).items?.tax_rates
-    if (!tr?.rate) return sum
-    const inclusive = (i as any).items?.tax_inclusive !== false
-    const tp = (i as any).total_price || 0
-    if (inclusive) {
-      return sum + tp * (tr.rate / (100 + tr.rate))
-    }
-    const up = (i as any).unit_price || (i as any).items?.price || 0
-    return sum + up * ((i as any).quantity || 1) * (tr.rate / 100)
-  }, 0)
-  const computedTaxRate = billableItems.reduce((max, i) => {
-    const tr = (i as any).items?.tax_rates
-    return tr?.rate > max ? tr.rate : max
-  }, 0)
-  const computedTaxName = billableItems.reduce((name, i) => {
-    const tr = (i as any).items?.tax_rates
-    return tr?.name || name
-  }, '')
   const receiptSettings = getReceiptSettings()
   const shopName = receiptSettings.shopName || 'C.Biz POS'
 
@@ -383,16 +364,6 @@ export default function ReceiptModal({
           ]
         : []
 
-    const taxLines =
-      computedTax > 0
-        ? [
-            fmtRow(
-              `Tax (${computedTaxName} ${computedTaxRate}%):`,
-              `N${computedTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-            ),
-          ]
-        : []
-
     if (type === 'internal') {
       const lines = [
         '',
@@ -418,15 +389,10 @@ export default function ReceiptModal({
         itemLines,
         solidDivider,
         fmtRow(
-          'SUBTOTAL:',
-          `N${rawTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        ),
-        ...taxLines,
-        ...discountLines,
-        fmtRow(
           'TOTAL:',
           `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         ),
+        ...discountLines,
         ...tipLines,
         solidDivider,
         '',
@@ -472,15 +438,10 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
       itemLines,
       solidDivider,
       fmtRow(
-        'SUBTOTAL:',
-        `N${rawTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      ),
-      ...taxLines,
-      ...discountLines,
-      fmtRow(
         'TOTAL:',
         `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       ),
+      ...discountLines,
       ...tipLines,
       solidDivider,
       '',
@@ -784,14 +745,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
                 {[
                   ['Subtotal', formatPrice(rawTotal)],
-                  ...(computedTax > 0
-                    ? [
-                        [
-                          `Tax (${computedTaxName} ${computedTaxRate}%)`,
-                          formatPrice(computedTax),
-                        ] as [string, string],
-                      ]
-                    : []),
                   ...(receiptDiscount > 0 && discountName
                     ? [
                         [
@@ -809,7 +762,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       fontSize: '11px',
                       margin: '3px 0',
                       ...(l.startsWith('Discount') ? { color: '#16a34a' } : {}),
-                      ...(l.startsWith('Tax') ? { color: '#ea580c' } : {}),
                     }}
                   >
                     <span>{l}</span>
@@ -1027,14 +979,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
                 {[
                   ['Subtotal', formatPrice(rawTotal)],
-                  ...(computedTax > 0
-                    ? [
-                        [
-                          `Tax (${computedTaxName} ${computedTaxRate}%)`,
-                          formatPrice(computedTax),
-                        ] as [string, string],
-                      ]
-                    : []),
                   ...(receiptDiscount > 0 && discountName
                     ? [
                         [
@@ -1052,7 +996,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       fontSize: '11px',
                       margin: '2px 0',
                       ...(l.startsWith('Discount') ? { color: '#16a34a' } : {}),
-                      ...(l.startsWith('Tax') ? { color: '#ea580c' } : {}),
                     }}
                   >
                     <span>{l}</span>

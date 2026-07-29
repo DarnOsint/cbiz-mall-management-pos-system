@@ -1299,8 +1299,6 @@ export default function Reports() {
 
             {report.reportType === 'zreport' &&
               (() => {
-                const vat = report.grossRevenue * 0.075
-                const totalWithVat = report.grossRevenue + vat
                 const totalReturnsValue = report.returnedValue || 0
                 const totalVoids = (report.voids || []).reduce(
                   (s, v) => s + (v.total_value || 0),
@@ -1345,8 +1343,6 @@ export default function Reports() {
                               `${report.returnedItems} (${formatPrice(report.returnedValue)})`
                             ),
                             row('Gross Revenue:', formatPrice(report.grossRevenue)),
-                            row('VAT (7.5%):', formatPrice(vat)),
-                            row('Total incl. VAT:', formatPrice(totalWithVat)),
                             div,
                             ctr('PAYMENT BREAKDOWN'),
                             div,
@@ -1427,8 +1423,6 @@ export default function Reports() {
                             `${report.returnedItems} (${formatPrice(report.returnedValue)})`,
                           ],
                           ['Gross Revenue', formatPrice(report.grossRevenue)],
-                          ['VAT Collected (7.5%)', formatPrice(vat)],
-                          ['Total incl. VAT', formatPrice(totalWithVat)],
                         ] as const
                       ).map(([label, value]) => (
                         <div key={label} className="flex justify-between my-1 text-sm">

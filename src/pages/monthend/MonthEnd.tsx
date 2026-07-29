@@ -470,7 +470,7 @@ export default function MonthEnd() {
               className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-sm transition-colors"
             >
               <RefreshCw size={14} className={previewLoading ? 'animate-spin' : ''} />
-              {previewLoading ? 'Loading...' : 'Load Figures'}
+              {previewLoading ? <><div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin inline-block mr-2" />Loading...</> : 'Load Figures'}
             </button>
           </div>
 

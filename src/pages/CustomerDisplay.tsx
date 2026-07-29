@@ -57,9 +57,13 @@ export default function CustomerDisplay() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-gray-950 flex items-center justify-center">
-        <div className="text-amber-500 text-2xl font-semibold animate-pulse">
-          Loading...
+      <div className="fixed inset-0 bg-gray-950 flex items-center justify-center h-full py-16">
+        <div className="space-y-4 w-full max-w-md px-4">
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-1/2" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-10 bg-gray-800 rounded animate-pulse w-full" />
+          <div className="h-4 bg-gray-800 rounded animate-pulse w-2/3" />
         </div>
       </div>
     )

@@ -14,7 +14,6 @@ interface CsvRow {
   category_name: string
   stock_quantity: string
   min_stock_level: string
-  tax_inclusive: string
 }
 
 interface RowResult {
@@ -29,8 +28,8 @@ interface Props {
 }
 
 function generateTemplate(): string {
-  const headers = ['name', 'price', 'cost', 'barcode', 'category_name', 'stock_quantity', 'min_stock_level', 'tax_inclusive']
-  const sample = ['Sample Item', '10.00', '5.00', '1234567890', 'Food', '100', '10', 'yes']
+  const headers = ['name', 'price', 'cost', 'barcode', 'category_name', 'stock_quantity', 'min_stock_level']
+  const sample = ['Sample Item', '10.00', '5.00', '1234567890', 'Food', '100', '10']
   return Papa.unparse([headers, sample])
 }
 
@@ -130,7 +129,6 @@ export default function BulkImport({ onBack }: Props) {
         const cost = row.cost ? parseFloat(row.cost) : 0
         const stockQty = row.stock_quantity ? parseInt(row.stock_quantity, 10) : 0
         const minStock = row.min_stock_level ? parseInt(row.min_stock_level, 10) : 0
-        const taxInclusive = row.tax_inclusive?.toLowerCase() === 'yes' || row.tax_inclusive?.toLowerCase() === 'true'
 
         let categoryId: string | null = null
         if (row.category_name?.trim()) {
@@ -195,7 +193,6 @@ export default function BulkImport({ onBack }: Props) {
             price,
             cost,
             barcode: barcode || null,
-            tax_inclusive: taxInclusive,
             stock_quantity: stockQty,
             min_stock_level: minStock,
             active: true,
