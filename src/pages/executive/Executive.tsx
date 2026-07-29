@@ -197,14 +197,6 @@ export default function Executive() {
 
   useEffect(() => {
     scheduleFetchStats(0)
-    supabase
-      .from('settings')
-      .select('id, value')
-      .in('id', ['bank_name', 'bank_account_number', 'bank_account_name'])
-      .then(({ data }) => {
-        if (!data) return
-        const map = Object.fromEntries(data.map((r) => [r.id, r.value]))
-      })
     const ch = supabase
       .channel('executive-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>

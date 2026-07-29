@@ -369,9 +369,14 @@ export default function POS() {
 
       <ShiftManager currentShift={currentShift} onShiftChange={setCurrentShift} />
 
-      {currentShift && (
-        <>
-          <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 shrink-0 z-30">
+      {!currentShift && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center">
+          <p className="text-amber-400 text-xs">No active shift — sales will not be tracked</p>
+        </div>
+      )}
+
+      <>
+        <div className="bg-gray-900 border-b border-gray-800 px-4 py-2 shrink-0 z-30">
             <div className="flex items-center gap-2 max-w-xl mx-auto">
               <ScanBarcode size={18} className="text-amber-500 shrink-0" />
               <input
@@ -648,7 +653,6 @@ export default function POS() {
             </div>
           </div>
         </>
-      )}
 
       {showPayment && activeSale && (
         <PaymentModal

@@ -415,7 +415,7 @@ export default function OverviewTab({
       '',
     ].join('\n')
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daily Recon — ${fmtDate}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre}@media print{body{width:80mm}@page{margin:0;size:80mm auto}}</style></head><body>${lines}</body></html>`
-    const w = window.open('', '_blank', 'width=500,height=800')
+    const w = window.open('', 'receipt_print', 'width=500,height=800')
     if (!w) return
     w.document.open('text/html', 'replace')
     w.document.write(html)

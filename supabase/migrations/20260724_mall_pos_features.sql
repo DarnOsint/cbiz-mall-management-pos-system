@@ -147,8 +147,8 @@ CREATE TABLE IF NOT EXISTS expenses (
 -- 11. SHOP-TO-SHOP TRANSFERS
 CREATE TABLE IF NOT EXISTS stock_transfers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  from_shop_id UUID REFERENCES mall_shops(id),
-  to_shop_id UUID REFERENCES mall_shops(id),
+  from_shop_id UUID,
+  to_shop_id UUID,
   item_name TEXT NOT NULL,
   quantity NUMERIC NOT NULL DEFAULT 0,
   unit TEXT,

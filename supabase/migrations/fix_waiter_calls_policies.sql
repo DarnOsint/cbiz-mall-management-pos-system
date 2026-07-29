@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Fix: Add missing RLS policies for waiter_calls
 
 ALTER TABLE waiter_calls ENABLE ROW LEVEL SECURITY;

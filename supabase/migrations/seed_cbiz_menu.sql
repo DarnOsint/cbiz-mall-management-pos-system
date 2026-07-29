@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Celebiz Restaurant OS — Seed Menu: Food & Drinks categories + all meal items
 -- Run this in Supabase SQL editor (Dashboard → SQL Editor)
 -- Safe to re-run: deletes existing menu data first

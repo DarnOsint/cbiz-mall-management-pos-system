@@ -225,6 +225,11 @@ export default function Management() {
             <ActivityLogTab dateRange={activityRange} />
           </div>
         )}
+        {!activeTab && (
+          <div className="flex items-center justify-center h-full py-20 text-gray-600">
+            <p>Select a tab to view</p>
+          </div>
+        )}
       </div>
     </div>
   )

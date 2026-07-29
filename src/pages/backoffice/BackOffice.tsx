@@ -41,7 +41,7 @@ interface Section {
 }
 
 export default function BackOffice() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
   const [activeSection, setActiveSection] = useState<string | null>(null)
 
   useEffect(() => {
@@ -155,8 +155,6 @@ export default function BackOffice() {
       roles: ['owner', 'manager', 'cashier'],
     },
   ]
-
-  void signOut
 
   if (!profile)
     return (

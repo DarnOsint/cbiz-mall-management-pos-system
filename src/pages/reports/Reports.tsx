@@ -91,8 +91,7 @@ interface TableStat {
 interface Payout {
   id: string
   created_at: string
-  reason?: string
-  category?: string
+  description?: string
   amount?: number
 }
 interface TillSession {
@@ -233,19 +232,19 @@ export default function Reports() {
           )
           .gte('created_at', start)
           .lte('created_at', end),
-        supabase.from('payouts').select('*').gte('created_at', start).lte('created_at', end),
+        supabase.from('cash_movements').select('*').eq('type', 'payout').gte('created_at', start).lte('created_at', end),
         supabase
           .from('till_sessions')
           .select('*, profiles(full_name)')
           .gte('opened_at', start)
           .lte('opened_at', end),
         supabase.from('debtors').select('*').gte('created_at', start).lte('created_at', end),
-        supabase.from('void_log').select('*').gte('created_at', start).lte('created_at', end),
+        supabase.from('audit_log').select('new_value, created_at').eq('action', 'VOID').gte('created_at', start).lte('created_at', end),
         supabase
-          .from('returns_log')
-          .select('id, item_name, quantity, item_total, status, requested_at')
-          .gte('requested_at', start)
-          .lte('requested_at', end),
+          .from('refunds')
+          .select('id, item_name, quantity, refund_amount, status, created_at')
+          .gte('created_at', start)
+          .lte('created_at', end),
       ])
 
       const orders = ((ordersRes.data || []) as unknown as Array<PaidOrder & { tables?: PaidOrder['areas'] }>).map(o => ({ ...o, areas: o.areas ?? o.tables ?? null })) as PaidOrder[]
@@ -276,21 +275,25 @@ export default function Reports() {
         current_balance?: number
         credit_limit?: number
       }[]
-      const voids = (voidsRes.data || []) as VoidEntry[]
+      const voids = (voidsRes.data || [] as any[]).map((v) => ({
+        total_value: (typeof v.new_value === 'object' && v.new_value !== null
+          ? (v.new_value as any).total_price || (v.new_value as any).amount || 0
+          : 0)
+      }))
       const returnsData = (returnsRes.data || []) as Array<{
         id: string
         item_name: string
         quantity: number
-        item_total: number
+        refund_amount: number
         status: string
-        requested_at: string
+        created_at: string
       }>
       // Accepted returns (bar_accepted or accepted by manager)
       const acceptedReturns = returnsData.filter(
-        (r) => r.status !== 'rejected' && r.status !== 'manager_rejected' && r.status !== 'expired'
+        (r) => r.status === 'approved'
       )
       const returnedItems = acceptedReturns.reduce((s, r) => s + (r.quantity || 0), 0)
-      const returnedValue = acceptedReturns.reduce((s, r) => s + (r.item_total || 0), 0)
+      const returnedValue = acceptedReturns.reduce((s, r) => s + (r.refund_amount || 0), 0)
       // Build return count per item name for return rate
       const returnCountMap: Record<string, number> = {}
       acceptedReturns.forEach((r) => {
@@ -1247,10 +1250,10 @@ export default function Reports() {
                           <td className="px-3 py-2.5 text-gray-500 text-xs">
                             {new Date(p.created_at).toLocaleDateString('en-NG')}
                           </td>
-                          <td className="px-3 py-2.5 text-white text-sm">{p.reason}</td>
+                          <td className="px-3 py-2.5 text-white text-sm">{p.description}</td>
                           <td className="px-3 py-2.5">
                             <span className="text-xs px-2 py-0.5 rounded-lg bg-red-500/20 text-red-400 capitalize">
-                              {p.category}
+                              Payout
                             </span>
                           </td>
                           <td className="px-3 py-2.5 text-right text-red-400 font-bold text-sm">
@@ -1378,7 +1381,7 @@ export default function Reports() {
                           const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Z-Report</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Courier New',Courier,monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre;}@media print{body{width:80mm;}@page{margin:0;size:80mm auto;}}</style></head><body>${z}</body></html>`
                           const w = window.open(
                             '',
-                            '_blank',
+                            'receipt_print',
                             'width=500,height=700,toolbar=no,menubar=no,scrollbars=no'
                           )
                           if (!w) return

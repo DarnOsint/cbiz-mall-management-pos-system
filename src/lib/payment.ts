@@ -6,7 +6,7 @@
 import type { OrderItem } from '../types'
 import { supabase } from './supabase'
 
-export const DEFAULT_VAT_RATE = 0.075
+export const DEFAULT_VAT_RATE = 0.16
 
 let cachedVatRate: number | null = null
 let vatFetchPromise: Promise<number> | null = null

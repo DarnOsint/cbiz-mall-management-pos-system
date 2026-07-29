@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Fix: recalculate_order_total() trigger referenced void_qty on order_items
 -- which doesn't exist. Replaced with return_requested/return_accepted filter.
 CREATE OR REPLACE FUNCTION recalculate_order_total()

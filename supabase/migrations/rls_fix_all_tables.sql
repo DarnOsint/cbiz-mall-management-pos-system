@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Comprehensive RLS fix: add INSERT/UPDATE/DELETE policies for ALL tables
 -- Run this in Supabase SQL Editor (Dashboard → SQL Editor)
 -- Safe to re-run: uses DROP IF EXISTS before each CREATE

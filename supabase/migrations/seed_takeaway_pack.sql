@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Celebiz Restaurant OS — Seed: Takeaway Pack menu item
 -- Adds a "Takeaway" category and a single "Takeaway Pack" item at 3,000 SSP
 -- Safe to re-run: uses ON CONFLICT DO NOTHING

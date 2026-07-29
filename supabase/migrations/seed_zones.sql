@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Seed zones: Inside & Outside
 -- Run this in Supabase SQL Editor (Dashboard → SQL Editor)
 

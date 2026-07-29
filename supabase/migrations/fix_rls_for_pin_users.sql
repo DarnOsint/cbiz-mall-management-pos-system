@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Fix RLS policies for PIN-based waitron access
 -- PIN users have no Supabase auth session — they use the anon key (JWT role: 'anon')
 -- Policies using auth.role() = 'authenticated' block all anon access
