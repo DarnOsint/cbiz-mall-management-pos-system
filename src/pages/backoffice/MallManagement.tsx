@@ -10,18 +10,13 @@ import {
   Move, Maximize, LayoutDashboard, Map, FileText,
   Download, Info, Phone, Mail, Tag, CreditCard,
   Clock, AlertTriangle, ChevronRight, Store,
-  BarChart3, Percent, Home, KeyRound
+  BarChart3, Percent, Home, KeyRound, Wrench, Receipt
 } from 'lucide-react'
-import type { MallFloor, MallShop, MallRentPayment, Profile } from '../../types'
+import type { MallFloor, MallShop, MallRentPayment, MallMaintenanceRequest, MallRentInvoice, Profile } from '../../types'
 
 interface Props {
   onBack?: () => void
 }
-
-const GRID_COLS = 12
-const GRID_ROWS = 8
-const CELL_SIZE = 72
-const MIN_SHOP_SIZE = 1
 
 const SHOP_CATEGORIES = [
   'Retail', 'Food & Beverage', 'Services', 'Entertainment',
@@ -76,7 +71,7 @@ export default function MallManagement({ onBack }: Props) {
   const [rentPayments, setRentPayments] = useState<Record<string, MallRentPayment[]>>({})
   const [loading, setLoading] = useState(true)
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'floor-plan' | 'tenants' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'floor-plan' | 'tenants' | 'reports' | 'maintenance'>('overview')
 
   const [showShopForm, setShowShopForm] = useState(false)
   const [editingShop, setEditingShop] = useState<MallShop | null>(null)
@@ -102,14 +97,29 @@ export default function MallManagement({ onBack }: Props) {
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'plan' | 'list'>('plan')
 
+  const shopsRef = useRef(shops)
+  shopsRef.current = shops
+
   const [resizing, setResizing] = useState<string | null>(null)
-  const [resizeDir, setResizeDir] = useState<'se' | 'e' | 's' | null>(null)
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, w: 0, h: 0, px: 0, py: 0 })
+  const [resizeDir, setResizeDir] = useState<string | null>(null)
+  const [resizeStart, setResizeStart] = useState({ mx: 0, my: 0, px: 0, py: 0, w: 0, h: 0 })
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [dragStart, setDragStart] = useState({ mx: 0, my: 0, px: 0, py: 0 })
 
   const [tenantSearch, setTenantSearch] = useState('')
   const [tenantFilterFloor, setTenantFilterFloor] = useState('')
   const [showTenantDetail, setShowTenantDetail] = useState(false)
   const [tenantDetailShop, setTenantDetailShop] = useState<MallShop | null>(null)
+
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MallMaintenanceRequest[]>([])
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    shop_id: '', title: '', description: '', priority: 'medium'
+  })
+  const [savingMaintenance, setSavingMaintenance] = useState(false)
+
+  const [rentInvoices, setRentInvoices] = useState<MallRentInvoice[]>([])
+  const [generatingInvoices, setGeneratingInvoices] = useState(false)
 
   const fetchData = async () => {
     const { data: floorsData } = await supabase
@@ -149,6 +159,8 @@ export default function MallManagement({ onBack }: Props) {
 
   useEffect(() => { fetchData() }, [])
 
+  useEffect(() => { fetchMaintenanceRequests(); fetchRentInvoices() }, [shops.length])
+
   const currentFloorsShops = shops.filter(s =>
     s.floor_id === activeFloor &&
     (s.shop_number.toLowerCase().includes(search.toLowerCase()) ||
@@ -158,100 +170,110 @@ export default function MallManagement({ onBack }: Props) {
 
   const activeFloorObj = floors.find(f => f.id === activeFloor)
 
-  // ── Drag & Resize handlers ──
-  const handleMouseDown = useCallback((e: React.MouseEvent, shopId: string, dir: 'se' | 'e' | 's') => {
+  // ── Resize handlers (free-form, 8 directions) ──
+  const handleResizeStart = useCallback((e: React.MouseEvent, shopId: string, dir: string) => {
     e.preventDefault()
     e.stopPropagation()
     const shop = shops.find(s => s.id === shopId)
     if (!shop) return
     setResizing(shopId)
     setResizeDir(dir)
-    setResizeStart({ x: e.clientX, y: e.clientY, w: shop.width, h: shop.height, px: shop.pos_x, py: shop.pos_y })
+    setResizeStart({ mx: e.clientX, my: e.clientY, px: shop.pos_x, py: shop.pos_y, w: shop.width, h: shop.height })
   }, [shops])
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!resizing || !resizeDir || !planRef.current) return
-    const rect = planRef.current.getBoundingClientRect()
-    const dx = Math.round((e.clientX - resizeStart.x) / CELL_SIZE)
-    const dy = Math.round((e.clientY - resizeStart.y) / CELL_SIZE)
-
-    setShops(prev => prev.map(s => {
-      if (s.id !== resizing) return s
-      let newW = s.width, newH = s.height
-      if (resizeDir === 'se' || resizeDir === 'e') newW = Math.max(MIN_SHOP_SIZE, resizeStart.w + dx)
-      if (resizeDir === 'se' || resizeDir === 's') newH = Math.max(MIN_SHOP_SIZE, resizeStart.h + dy)
-      if (resizeDir === 'e') newH = s.height
-      if (resizeDir === 's') newW = s.width
-      const maxW = GRID_COLS - s.pos_x
-      const maxH = GRID_ROWS - s.pos_y
-      return { ...s, width: Math.min(newW, maxW), height: Math.min(newH, maxH) }
-    }))
-  }, [resizing, resizeDir, resizeStart])
-
-  const handleMouseUp = useCallback(async () => {
-    if (!resizing) return
-    const shop = shops.find(s => s.id === resizing)
-    if (shop) {
-      const { error } = await supabase
-        .from('mall_shops')
-        .update({ width: shop.width, height: shop.height, updated_at: new Date().toISOString() })
-        .eq('id', shop.id)
-      if (error) toast.error('Error', error.message)
-    }
-    setResizing(null)
-    setResizeDir(null)
-  }, [resizing, shops, toast])
-
   useEffect(() => {
-    if (!resizing) return
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+    if (!resizing || !resizeDir) return
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - resizeStart.mx
+      const dy = ev.clientY - resizeStart.my
+      setShops(prev => prev.map(s => {
+        if (s.id !== resizing) return s
+        let pos_x = resizeStart.px
+        let pos_y = resizeStart.py
+        let width = resizeStart.w
+        let height = resizeStart.h
+        const dir = resizeDir
+        if (dir.includes('e')) width = Math.max(20, resizeStart.w + dx)
+        if (dir.includes('w')) {
+          const newW = Math.max(20, resizeStart.w - dx)
+          pos_x = resizeStart.px + (resizeStart.w - newW)
+          width = newW
+        }
+        if (dir.includes('s')) height = Math.max(20, resizeStart.h + dy)
+        if (dir.includes('n')) {
+          const newH = Math.max(20, resizeStart.h - dy)
+          pos_y = resizeStart.py + (resizeStart.h - newH)
+          height = newH
+        }
+        return { ...s, pos_x, pos_y, width, height }
+      }))
     }
-  }, [resizing, handleMouseMove, handleMouseUp])
+    const onUp = async () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      const updated = shopsRef.current.find(s => s.id === resizing)
+      if (updated) {
+        const { error } = await supabase
+          .from('mall_shops')
+          .update({ pos_x: updated.pos_x, pos_y: updated.pos_y, width: updated.width, height: updated.height, updated_at: new Date().toISOString() })
+          .eq('id', updated.id)
+        if (error) toast.error('Error', error.message)
+      }
+      setResizing(null)
+      setResizeDir(null)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [resizing, resizeDir, resizeStart, toast])
 
+  // ── Drag handlers (free-form, no grid) ──
   const handleDragStart = useCallback((e: React.MouseEvent, shopId: string) => {
     if ((e.target as HTMLElement).closest('.resize-handle') || (e.target as HTMLElement).closest('.info-btn')) return
     e.preventDefault()
     const shop = shops.find(s => s.id === shopId)
     if (!shop) return
-    const startX = e.clientX
-    const startY = e.clientY
-    const origPosX = shop.pos_x
-    const origPosY = shop.pos_y
+    setDragging(shopId)
+    setDragStart({ mx: e.clientX, my: e.clientY, px: shop.pos_x, py: shop.pos_y })
+  }, [shops])
 
+  useEffect(() => {
+    if (!dragging) return
     const onMove = (ev: MouseEvent) => {
-      const rect = planRef.current!.getBoundingClientRect()
-      const dx = Math.round((ev.clientX - startX) / CELL_SIZE)
-      const dy = Math.round((ev.clientY - startY) / CELL_SIZE)
+      const dx = ev.clientX - dragStart.mx
+      const dy = ev.clientY - dragStart.my
       setShops(prev => prev.map(s => {
-        if (s.id !== shopId) return s
+        if (s.id !== dragging) return s
         return {
           ...s,
-          pos_x: Math.max(0, Math.min(GRID_COLS - s.width, origPosX + dx)),
-          pos_y: Math.max(0, Math.min(GRID_ROWS - s.height, origPosY + dy))
+          pos_x: Math.max(0, dragStart.px + dx),
+          pos_y: Math.max(0, dragStart.py + dy)
         }
       }))
     }
-
     const onUp = async () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
-      const updated = shops.find(s => s.id === shopId)
+      setDragging(null)
+      const updated = shopsRef.current.find(s => s.id === dragging)
       if (updated) {
         const { error } = await supabase
           .from('mall_shops')
           .update({ pos_x: updated.pos_x, pos_y: updated.pos_y, updated_at: new Date().toISOString() })
-          .eq('id', shopId)
+          .eq('id', updated.id)
         if (error) toast.error('Error', error.message)
       }
     }
-
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [shops, toast])
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dragging, dragStart, toast])
 
   // ── CRUD handlers ──
   const openNewShop = () => {
@@ -292,7 +314,7 @@ export default function MallManagement({ onBack }: Props) {
         shop_name: shopForm.shop_name.trim(),
         floor_id: activeFloor,
         pos_x: shopForm.pos_x, pos_y: shopForm.pos_y,
-        width: Math.max(1, shopForm.width), height: Math.max(1, shopForm.height),
+        width: Math.max(20, shopForm.width), height: Math.max(20, shopForm.height),
         tenant_name: shopForm.tenant_name.trim() || null,
         tenant_phone: shopForm.tenant_phone.trim() || null,
         monthly_rent: parseFloat(shopForm.monthly_rent) || 0,
@@ -509,11 +531,158 @@ export default function MallManagement({ onBack }: Props) {
     daysLeft: Math.ceil((new Date(s.lease_end_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
   })).sort((a, b) => new Date(a.lease_end_date!).getTime() - new Date(b.lease_end_date!).getTime())
 
+  const fetchMaintenanceRequests = async () => {
+    const { data } = await supabase
+      .from('mall_maintenance_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (data) setMaintenanceRequests(data as MallMaintenanceRequest[])
+  }
+
+  const fetchRentInvoices = async () => {
+    const { data } = await supabase
+      .from('mall_rent_invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (data) setRentInvoices(data as MallRentInvoice[])
+  }
+
+  const maintenanceStats = (() => {
+    const open = maintenanceRequests.filter(r => r.status === 'open').length
+    const urgent = maintenanceRequests.filter(r => r.priority === 'urgent' && r.status !== 'closed' && r.status !== 'resolved').length
+    const inProgress = maintenanceRequests.filter(r => r.status === 'in_progress').length
+    return { open, urgent, inProgress }
+  })()
+
+  const maintenanceWithShop = maintenanceRequests.map(r => ({
+    ...r,
+    shop_name: shops.find(s => s.id === r.shop_id)?.shop_name || 'Unknown',
+    shop_number: shops.find(s => s.id === r.shop_id)?.shop_number || ''
+  }))
+
   // ── Export helpers ──
   const exportCSV = (filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n')
     console.log(`CSV Export — ${filename}:\n${csv}`)
     window.alert(`CSV data for "${filename}" logged to console.\n\nPreview:\n${rows.slice(0, 3).map(r => r.join(' | ')).join('\n')}`)
+  }
+
+  const openNewMaintenance = () => {
+    setMaintenanceForm({ shop_id: '', title: '', description: '', priority: 'medium' })
+    setShowMaintenanceForm(true)
+  }
+
+  const saveMaintenanceRequest = async () => {
+    if (!maintenanceForm.shop_id) return toast.warning('Required', 'Select a shop')
+    if (!maintenanceForm.title.trim()) return toast.warning('Required', 'Title is required')
+    setSavingMaintenance(true)
+    try {
+      const { error } = await supabase.from('mall_maintenance_requests').insert({
+        shop_id: maintenanceForm.shop_id,
+        title: maintenanceForm.title.trim(),
+        description: maintenanceForm.description.trim() || null,
+        priority: maintenanceForm.priority,
+        requested_by: profile?.id || null,
+        requested_by_name: profile?.full_name || null
+      })
+      if (error) throw error
+      toast.success('Created', 'Maintenance request submitted')
+      setShowMaintenanceForm(false)
+      await fetchMaintenanceRequests()
+    } catch (err) {
+      toast.error('Error', (err as Error).message)
+    } finally {
+      setSavingMaintenance(false)
+    }
+  }
+
+  const updateMaintenanceStatus = async (req: MallMaintenanceRequest, newStatus: string) => {
+    const payload: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }
+    if (newStatus === 'resolved') payload.resolved_at = new Date().toISOString()
+    const { error } = await supabase
+      .from('mall_maintenance_requests')
+      .update(payload)
+      .eq('id', req.id)
+    if (error) return toast.error('Error', error.message)
+    setMaintenanceRequests(prev => prev.map(r =>
+      r.id === req.id ? { ...r, ...payload, updated_at: new Date().toISOString() } as MallMaintenanceRequest : r
+    ))
+  }
+
+  const deleteMaintenanceRequest = async (req: MallMaintenanceRequest) => {
+    if (!confirm('Delete this maintenance request?')) return
+    const { error } = await supabase.from('mall_maintenance_requests').delete().eq('id', req.id)
+    if (error) return toast.error('Error', error.message)
+    toast.success('Deleted', 'Request removed')
+    setMaintenanceRequests(prev => prev.filter(r => r.id !== req.id))
+  }
+
+  const generateInvoices = async () => {
+    setGeneratingInvoices(true)
+    try {
+      const occupied = shops.filter(s => s.is_occupied)
+      const nowGen = new Date()
+      const periodStart = new Date(nowGen.getFullYear(), nowGen.getMonth(), 1).toISOString().split('T')[0]
+      const periodEnd = new Date(nowGen.getFullYear(), nowGen.getMonth() + 1, 0).toISOString().split('T')[0]
+      const invNumber = `INV-${nowGen.getFullYear()}${String(nowGen.getMonth() + 1).padStart(2, '0')}-`
+      let count = 0
+      for (const shop of occupied) {
+        const { data: existing } = await supabase
+          .from('mall_rent_invoices')
+          .select('id')
+          .eq('shop_id', shop.id)
+          .eq('period_start', periodStart)
+          .maybeSingle()
+        if (existing) continue
+        count++
+        const { error } = await supabase.from('mall_rent_invoices').insert({
+          shop_id: shop.id,
+          invoice_number: `${invNumber}${String(count).padStart(3, '0')}`,
+          period_start: periodStart,
+          period_end: periodEnd,
+          rent_amount: shop.monthly_rent,
+          late_fee: 0,
+          total_amount: shop.monthly_rent,
+          status: 'pending'
+        })
+        if (error) throw error
+      }
+      toast.success('Invoices', `${count} invoice(s) generated for ${nowGen.toLocaleString('default', { month: 'long', year: 'numeric' })}`)
+      await fetchRentInvoices()
+    } catch (err) {
+      toast.error('Error', (err as Error).message)
+    } finally {
+      setGeneratingInvoices(false)
+    }
+  }
+
+  const calculateLateFees = async () => {
+    try {
+      const overdue = rentInvoices.filter(i =>
+        i.status === 'pending' && new Date(i.period_end) < new Date()
+      )
+      let count = 0
+      for (const inv of overdue) {
+        const monthsOverdue = Math.max(1, Math.floor(
+          (new Date().getTime() - new Date(inv.period_end).getTime()) / (1000 * 60 * 60 * 24 * 30)
+        ))
+        const lateFee = Math.round(inv.rent_amount * 0.05 * monthsOverdue * 100) / 100
+        const { error } = await supabase
+          .from('mall_rent_invoices')
+          .update({
+            late_fee: lateFee,
+            total_amount: inv.rent_amount + lateFee,
+            status: 'overdue'
+          })
+          .eq('id', inv.id)
+        if (error) throw error
+        count++
+      }
+      toast.success('Late Fees', `${count} invoice(s) updated with late fees (5% per month overdue)`)
+      await fetchRentInvoices()
+    } catch (err) {
+      toast.error('Error', (err as Error).message)
+    }
   }
 
   if (loading) return (
@@ -551,6 +720,7 @@ export default function MallManagement({ onBack }: Props) {
             { id: 'floor-plan' as const, label: 'Floor Plan', icon: Map },
             { id: 'tenants' as const, label: 'Tenants', icon: Users },
             { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
+            { id: 'maintenance' as const, label: 'Maintenance', icon: Wrench },
           ].map(tab => (
             <button
               key={tab.id}
@@ -620,6 +790,14 @@ export default function MallManagement({ onBack }: Props) {
                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
               >
                 <Plus size={15} /> Add Shop
+              </button>
+            )}
+            {activeTab === 'maintenance' && (
+              <button
+                onClick={() => { fetchMaintenanceRequests(); fetchRentInvoices() }}
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-sm transition-colors"
+              >
+                <Download size={14} /> Refresh
               </button>
             )}
           </div>
@@ -795,37 +973,19 @@ export default function MallManagement({ onBack }: Props) {
               /* ─── FLOOR PLAN VIEW ─── */
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 overflow-auto">
                 <div className="flex items-center gap-3 mb-3 text-[10px] text-gray-500">
-                  <Move size={12} /> Drag shops to move them
-                  <Maximize size={12} /> Drag corners to resize
+                  <Move size={12} /> Drag to move
+                  <Maximize size={12} /> Drag handles to resize
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-green-600 inline-block" /> Paid</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-yellow-500 inline-block" /> Due soon</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-yellow-500 inline-block" /> Due 7-14d</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-orange-500 inline-block" /> Due &lt;7d</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-600 inline-block" /> Overdue</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-gray-600 inline-block" /> Vacant</span>
                 </div>
                 <div
                   ref={planRef}
                   className="relative select-none"
-                  style={{
-                    width: GRID_COLS * CELL_SIZE,
-                    height: GRID_ROWS * CELL_SIZE,
-                    minWidth: GRID_COLS * CELL_SIZE,
-                  }}
+                  style={{ minHeight: 400 }}
                 >
-                  {Array.from({ length: GRID_COLS }).map((_, x) => (
-                    <div
-                      key={`gx-${x}`}
-                      className="absolute top-0 bottom-0 border-l border-gray-800/50"
-                      style={{ left: x * CELL_SIZE }}
-                    />
-                  ))}
-                  {Array.from({ length: GRID_ROWS }).map((_, y) => (
-                    <div
-                      key={`gy-${y}`}
-                      className="absolute left-0 right-0 border-t border-gray-800/50"
-                      style={{ top: y * CELL_SIZE }}
-                    />
-                  ))}
-
                   {currentFloorsShops.map((shop) => {
                     const payments = rentPayments[shop.id] || []
                     const status = calcRentStatus(shop, payments)
@@ -838,10 +998,10 @@ export default function MallManagement({ onBack }: Props) {
                           selectedShop === shop.id ? 'border-amber-400 z-10' : 'border-gray-700'
                         } ${status.color} bg-opacity-90`}
                         style={{
-                          left: shop.pos_x * CELL_SIZE + 2,
-                          top: shop.pos_y * CELL_SIZE + 2,
-                          width: shop.width * CELL_SIZE - 4,
-                          height: shop.height * CELL_SIZE - 4,
+                          left: shop.pos_x,
+                          top: shop.pos_y,
+                          width: shop.width,
+                          height: shop.height,
                         }}
                       >
                         <span className="text-white font-bold text-xs leading-tight text-center px-1">
@@ -859,7 +1019,6 @@ export default function MallManagement({ onBack }: Props) {
                           <span className="text-white/40 text-[9px] leading-tight">Vacant</span>
                         )}
 
-                        {/* Info button overlay on hover */}
                         <button
                           className="info-btn absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/80 rounded-full p-0.5 text-gray-300 hover:text-white z-20"
                           onClick={(e) => handleShopInfoClick(e, shop)}
@@ -868,21 +1027,14 @@ export default function MallManagement({ onBack }: Props) {
                           <Info size={10} />
                         </button>
 
-                        {/* Resize handles */}
-                        <div
-                          className="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-se-resize bg-white/20 hover:bg-white/40 rounded-bl-lg rounded-tr-lg"
-                          onMouseDown={(e) => handleMouseDown(e, shop.id, 'se')}
-                        />
-                        <div
-                          className="resize-handle absolute top-0 right-0 w-2 h-full cursor-e-resize bg-white/10 hover:bg-white/30 rounded-r"
-                          style={{ right: -1 }}
-                          onMouseDown={(e) => handleMouseDown(e, shop.id, 'e')}
-                        />
-                        <div
-                          className="resize-handle absolute bottom-0 left-0 w-full h-2 cursor-s-resize bg-white/10 hover:bg-white/30 rounded-b"
-                          style={{ bottom: -1 }}
-                          onMouseDown={(e) => handleMouseDown(e, shop.id, 's')}
-                        />
+                        <div className="resize-handle absolute -top-1 -left-1 w-3 h-3 cursor-nwse-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'nw')} />
+                        <div className="resize-handle absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 cursor-ns-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'n')} />
+                        <div className="resize-handle absolute -top-1 -right-1 w-3 h-3 cursor-nesw-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'ne')} />
+                        <div className="resize-handle absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-3 cursor-ew-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'e')} />
+                        <div className="resize-handle absolute -bottom-1 -right-1 w-3 h-3 cursor-nwse-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'se')} />
+                        <div className="resize-handle absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 cursor-ns-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 's')} />
+                        <div className="resize-handle absolute -bottom-1 -left-1 w-3 h-3 cursor-nesw-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'sw')} />
+                        <div className="resize-handle absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-3 cursor-ew-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'w')} />
                       </div>
                     )
                   })}
@@ -1042,8 +1194,8 @@ export default function MallManagement({ onBack }: Props) {
                     </div>
                     <div className="bg-gray-800 rounded-xl p-3">
                       <p className="text-gray-500 text-xs">Position</p>
-                      <p className="text-white font-medium text-sm">X:{shop.pos_x} Y:{shop.pos_y}</p>
-                      <p className="text-gray-400 text-xs">{shop.width}x{shop.height} cells</p>
+                      <p className="text-white font-medium text-sm">X: {shop.pos_x}px Y: {shop.pos_y}px</p>
+                      <p className="text-gray-400 text-xs">{shop.width} x {shop.height}px</p>
                     </div>
                   </div>
 
@@ -1332,7 +1484,226 @@ export default function MallManagement({ onBack }: Props) {
             </div>
           </div>
         )}
-      </div>
+
+        {/* ─── MAINTENANCE TAB ─── */}
+        {activeTab === 'maintenance' && (
+          <div className="space-y-6">
+            {/* Stats bar */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Open Requests</p>
+                <p className="text-white text-2xl font-bold">{maintenanceStats.open}</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">Urgent</p>
+                <p className={`text-2xl font-bold ${maintenanceStats.urgent > 0 ? 'text-red-400' : 'text-white'}`}>{maintenanceStats.urgent}</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-1">In Progress</p>
+                <p className="text-amber-400 text-2xl font-bold">{maintenanceStats.inProgress}</p>
+              </div>
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <Wrench size={16} className="text-gray-400" />
+                Maintenance Requests
+              </h3>
+              <button
+                onClick={openNewMaintenance}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+              >
+                <Plus size={15} /> New Request
+              </button>
+            </div>
+
+            {/* Table */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-800 bg-gray-900/50">
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Shop</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Title</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Priority</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Status</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Requested By</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Date</th>
+                      <th className="text-left text-gray-400 font-medium px-4 py-3 text-xs uppercase tracking-wide">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {maintenanceWithShop.map(r => (
+                      <tr key={r.id} className="hover:bg-gray-800/50 transition-colors">
+                        <td className="px-4 py-3 text-white font-medium">
+                          <span className="text-xs text-gray-500">{r.shop_number}</span>
+                          <div className="text-xs text-gray-400">{r.shop_name}</div>
+                        </td>
+                        <td className="px-4 py-3 text-white">
+                          <div className="text-sm font-medium">{r.title}</div>
+                          {r.description && <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">{r.description}</div>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            r.priority === 'urgent' ? 'bg-red-400/10 text-red-400' :
+                            r.priority === 'high' ? 'bg-orange-400/10 text-orange-400' :
+                            r.priority === 'medium' ? 'bg-yellow-400/10 text-yellow-400' :
+                            'bg-gray-500/10 text-gray-400'
+                          }`}>
+                            {r.priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            r.status === 'open' ? 'bg-blue-400/10 text-blue-400' :
+                            r.status === 'in_progress' ? 'bg-amber-400/10 text-amber-400' :
+                            r.status === 'resolved' ? 'bg-green-400/10 text-green-400' :
+                            'bg-gray-500/10 text-gray-400'
+                          }`}>
+                            {r.status === 'in_progress' ? 'In Progress' : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">{r.requested_by_name || '-'}</td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">{new Date(r.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {r.status === 'open' && (
+                              <button
+                                onClick={() => updateMaintenanceStatus(r, 'in_progress')}
+                                className="text-[10px] bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 px-2 py-0.5 rounded-lg font-medium transition-colors"
+                              >
+                                Start
+                              </button>
+                            )}
+                            {r.status === 'in_progress' && (
+                              <button
+                                onClick={() => updateMaintenanceStatus(r, 'resolved')}
+                                className="text-[10px] bg-green-500/10 text-green-400 hover:bg-green-500/20 px-2 py-0.5 rounded-lg font-medium transition-colors"
+                              >
+                                Resolve
+                              </button>
+                            )}
+                            {r.status === 'resolved' && (
+                              <button
+                                onClick={() => updateMaintenanceStatus(r, 'closed')}
+                                className="text-[10px] bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 px-2 py-0.5 rounded-lg font-medium transition-colors"
+                              >
+                                Close
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteMaintenanceRequest(r)}
+                              className="text-[10px] text-red-400 hover:text-red-300 px-1 py-0.5"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {maintenanceWithShop.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="text-center py-12 text-gray-500 text-sm">No maintenance requests.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── RENT INVOICES SECTION IN REPORTS ─── */}
+        {activeTab === 'reports' && (() => {
+          const totalPending = rentInvoices.filter(i => i.status === 'pending').reduce((s, i) => s + i.total_amount, 0)
+          const totalOverdue = rentInvoices.filter(i => i.status === 'overdue').reduce((s, i) => s + i.total_amount, 0)
+          const totalPaid = rentInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total_amount, 0)
+          return (
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <Receipt size={16} className="text-gray-400" />
+                  Rent Invoices
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={calculateLateFees}
+                    className="flex items-center gap-1.5 text-xs bg-red-600/10 hover:bg-red-600/20 text-red-400 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <AlertTriangle size={12} /> Calculate Late Fees
+                  </button>
+                  <button
+                    onClick={generateInvoices}
+                    disabled={generatingInvoices}
+                    className="flex items-center gap-1.5 text-xs bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {generatingInvoices ? 'Generating...' : <><Plus size={12} /> Generate Invoices</>}
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-gray-800 rounded-xl p-3">
+                  <p className="text-gray-500 text-xs">Pending</p>
+                  <p className="text-amber-400 font-bold text-lg">{fmtUSDshort(totalPending)}</p>
+                </div>
+                <div className="bg-gray-800 rounded-xl p-3">
+                  <p className="text-gray-500 text-xs">Overdue</p>
+                  <p className="text-red-400 font-bold text-lg">{fmtUSDshort(totalOverdue)}</p>
+                </div>
+                <div className="bg-gray-800 rounded-xl p-3">
+                  <p className="text-gray-500 text-xs">Paid</p>
+                  <p className="text-green-400 font-bold text-lg">{fmtUSDshort(totalPaid)}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-800">
+                      <th className="text-left text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Invoice #</th>
+                      <th className="text-left text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Shop</th>
+                      <th className="text-left text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Period</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Rent</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Late Fee</th>
+                      <th className="text-right text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Total</th>
+                      <th className="text-left text-gray-400 font-medium px-3 py-2 text-xs uppercase tracking-wide">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {rentInvoices.map(inv => {
+                      const shop = shops.find(s => s.id === inv.shop_id)
+                      return (
+                        <tr key={inv.id} className="hover:bg-gray-800/30">
+                          <td className="px-3 py-2 text-white font-medium text-xs">{inv.invoice_number}</td>
+                          <td className="px-3 py-2 text-gray-300 text-xs">{shop?.shop_number || '?'} — {shop?.shop_name || 'Unknown'}</td>
+                          <td className="px-3 py-2 text-gray-400 text-xs">{new Date(inv.period_start).toLocaleDateString()} — {new Date(inv.period_end).toLocaleDateString()}</td>
+                          <td className="px-3 py-2 text-right text-gray-300 text-xs">{fmtUSDshort(inv.rent_amount)}</td>
+                          <td className="px-3 py-2 text-right text-xs">{inv.late_fee > 0 ? <span className="text-red-400">{fmtUSDshort(inv.late_fee)}</span> : '-'}</td>
+                          <td className="px-3 py-2 text-right text-white font-medium text-xs">{fmtUSDshort(inv.total_amount)}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                              inv.status === 'paid' ? 'bg-green-400/10 text-green-400' :
+                              inv.status === 'overdue' ? 'bg-red-400/10 text-red-400' :
+                              inv.status === 'cancelled' ? 'bg-gray-500/10 text-gray-400' :
+                              'bg-amber-400/10 text-amber-400'
+                            }`}>
+                              {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {rentInvoices.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-gray-500 text-xs">No invoices generated yet. Click "Generate Invoices" to create invoices for the current month.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()}
 
       {/* ─── SHOP FORM MODAL ─── */}
       {showShopForm && (
@@ -1381,23 +1752,23 @@ export default function MallManagement({ onBack }: Props) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Position X (col)</label>
-                  <input type="number" min={0} max={GRID_COLS - 1} value={shopForm.pos_x} onChange={(e) => setShopForm({ ...shopForm, pos_x: parseInt(e.target.value) || 0 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  <label className="text-gray-400 text-xs font-medium block mb-1">Position X (px)</label>
+                  <input type="number" value={shopForm.pos_x} onChange={(e) => setShopForm({ ...shopForm, pos_x: parseInt(e.target.value) || 0 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Position Y (row)</label>
-                  <input type="number" min={0} max={GRID_ROWS - 1} value={shopForm.pos_y} onChange={(e) => setShopForm({ ...shopForm, pos_y: parseInt(e.target.value) || 0 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  <label className="text-gray-400 text-xs font-medium block mb-1">Position Y (px)</label>
+                  <input type="number" value={shopForm.pos_y} onChange={(e) => setShopForm({ ...shopForm, pos_y: parseInt(e.target.value) || 0 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Width (cells)</label>
-                  <input type="number" min={1} max={GRID_COLS} value={shopForm.width} onChange={(e) => setShopForm({ ...shopForm, width: parseInt(e.target.value) || 1 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  <label className="text-gray-400 text-xs font-medium block mb-1">Width (px)</label>
+                  <input type="number" min={20} value={shopForm.width} onChange={(e) => setShopForm({ ...shopForm, width: parseInt(e.target.value) || 20 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
                 <div>
-                  <label className="text-gray-400 text-xs font-medium block mb-1">Height (cells)</label>
-                  <input type="number" min={1} max={GRID_ROWS} value={shopForm.height} onChange={(e) => setShopForm({ ...shopForm, height: parseInt(e.target.value) || 1 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+                  <label className="text-gray-400 text-xs font-medium block mb-1">Height (px)</label>
+                  <input type="number" min={20} value={shopForm.height} onChange={(e) => setShopForm({ ...shopForm, height: parseInt(e.target.value) || 20 })} className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
                 </div>
               </div>
 
@@ -1495,6 +1866,75 @@ export default function MallManagement({ onBack }: Props) {
             <div className="p-5 border-t border-gray-800 flex gap-2 justify-end">
               <button onClick={() => { setShowRentForm(false); setRentShop(null) }} className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium">Cancel</button>
               <button onClick={saveRent} disabled={savingRent} className="bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors">{savingRent ? 'Saving...' : 'Record Payment'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MAINTENANCE REQUEST MODAL ─── */}
+      {showMaintenanceForm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl w-full max-w-md border border-gray-800">
+            <div className="flex items-center justify-between p-5 border-b border-gray-800">
+              <h3 className="text-white font-bold">New Maintenance Request</h3>
+              <button onClick={() => setShowMaintenanceForm(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Shop *</label>
+                <select
+                  value={maintenanceForm.shop_id}
+                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, shop_id: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                >
+                  <option value="">Select a shop</option>
+                  {shops.filter(s => s.is_occupied).map(shop => (
+                    <option key={shop.id} value={shop.id}>{shop.shop_number} — {shop.shop_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Title *</label>
+                <input
+                  value={maintenanceForm.title}
+                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, title: e.target.value })}
+                  placeholder="e.g. AC not working"
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Description</label>
+                <textarea
+                  value={maintenanceForm.description}
+                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, description: e.target.value })}
+                  placeholder="Describe the issue..."
+                  rows={3}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Priority</label>
+                <select
+                  value={maintenanceForm.priority}
+                  onChange={(e) => setMaintenanceForm({ ...maintenanceForm, priority: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Requested By</label>
+                <input value={profile?.full_name || ''} disabled className="w-full bg-gray-800/50 border border-gray-700 text-gray-400 rounded-xl px-3 py-2 text-sm cursor-not-allowed" />
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-800 flex gap-2 justify-end">
+              <button onClick={() => setShowMaintenanceForm(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium">Cancel</button>
+              <button onClick={saveMaintenanceRequest} disabled={savingMaintenance} className="bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold px-4 py-2 rounded-xl text-sm transition-colors">
+                {savingMaintenance ? 'Saving...' : 'Submit Request'}
+              </button>
             </div>
           </div>
         </div>
@@ -1635,6 +2075,7 @@ export default function MallManagement({ onBack }: Props) {
           </div>
         )
       })()}
+      </div>
     </div>
   )
 }

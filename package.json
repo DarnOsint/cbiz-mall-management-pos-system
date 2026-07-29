@@ -26,6 +26,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
     "@tailwindcss/vite": "^4.2.1",
+    "@types/three": "^0.185.1",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.577.0",
@@ -36,6 +37,7 @@
     "recharts": "^3.8.0",
     "resend": "^6.9.3",
     "tailwindcss": "^4.2.1",
+    "three": "^0.185.1",
     "vite-plugin-pwa": "^1.2.0",
     "web-push": "^3.6.7",
     "xlsx": "^0.18.5"

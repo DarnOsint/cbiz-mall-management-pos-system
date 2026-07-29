@@ -281,6 +281,40 @@ export interface MallRentPayment {
   created_at: string
 }
 
+export interface MallMaintenanceRequest {
+  id: string
+  shop_id: string
+  title: string
+  description: string | null
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  status: 'open' | 'in_progress' | 'resolved' | 'closed'
+  requested_by: string | null
+  requested_by_name: string | null
+  assigned_to: string | null
+  assigned_to_name: string | null
+  resolution_notes: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MallRentInvoice {
+  id: string
+  shop_id: string
+  invoice_number: string
+  period_start: string
+  period_end: string
+  rent_amount: number
+  late_fee: number
+  total_amount: number
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled'
+  paid_at: string | null
+  paid_by: string | null
+  paid_by_name: string | null
+  notes: string | null
+  created_at: string
+}
+
 // ─── Audit helper params ──────────────────────────────────────────────────
 
 export interface AuditParams {
