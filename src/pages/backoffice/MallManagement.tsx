@@ -37,6 +37,7 @@ function calcRentStatus(shop: MallShop, payments: MallRentPayment[]): {
   label: string; color: string; remainingMonths: number; daysUntilDue: number
 } {
   if (!shop.is_occupied) return { label: 'Vacant', color: 'bg-gray-600', remainingMonths: 0, daysUntilDue: 0 }
+  if (shop.monthly_rent <= 0) return { label: 'No rent due', color: 'bg-gray-500', remainingMonths: 0, daysUntilDue: 0 }
   if (payments.length === 0) return { label: 'No payment', color: 'bg-red-600', remainingMonths: 0, daysUntilDue: 0 }
 
   const totalMonthsPaid = payments.reduce((sum, p) => sum + p.months_paid, 0)
@@ -54,10 +55,10 @@ function calcRentStatus(shop: MallShop, payments: MallRentPayment[]): {
   const daysUntilDue = remainingMonths * 30 + (30 - daysIntoCurrentMonth)
 
   if (remainingMonths >= 1) return { label: `${remainingMonths}mo left`, color: 'bg-green-600', remainingMonths, daysUntilDue }
-  if (daysUntilDue >= 14) return { label: `${daysUntilDue}d left`, color: 'bg-yellow-500', remainingMonths, daysUntilDue }
-  if (daysUntilDue >= 7) return { label: `${daysUntilDue}d left`, color: 'bg-red-600', remainingMonths, daysUntilDue }
-  if (daysUntilDue >= 0) return { label: `${daysUntilDue}d left`, color: 'bg-red-700', remainingMonths, daysUntilDue }
-  return { label: 'Overdue', color: 'bg-red-800', remainingMonths, daysUntilDue }
+  if (daysUntilDue >= 14) return { label: `${daysUntilDue}d left`, color: 'bg-green-600', remainingMonths, daysUntilDue }
+  if (daysUntilDue >= 7) return { label: `${daysUntilDue}d left`, color: 'bg-yellow-500', remainingMonths, daysUntilDue }
+  if (daysUntilDue >= 1) return { label: `${daysUntilDue}d left`, color: 'bg-orange-500', remainingMonths, daysUntilDue }
+  return { label: 'Overdue', color: 'bg-red-600', remainingMonths, daysUntilDue }
 }
 
 export default function MallManagement({ onBack }: Props) {
