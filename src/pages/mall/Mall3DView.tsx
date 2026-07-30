@@ -277,12 +277,12 @@ export default function Mall3DView() {
     fetchData()
   }, [fetchData])
 
-  const selectedShop = shops.find((s) => s.id === selectedShopId) || null
-
   const shopsWithFeatures: Shop3D[] = shops.map((s) => ({
     ...s,
     features: features.filter((f) => f.shop_id === s.id),
   }))
+
+  const selectedShop = shopsWithFeatures.find((s) => s.id === selectedShopId) || null
 
   const handleShopClick = (id: string) => {
     if (editMode) {
