@@ -110,7 +110,7 @@ function ShopBox({
         <boxGeometry args={[shopW, shopH, shopD]} />
         <meshStandardMaterial color={color} opacity={selected ? 1 : 0.8} transparent />
       </mesh>
-      <Text position={[0, shopH / 2 + 0.2, 0]} fontSize={0.15} color="white" anchorX="center" anchorY="middle">
+      <Text position={[0, shopH / 2 + 0.3, 0]} fontSize={0.4} color="white" anchorX="center" anchorY="middle">
         {shop.shop_number}
       </Text>
       {shop.features.map((f) => (
@@ -126,15 +126,28 @@ function FloorLevel({
   floor: MallFloor; shops: Shop3D[]; yOffset: number
   selectedId: string | null; onShopClick: (id: string) => void; floorColor: string
 }) {
+  const SCALE = 10
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
+  for (const s of shops) {
+    if (s.pos_x < minX) minX = s.pos_x
+    if (s.pos_x + s.width > maxX) maxX = s.pos_x + s.width
+    if (s.pos_y < minZ) minZ = s.pos_y
+    if (s.pos_y + s.height > maxZ) maxZ = s.pos_y + s.height
+  }
+  const cx = (minX + maxX) / 2 / SCALE
+  const cz = (minZ + maxZ) / 2 / SCALE
+  const pw = Math.max((maxX - minX) / SCALE + 6, 10)
+  const pd = Math.max((maxZ - minZ) / SCALE + 6, 10)
+
   return (
     <group>
       <mesh position={[0, yOffset, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[40, 30]} />
+        <planeGeometry args={[pw, pd]} />
         <meshStandardMaterial color={floorColor} opacity={0.1} transparent />
       </mesh>
       {shops.map((shop) => {
-        const x = (shop.pos_x - 15) / 5
-        const z = (shop.pos_y - 10) / 5
+        const x = shop.pos_x / SCALE - cx
+        const z = shop.pos_y / SCALE - cz
         return (
           <ShopBox
             key={shop.id}
@@ -180,10 +193,10 @@ function Scene({
       <OrbitControls
         target={[0, FLOOR_GAP, 0]}
         minDistance={5}
-        maxDistance={40}
+        maxDistance={80}
         maxPolarAngle={Math.PI / 2.1}
       />
-      <gridHelper args={[50, 30, '#444444', '#333333']} position={[0, -0.1, 0]} />
+      <gridHelper args={[80, 40, '#444444', '#333333']} position={[0, -0.1, 0]} />
     </>
   )
 }
@@ -318,7 +331,7 @@ export default function Mall3DView() {
       )}
 
       <Canvas
-        camera={{ position: [15, 10, 15], fov: 50 }}
+        camera={{ position: [20, 15, 20], fov: 50 }}
         gl={{ antialias: true, alpha: false }}
         onCreated={({ gl }) => { gl.setClearColor('#1a1a2e') }}
       >

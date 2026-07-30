@@ -40,14 +40,14 @@ BEGIN
     FOR i IN 1..50 LOOP
       r := ((i - 1) / 10);
       c := ((i - 1) % 10);
-      x_pos := c * 3;
-      y_pos := r * 3;
+      x_pos := c * 55;
+      y_pos := r * 55;
       shop_num := 'G-' || LPAD(i::text, 2, '0');
       shop_name := 'Shop ' || shop_num;
       rent := 500 + (random() * 3000)::int;
       cat := categories[1 + (random() * 4)::int];
       INSERT INTO mall_shops (shop_number, shop_name, floor_id, pos_x, pos_y, width, height, monthly_rent, shop_category, is_occupied)
-      VALUES (shop_num, shop_name, ground_id, x_pos, y_pos, 2, 2, rent, cat, random() > 0.3);
+      VALUES (shop_num, shop_name, ground_id, x_pos, y_pos, 50, 50, rent, cat, random() > 0.3);
     END LOOP;
   END IF;
 
@@ -57,14 +57,14 @@ BEGIN
     FOR i IN 1..50 LOOP
       r := ((i - 1) / 10);
       c := ((i - 1) % 10);
-      x_pos := c * 3;
-      y_pos := r * 3;
+      x_pos := c * 55;
+      y_pos := r * 55;
       shop_num := '1-' || LPAD(i::text, 2, '0');
       shop_name := 'Shop ' || shop_num;
       rent := 600 + (random() * 4000)::int;
       cat := categories[1 + (random() * 4)::int];
       INSERT INTO mall_shops (shop_number, shop_name, floor_id, pos_x, pos_y, width, height, monthly_rent, shop_category, is_occupied)
-      VALUES (shop_num, shop_name, first_id, x_pos, y_pos, 2, 2, rent, cat, random() > 0.3);
+      VALUES (shop_num, shop_name, first_id, x_pos, y_pos, 50, 50, rent, cat, random() > 0.3);
     END LOOP;
   END IF;
 
@@ -74,14 +74,14 @@ BEGIN
     FOR i IN 1..50 LOOP
       r := ((i - 1) / 10);
       c := ((i - 1) % 10);
-      x_pos := c * 3;
-      y_pos := r * 3;
+      x_pos := c * 55;
+      y_pos := r * 55;
       shop_num := '2-' || LPAD(i::text, 2, '0');
       shop_name := 'Shop ' || shop_num;
       rent := 400 + (random() * 2500)::int;
       cat := categories[1 + (random() * 4)::int];
       INSERT INTO mall_shops (shop_number, shop_name, floor_id, pos_x, pos_y, width, height, monthly_rent, shop_category, is_occupied)
-      VALUES (shop_num, shop_name, second_id, x_pos, y_pos, 2, 2, rent, cat, random() > 0.3);
+      VALUES (shop_num, shop_name, second_id, x_pos, y_pos, 50, 50, rent, cat, random() > 0.3);
     END LOOP;
   END IF;
 END $$;
