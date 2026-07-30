@@ -7,13 +7,12 @@ export type Role =
   | 'bar'
   | 'kitchen'
   | 'griller'
-  | 'mixologist'
   | 'games_master'
-  | 'shisha_attendant'
   | 'auditor'
+  | 'cashier'
 
 export type OrderStatus = 'open' | 'paid' | 'voided' | 'pending'
-export type OrderType = 'direct' | 'cash_sale' | 'table' | 'takeaway'
+export type OrderType = 'direct' | 'cash_sale' | 'table' | 'takeaway' | 'return'
 export type PaymentMethod =
   | 'cash'
   | 'bank_pos'
@@ -24,7 +23,7 @@ export type PaymentMethod =
   | 'split'
 export type ItemStatus = 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled'
 export type TableStatus = 'available' | 'occupied' | 'reserved'
-export type ItemDestination = 'kitchen' | 'bar' | 'mixologist' | 'griller' | 'shisha' | 'games'
+export type ItemDestination = 'kitchen' | 'bar' | 'griller' | 'games'
 
 export interface Profile {
   id: string
@@ -50,7 +49,6 @@ export interface Table {
   category_id: string
   assigned_staff?: string | null
   capacity?: number
-  table_categories?: TableCategory
 }
 
 export interface MenuItem {
@@ -59,7 +57,6 @@ export interface MenuItem {
   description?: string | null
   sku?: string | null
   price: number
-  description?: string | null
   image_url?: string | null
   is_available?: boolean
   category_id?: string | null

@@ -17,6 +17,7 @@ import {
   Menu,
   X,
 } from 'lucide-react'
+import StockAlertBell from './StockAlertBell'
 import type { LucideIcon } from 'lucide-react'
 
 interface NavItem {

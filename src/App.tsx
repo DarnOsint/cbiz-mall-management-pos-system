@@ -17,6 +17,7 @@ const Reports = lazy(() => import('./pages/reports/Reports'))
 const BackOffice = lazy(() => import('./pages/backoffice/BackOffice'))
 const MonthEnd = lazy(() => import('./pages/monthend/MonthEnd'))
 const MallManagement = lazy(() => import('./pages/backoffice/MallManagement'))
+const CustomerDisplay = lazy(() => import('./pages/CustomerDisplay'))
 import type { Role } from './types'
 
 function ScrollToTop() {

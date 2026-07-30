@@ -173,7 +173,7 @@ export default function LedgerTab({ dateRange }: Props) {
         const saleItems =
           entry.source === 'order'
             ? (entry.sale.order_items || [])
-                .map((item) => item.items?.name || item.modifier_notes || '')
+                .map((item) => (item as any).menu_items?.name || item.modifier_notes || '')
                 .join(' ')
                 .toLowerCase()
             : ''

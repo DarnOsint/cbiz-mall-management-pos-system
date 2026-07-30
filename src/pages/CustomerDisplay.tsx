@@ -108,7 +108,7 @@ export default function CustomerDisplay() {
                   className="border-b border-gray-800/40"
                 >
                   <td className="py-4 md:py-5 text-2xl md:text-3xl font-medium">
-                    {item.name}
+                    {(item as any).menu_items?.name || (item as any).item_name || 'Item'}
                   </td>
                   <td className="py-4 md:py-5 text-center text-2xl md:text-3xl">
                     {item.quantity}

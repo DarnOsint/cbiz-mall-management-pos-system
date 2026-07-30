@@ -3,10 +3,8 @@ import { useAuth } from '../../context/AuthContext'
 import { Users, Package, Lock, Store } from 'lucide-react'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import StaffManagement from './StaffManagement'
-import TableConfig from './TableConfig'
 import Inventory from './Inventory'
 import ChangePassword from './ChangePassword'
-import { useNavigate } from 'react-router-dom'
 import type { Role } from '../../types'
 
 interface Section {
@@ -37,14 +35,6 @@ export default function BackOffice() {
       roles: ['owner', 'manager'],
     },
     {
-      id: 'tables',
-      label: 'Shop Configuration',
-      desc: 'Edit shop names, sizes, assign to floors',
-      icon: Store,
-      color: 'bg-amber-500',
-      roles: ['owner', 'manager'],
-    },
-    {
       id: 'inventory',
       label: 'Inventory',
       desc: 'Stock levels, restocking, supplier management',
@@ -62,8 +52,6 @@ export default function BackOffice() {
     },
   ]
 
-  void signOut
-
   if (!profile)
     return (
       <div className="min-h-full bg-gray-950 flex items-center justify-center h-full py-16">
@@ -80,7 +68,6 @@ export default function BackOffice() {
   const allowed = sections.filter((s) => s.roles.includes(profile.role as Role))
 
   if (activeSection === 'staff') return <StaffManagement onBack={() => setActiveSection(null)} />
-  if (activeSection === 'tables') return <TableConfig onBack={() => setActiveSection(null)} />
   if (activeSection === 'changepassword')
     return <ChangePassword onBack={() => setActiveSection(null)} />
   if (activeSection === 'inventory') return <Inventory onBack={() => setActiveSection(null)} />

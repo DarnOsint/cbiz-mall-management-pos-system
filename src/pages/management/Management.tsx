@@ -2,25 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import {
-  Users,
   LayoutDashboard,
   ShoppingBag,
-  Clock,
-  AlertTriangle,
-  UtensilsCrossed,
   Shield,
-  RotateCcw,
-  Package,
-  Trophy,
 } from 'lucide-react'
-import ShiftManager from './ShiftManager'
-import TableAssignment from './TableAssignment'
-import WaiterCalls from './WaiterCalls'
-import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
-import ChillerTab from './mgmt/ChillerTab'
-import StaffPerformanceTab from './mgmt/StaffPerformanceTab'
-import StationSalesTab from './mgmt/StationSalesTab'
-import { useLateOrders } from '../../hooks/useLateOrders'
 import { HelpTooltip } from '../../components/HelpTooltip'
 
 import OverviewTab from './mgmt/OverviewTab'
@@ -58,9 +43,9 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'sales', label: 'Sales', icon: ShoppingBag },
   { id: 'activity', label: 'Activity Log', icon: Shield },
-  { id: 'shift', label: 'Shift Report', icon: ReceiptText },
-  { id: 'expenses', label: 'Expenses', icon: TrendingDown },
-  { id: 'category', label: 'Sales by Category', icon: PieChart },
+  { id: 'shift', label: 'Shift Report', icon: ShoppingBag },
+  { id: 'expenses', label: 'Expenses', icon: ShoppingBag },
+  { id: 'category', label: 'Sales by Category', icon: ShoppingBag },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']

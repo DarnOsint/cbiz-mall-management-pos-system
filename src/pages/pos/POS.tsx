@@ -2,14 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
-import { audit } from '../../lib/audit'
 import { useAuth } from '../../context/AuthContext'
 import {
   LogOut,
   RefreshCw,
   ShoppingBag,
   History,
-  Printer,
   TrendingUp,
   Clock,
   Search,
@@ -21,14 +19,8 @@ import {
 } from 'lucide-react'
 import ReceiptModal from './ReceiptModal'
 import PaymentModal from './PaymentModal'
-import CustomerOrderAlerts from '../../components/CustomerOrderAlerts'
-import WaiterCalls from '../management/WaiterCalls'
-
-import type { MenuItem, Order, OrderItem, Profile } from '../../types'
+import type { MenuItem, Order, OrderItem, Profile, Sale } from '../../types'
 import { useToast } from '../../context/ToastContext'
-import { localBulkPut, localGetAll } from '../../lib/db'
-import { offlineInsertNoReturn } from '../../lib/offlineWrite'
-import { useVisibilityInterval } from '../../hooks/useVisibilityInterval'
 
 interface CartItem {
   id: string
@@ -37,48 +29,6 @@ interface CartItem {
   quantity: number
   total: number
   menu_categories?: { name?: string; destination?: string } | null
-}
-
-const currentBusinessDateWAT = () => {
-  const wat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
-  if (wat.getHours() < 8) wat.setDate(wat.getDate() - 1)
-  return wat.toLocaleDateString('en-CA')
-}
-
-interface HistoryOrder {
-  id: string
-  total_amount: number
-  payment_method?: string | null
-  status: string
-  order_type: string
-  created_at: string
-  closed_at?: string | null
-  customer_name?: string | null
-  staff_id?: string | null
-  notes?: string | null
-  order_items?: (OrderItem & { menu_items?: { name: string } | null })[]
-}
-
-interface ShiftOrder {
-  id: string
-  total_amount?: number
-  closed_at: string
-  order_items: {
-    quantity: number
-    total_price?: number | null
-    status?: string | null
-    return_requested?: boolean | null
-    return_accepted?: boolean | null
-    menu_items?: { name: string } | null
-  }[]
-  netTotal?: number
-}
-interface ShiftStats {
-  clockIn?: string
-  ordersCount: number
-  totalSales: number
-  totalItems: number
-  recentOrders: ShiftOrder[]
 }
 
 function DesktopMenuBrowser({
@@ -169,7 +119,7 @@ function DesktopMenuBrowser({
                     {item.name}
                   </p>
                   <p className="text-amber-400 text-sm font-bold mt-1">
-                    {formatDualPrice(item.price)}
+                    {formatPrice(item.price)}
                   </p>
                 </div>
               </button>
@@ -204,43 +154,31 @@ export default function POS() {
   }, [])
 
   const fetchMenu = async () => {
-    const businessDate = currentBusinessDateWAT()
     const [menuRes, invRes] = await Promise.all([
       supabase
         .from('menu_items')
-        .select(
-          'id, name, price, description, image_url, is_available, category_id, menu_categories(name, destination)'
-        )
+        .select('id, name, price, description, image_url, is_available, category_id, menu_categories(name, destination)')
         .order('name'),
       supabase
         .from('inventory')
-        .select('menu_item_id, item_name, current_stock')
+        .select('menu_item_id, current_stock')
         .eq('is_active', true),
     ])
     if (menuRes.error) {
       setMenuError(String(menuRes.error.message || JSON.stringify(menuRes.error)))
       return
     }
-    if (menuRes.data) {
-      void localBulkPut('menu_items', menuRes.data as Array<{ id: string }>)
-    }
     const invMap: Record<string, number> = {}
     if (invRes.data)
-      invRes.data.forEach(
-        (i: { menu_item_id: string | null; item_name: string; current_stock: number }) => {
-          if (i.menu_item_id) invMap[i.menu_item_id] = i.current_stock
-        }
-      )
+      invRes.data.forEach((i: { menu_item_id: string | null; current_stock: number }) => {
+        if (i.menu_item_id) invMap[i.menu_item_id] = i.current_stock
+      })
     setMenuItems(
       (menuRes.data || []).map((item: any) => ({
         ...item,
         current_stock: invMap[item.id] ?? null,
       }))
     )
-    if (!navigator.onLine) {
-      const cached = await localGetAll<any>('menu_items')
-      if (cached.length > 0) setMenuItems(cached)
-    }
     setLoading(false)
   }
 
@@ -377,77 +315,18 @@ export default function POS() {
 
   const fetchHistory = async () => {
     setHistoryLoading(true)
-    const { data: attendanceOpen } = await supabase
-      .from('attendance')
-      .select('clock_in')
-      .eq('staff_id', profile?.id)
-      .or('clock_out.is.null')
-      .order('clock_in', { ascending: false })
-      .limit(1)
-    const windowStart = attendanceOpen?.[0]?.clock_in
-      ? new Date(attendanceOpen[0].clock_in)
-      : (() => {
-          const t = new Date()
-          t.setHours(8, 0, 0, 0)
-          if (new Date().getHours() < 8) t.setDate(t.getDate() - 1)
-          return t
-        })()
     const { data } = await supabase
       .from('orders')
       .select(
-        `id, closed_at, payment_method, order_type, status, customer_name,
-        order_items(id, menu_item_id, quantity, total_price, status, return_requested, return_accepted, created_at,
-          menu_items(name))`
+        `id, closed_at, total_amount, payment_method, order_type, status, customer_name, created_at,
+         order_items(id, menu_item_id, quantity, total_price, status, return_requested, return_accepted,
+           menu_items(name))`
       )
       .eq('status', 'paid')
       .order('created_at', { ascending: false })
       .limit(20)
-    if (data) setRecentSales(data as Sale[])
-  }, [])
-
-  const handleBarcodeScan = async (code: string) => {
-    const trimmed = code.trim()
-    if (!trimmed) return
-    setScanning(true)
-    try {
-      let found: Item | null = null
-      const { data: directMatch } = await supabase
-        .from('item')
-        .select('*, item_categories(name, id, sort_order, is_active)')
-        .eq('barcode', trimmed)
-        .eq('is_active', true)
-        .single()
-      if (directMatch) {
-        found = directMatch as Item
-      } else {
-        const { data: barcodeMatch } = await supabase
-          .from('item_barcodes')
-          .select('item_id')
-          .eq('barcode', trimmed)
-          .single()
-        if (barcodeMatch) {
-          const { data: itemData } = await supabase
-            .from('item')
-            .select('*, item_categories(name, id, sort_order, is_active)')
-            .eq('id', barcodeMatch.item_id)
-            .eq('is_active', true)
-            .single()
-          if (itemData) found = itemData as Item
-        }
-      }
-      if (found) {
-        addToCart(found)
-        toast.success('Added', `${found.name} added to cart`)
-      } else {
-        toast.error('Not found', `No item with barcode: ${trimmed}`)
-      }
-    } catch {
-      toast.error('Scan error', 'Failed to look up barcode')
-    } finally {
-      setBarcodeValue('')
-      setScanning(false)
-      setTimeout(() => barcodeInputRef.current?.focus(), 0)
-    }
+    if (data) setOrderHistory(data as unknown as HistoryOrder[])
+    setHistoryLoading(false)
   }
 
   const fetchShiftStats = async () => {
@@ -476,9 +355,7 @@ export default function POS() {
         .from('orders')
         .select(
           `id, total_amount, closed_at,
-          order_items(
-            quantity, total_price, status, return_requested, return_accepted, menu_items(name)
-          )`
+           order_items(quantity, total_price, status, return_requested, return_accepted, menu_items(name))`
         )
         .eq('staff_id', profile?.id)
         .eq('status', 'paid')
@@ -520,9 +397,6 @@ export default function POS() {
 
   return (
     <div className="fixed inset-0 bg-gray-950 flex flex-col">
-      <WaiterCalls />
-      <CustomerOrderAlerts profile={profile} assignedTableIds={[]} />
-
       <nav className="bg-gray-900 border-b border-gray-800 px-4 py-3 sticky top-0 z-40">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -567,7 +441,7 @@ export default function POS() {
           <button
             key={id}
             onClick={() => {
-              setPosTab(id)
+              setPosTab(id as 'pos' | 'history' | 'shift')
               if (id === 'history') fetchHistory()
               if (id === 'shift') fetchShiftStats()
             }}
@@ -589,7 +463,6 @@ export default function POS() {
               />
             </div>
 
-            {/* Desktop cart sidebar */}
             <div className="hidden md:flex w-80 border-l border-gray-800 flex-col overflow-hidden bg-gray-900">
               <CartPanel
                 cart={cart}
@@ -613,22 +486,21 @@ export default function POS() {
                 <div>
                   <h2 className="text-white text-lg font-bold">My Orders</h2>
                   <p className="text-gray-500 text-xs">
-                    Today's orders — {orderHistory.length} total
+                    Recent orders — {orderHistory.length} total
                   </p>
                 </div>
                 <button onClick={fetchHistory} className="text-gray-500 hover:text-white p-2">
                   <RefreshCw size={14} />
                 </button>
               </div>
-              <div className="shrink-0 border-t border-gray-800">
-                <div className="flex items-center justify-between px-4 py-2 bg-gray-900">
-                  <h3 className="text-white text-xs font-bold uppercase tracking-wider">Recent Sales</h3>
-                  <span className="text-gray-500 text-[10px]">{recentSales.length}</span>
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <RefreshCw size={20} className="animate-spin text-amber-500" />
                 </div>
               ) : orderHistory.length === 0 ? (
                 <div className="text-center py-16">
                   <History size={32} className="text-gray-700 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No orders today</p>
+                  <p className="text-gray-500 text-sm">No orders yet</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -667,11 +539,7 @@ export default function POS() {
                               <span className="text-gray-500 text-xs">
                                 {new Date(order.closed_at || order.created_at).toLocaleTimeString(
                                   'en-NG',
-                                  {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true,
-                                  }
+                                  { hour: '2-digit', minute: '2-digit', hour12: true }
                                 )}
                               </span>
                               <span className="text-gray-700 text-xs">|</span>
@@ -702,7 +570,7 @@ export default function POS() {
                                         .menu_items?.name || 'Item'}
                                     </td>
                                     <td className="text-gray-400 py-0.5 text-right pl-2">
-                                      {formatDualPrice(item.total_price || 0)}
+                                      {formatPrice(item.total_price || 0)}
                                     </td>
                                   </tr>
                                 ))}
@@ -711,79 +579,17 @@ export default function POS() {
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {filteredItems.map((item) => {
-                          const cartEntry = cart.find((e) => e.item.id === item.id)
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => addToCart(item)}
-                              className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50 relative"
-                            >
-                              <div className="p-3">
-                                <p className="text-white text-sm font-medium leading-tight truncate">
-                                  {item.name}
-                                </p>
-                                <p className="text-amber-400 text-sm font-bold mt-1">
-                                  {formatPrice(item.price)}
-                                </p>
-                              </div>
-                              {cartEntry && (
-                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
-                                  {cartEntry.quantity}
-                                </div>
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  {cart.length > 0 && (
-                    <div className="shrink-0 border-t border-gray-800 bg-gray-900 p-3">
-                      <button
-                        onClick={() => setMobileView('cart')}
-                        className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <ShoppingCart size={16} />
-                        View Cart ({cartItemCount}) — {formatPrice(cartTotal)}
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex flex-col h-full overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 shrink-0">
-                    <button
-                      onClick={() => setMobileView('items')}
-                      className="text-amber-500 text-sm font-medium"
-                    >
-                      ← Items
-                    </button>
-                    <span className="text-white font-bold text-sm">Cart ({cartItemCount})</span>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <SalePanel
-                      cart={cart}
-                      onUpdateQuantity={updateQuantity}
-                      onRemoveItem={removeItem}
-                      notes={notes}
-                      onNotesChange={setNotes}
-                      onPlaceOrder={handlePlaceOrder}
-                      profile={profile}
-                    />
-                  </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
           </div>
-        </>
+        )}
 
         {posTab === 'shift' && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-lg mx-auto p-4">
-              {/* Same shift stats as before - simplified without table references */}
               {shiftLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <RefreshCw size={20} className="animate-spin text-amber-500" />
@@ -808,10 +614,7 @@ export default function POS() {
                         })}
                       </p>
                     </div>
-                    <button
-                      onClick={fetchShiftStats}
-                      className="text-gray-500 hover:text-white p-2"
-                    >
+                    <button onClick={fetchShiftStats} className="text-gray-500 hover:text-white p-2">
                       <RefreshCw size={14} />
                     </button>
                   </div>
@@ -849,32 +652,18 @@ export default function POS() {
                     />
                   </div>
                   <div className="grid grid-cols-3 gap-3 mb-5">
-                    {[
-                      {
-                        label: 'Orders',
-                        value: shiftStats.ordersCount,
-                        color: 'text-blue-400',
-                        bg: 'bg-blue-500/10',
-                        border: 'border-blue-500/20',
-                      },
-                      {
-                        label: 'Items',
-                        value: shiftStats.totalItems,
-                        color: 'text-purple-400',
-                        bg: 'bg-purple-500/10',
-                        border: 'border-purple-500/20',
-                      },
-                    ].map(({ label, value, color, bg, border }) => (
-                      <div
-                        key={label}
-                        className={`${bg} border ${border} rounded-2xl p-3 text-center`}
-                      >
-                        <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                        <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">
-                          {label}
-                        </p>
-                      </div>
-                    ))}
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-3 text-center">
+                      <p className="text-2xl font-bold text-blue-400">{shiftStats.ordersCount}</p>
+                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">
+                        Orders
+                      </p>
+                    </div>
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-3 text-center">
+                      <p className="text-2xl font-bold text-purple-400">{shiftStats.totalItems}</p>
+                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">
+                        Items
+                      </p>
+                    </div>
                     <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-3 text-center">
                       <p className="text-2xl font-bold text-green-400">{shiftStats.ordersCount}</p>
                       <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-0.5">
@@ -906,15 +695,14 @@ export default function POS() {
             onClick={handlePay}
             className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-6 py-2.5 rounded-xl text-sm transition-colors"
           >
-            Pay — {formatDualPrice(cartTotal)}
+            Pay — {formatPrice(cartTotal)}
           </button>
         </div>
       )}
 
       {showPayment && pendingOrderRef.current && (
         <PaymentModal
-          order={pendingOrderRef.current as any}
-          table={{ id: null, name: 'POS Sale', status: 'available' as const, category_id: '' }}
+          sale={pendingOrderRef.current as any}
           onSuccess={handlePaymentSuccess}
           onClose={handlePaymentClose}
         />
@@ -922,8 +710,7 @@ export default function POS() {
 
       {showReceipt && paidOrder && (
         <ReceiptModal
-          order={paidOrder}
-          table={null}
+          order={paidOrder as any}
           items={[]}
           staffName={profile?.full_name || ''}
           autoPrint={false}
@@ -932,6 +719,42 @@ export default function POS() {
       )}
     </div>
   )
+}
+
+interface HistoryOrder {
+  id: string
+  total_amount: number
+  payment_method?: string | null
+  status: string
+  order_type: string
+  created_at: string
+  closed_at?: string | null
+  customer_name?: string | null
+  notes?: string | null
+  order_items?: (OrderItem & { menu_items?: { name: string } | null })[]
+}
+
+interface ShiftOrder {
+  id: string
+  total_amount?: number
+  closed_at: string
+  order_items: {
+    quantity: number
+    total_price?: number | null
+    status?: string | null
+    return_requested?: boolean | null
+    return_accepted?: boolean | null
+    menu_items?: { name: string } | null
+  }[]
+  netTotal?: number
+}
+
+interface ShiftStats {
+  clockIn?: string
+  ordersCount: number
+  totalSales: number
+  totalItems: number
+  recentOrders: ShiftOrder[]
 }
 
 function CartPanel({
@@ -1001,9 +824,7 @@ function CartPanel({
                     <Plus size={14} />
                   </button>
                 </div>
-                <span className="text-amber-400 text-sm font-bold">
-                  {formatDualPrice(item.total)}
-                </span>
+                <span className="text-amber-400 text-sm font-bold">{formatPrice(item.total)}</span>
               </div>
             </div>
           ))
@@ -1030,7 +851,7 @@ function CartPanel({
             onClick={onPay}
             className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
           >
-            <Send size={16} /> Pay — {formatDualPrice(cartTotal)}
+            <Send size={16} /> Pay — {formatPrice(cartTotal)}
           </button>
         </div>
       )}

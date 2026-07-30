@@ -1,11 +1,11 @@
 import { Plus, Minus, Trash2, Send } from 'lucide-react'
-import type { Item, Profile } from '../../types'
+import type { MenuItem, Profile } from '../../types'
 import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 import { useMemo } from 'react'
 
 interface CartEntry {
-  item: Item
+  item: MenuItem
   quantity: number
 }
 
