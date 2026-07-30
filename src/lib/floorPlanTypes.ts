@@ -1,5 +1,3 @@
-// Shared types and constants for floor plan (editor + POS view)
-
 export interface TableLayout {
   x: number
   y: number
@@ -15,20 +13,21 @@ export interface ZoneBounds {
   h: number
 }
 
-// zones can be a single rect (legacy) or array of rects (multi-section)
 export interface FloorPlanData {
   tables: Record<string, TableLayout>
   zones: Record<string, ZoneBounds | ZoneBounds[]>
 }
 
 export const ZONE_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
-  Inside: { fill: 'rgba(59,130,246,0.08)', stroke: '#3b82f6', text: '#60a5fa' },
-  Outside: { fill: 'rgba(34,197,94,0.08)', stroke: '#22c55e', text: '#4ade80' },
+  'Ground Floor': { fill: 'rgba(59,130,246,0.08)', stroke: '#3b82f6', text: '#60a5fa' },
+  'First Floor': { fill: 'rgba(34,197,94,0.08)', stroke: '#22c55e', text: '#4ade80' },
+  'Second Floor': { fill: 'rgba(234,179,8,0.08)', stroke: '#eab308', text: '#facc15' },
 }
 
 export const ZONE_FILL_OCCUPIED: Record<string, string> = {
-  Inside: '#3b82f6',
-  Outside: '#22c55e',
+  'Ground Floor': '#3b82f6',
+  'First Floor': '#22c55e',
+  'Second Floor': '#eab308',
 }
 
 export const DEFAULT_ZONE_COLOR = {
@@ -37,22 +36,21 @@ export const DEFAULT_ZONE_COLOR = {
   text: '#9ca3af',
 }
 
-export const CANVAS_W = 1200
-export const CANVAS_H = 800
+// Expanded canvas for 150 shops + L-shaped layout
+export const CANVAS_W = 2000
+export const CANVAS_H = 1400
 export const GRID_SIZE = 20
 
 export function getZoneColor(zone?: string) {
   return zone ? ZONE_COLORS[zone] || DEFAULT_ZONE_COLOR : DEFAULT_ZONE_COLOR
 }
 
-/** Normalize a zone value to always be an array of bounds */
 export function normalizeZoneBounds(z: ZoneBounds | ZoneBounds[]): ZoneBounds[] {
   return Array.isArray(z) ? z : [z]
 }
 
-/** Get the bounding box that contains all sections of a zone */
 export function getZoneBoundingBox(sections: ZoneBounds[]): ZoneBounds {
-  if (sections.length === 0) return { x: 0, y: 0, w: 400, h: 300 }
+  if (sections.length === 0) return { x: 0, y: 0, w: 600, h: 500 }
   const minX = Math.min(...sections.map((s) => s.x))
   const minY = Math.min(...sections.map((s) => s.y))
   const maxX = Math.max(...sections.map((s) => s.x + s.w))
@@ -64,7 +62,6 @@ export function parseFloorPlanData(raw: string | null | undefined): FloorPlanDat
   if (!raw) return { tables: {}, zones: {} }
   try {
     const parsed = JSON.parse(raw)
-    // Backwards compat: old format was just a flat Record<string, TableLayout>
     if (parsed.tables) return parsed as FloorPlanData
     return { tables: parsed as Record<string, TableLayout>, zones: {} }
   } catch {

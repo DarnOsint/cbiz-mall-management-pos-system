@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  ArrowLeft,
   Save,
   RotateCcw,
-  Circle,
-  Square,
   ZoomIn,
   ZoomOut,
   Loader2,
   Plus,
   Trash2,
+  Square,
+  Circle,
+  Store,
+  Building2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../context/ToastContext'
@@ -27,59 +28,66 @@ import {
   parseFloorPlanData,
 } from '../../lib/floorPlanTypes'
 
-interface Props {
-  onBack: () => void
-}
-
-interface Zone {
+interface Floor {
   id: string
   name: string
 }
 
-interface TableRow {
+interface ShopRow {
   id: string
   name: string
+  shop_number?: string | null
   capacity: number
+  size_sqm?: number | null
   category_id: string
   status: string
+  category?: string | null
   table_categories?: { id: string; name: string }
 }
 
-const DEFAULT_SIZE = { w: 80, h: 80 }
+const DEFAULT_SIZE = { w: 100, h: 80 }
 const MIN_SIZE = 40
 
 function snapToGrid(v: number): number {
   return Math.round(v / GRID_SIZE) * GRID_SIZE
 }
 
-// Default zone boundary positions (quadrants)
-const DEFAULT_ZONE_BOUNDS: Record<string, ZoneBounds> = {
-  Inside: { x: 20, y: 20, w: 560, h: 780 },
-  Outside: { x: 620, y: 20, w: 560, h: 780 },
+// Default L-shaped zone boundaries for each floor
+const DEFAULT_ZONE_BOUNDS: Record<string, ZoneBounds[]> = {
+  'Ground Floor': [
+    { x: 20, y: 20, w: 1200, h: 800 }, // Main rectangle (long wing)
+    { x: 860, y: 820, w: 600, h: 400 }, // L-extension (short wing going down)
+  ],
+  'First Floor': [
+    { x: 20, y: 20, w: 1200, h: 800 },
+    { x: 860, y: 820, w: 600, h: 400 },
+  ],
+  'Second Floor': [
+    { x: 20, y: 20, w: 1200, h: 800 },
+    { x: 860, y: 820, w: 600, h: 400 },
+  ],
 }
 
-type DragTarget = { type: 'table'; id: string } | { type: 'zone'; name: string; idx: number } | null
+type DragTarget = { type: 'shop'; id: string } | { type: 'zone'; name: string; idx: number } | null
 
 type ResizeTarget =
-  | { type: 'table'; id: string }
+  | { type: 'shop'; id: string }
   | { type: 'zone'; name: string; idx: number }
   | null
 
-export default function FloorPlan({ onBack }: Props) {
+export default function MallFloorPlan() {
   const toast = useToast()
   const canvasRef = useRef<HTMLDivElement>(null)
 
-  const [tables, setTables] = useState<TableRow[]>([])
-  const [zones, setZones] = useState<Zone[]>([])
-  const [tableLayouts, setTableLayouts] = useState<Record<string, TableLayout>>({})
+  const [shops, setShops] = useState<ShopRow[]>([])
+  const [floors, setFloors] = useState<Floor[]>([])
+  const [shopLayouts, setShopLayouts] = useState<Record<string, TableLayout>>({})
   const [zoneBounds, setZoneBounds] = useState<Record<string, ZoneBounds[]>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [zoom, setZoom] = useState(1)
-  const [filterZone, setFilterZone] = useState('All')
+  const [zoom, setZoom] = useState(0.6)
+  const [activeFloor, setActiveFloor] = useState('All')
 
-  // Use refs for drag/resize interaction so mousemove always sees latest values
-  // (useState + useCallback creates stale closures that miss the first frames)
   const dragTargetRef = useRef<DragTarget>(null)
   const resizeTargetRef = useRef<ResizeTarget>(null)
   const dragOffsetRef = useRef({ x: 0, y: 0 })
@@ -89,44 +97,49 @@ export default function FloorPlan({ onBack }: Props) {
 
   useEffect(() => {
     const load = async () => {
-      const [tablesRes, zonesRes, layoutRes] = await Promise.all([
+      const [shopsRes, floorsRes, layoutRes] = await Promise.all([
         supabase.from('tables').select('*, table_categories(id, name)').order('name'),
         supabase.from('table_categories').select('id, name').order('name'),
-        supabase.from('settings').select('value').eq('id', 'floor_plan_layout').single(),
+        supabase.from('settings').select('value').eq('id', 'mall_floor_plan_layout').single(),
       ])
-      const tbls = (tablesRes.data || []) as TableRow[]
-      const zns = (zonesRes.data || []) as Zone[]
-      setTables(tbls)
-      setZones(zns)
+      const s = (shopsRes.data || []) as ShopRow[]
+      const f = (floorsRes.data || []) as Floor[]
+      setShops(s)
+      setFloors(f)
 
       const saved = parseFloorPlanData(layoutRes.data?.value)
-
-      // Ensure every table has a layout entry
       const merged: Record<string, TableLayout> = {}
       let col = 0
       let row = 0
-      for (const t of tbls) {
-        if (saved.tables[t.id]) {
-          merged[t.id] = saved.tables[t.id]
+      for (const shop of s) {
+        if (saved.tables[shop.id]) {
+          merged[shop.id] = saved.tables[shop.id]
         } else {
-          merged[t.id] = { x: 40 + col * 120, y: 40 + row * 120, ...DEFAULT_SIZE, shape: 'rect' }
+          merged[shop.id] = {
+            x: 40 + col * 130,
+            y: 40 + row * 100,
+            ...DEFAULT_SIZE,
+            shape: 'rect',
+          }
           col++
-          if (col > 8) {
+          if (col > 9) {
             col = 0
             row++
           }
         }
       }
-      setTableLayouts(merged)
+      setShopLayouts(merged)
 
-      // Ensure every zone has bounds — normalize to arrays
       const mergedZones: Record<string, ZoneBounds[]> = {}
-      for (const z of zns) {
-        const saved_z = saved.zones[z.name]
+      for (const fl of f) {
+        const saved_z = saved.zones[fl.name]
         if (saved_z) {
-          mergedZones[z.name] = normalizeZoneBounds(saved_z)
+          mergedZones[fl.name] = normalizeZoneBounds(saved_z)
         } else {
-          mergedZones[z.name] = [DEFAULT_ZONE_BOUNDS[z.name] || { x: 20, y: 20, w: 400, h: 300 }]
+          mergedZones[fl.name] = DEFAULT_ZONE_BOUNDS[fl.name] || [
+            { x: 20, y: 20, w: 800, h: 600 },
+            { x: 600, y: 620, w: 400, h: 300 },
+          ]
         }
       }
       setZoneBounds(mergedZones)
@@ -153,8 +166,8 @@ export default function FloorPlan({ onBack }: Props) {
       resizeTargetRef.current = target
     } else {
       dragTargetRef.current = target
-      if (target?.type === 'table') {
-        const l = tableLayouts[target.id]
+      if (target?.type === 'shop') {
+        const l = shopLayouts[target.id]
         if (l) dragOffsetRef.current = { x: pos.x - l.x, y: pos.y - l.y }
       } else if (target?.type === 'zone') {
         const sections = zoneBounds[target.name]
@@ -162,7 +175,7 @@ export default function FloorPlan({ onBack }: Props) {
         if (b) dragOffsetRef.current = { x: pos.x - b.x, y: pos.y - b.y }
       }
     }
-    if (target?.type === 'table') setSelectedId(target.id)
+    if (target?.type === 'shop') setSelectedId(target.id)
     didInteractRef.current = true
     forceRender((n) => n + 1)
   }
@@ -174,8 +187,8 @@ export default function FloorPlan({ onBack }: Props) {
     const pos = getMousePos(e)
     const offset = dragOffsetRef.current
 
-    if (drag?.type === 'table') {
-      setTableLayouts((prev) => {
+    if (drag?.type === 'shop') {
+      setShopLayouts((prev) => {
         const l = prev[drag.id]
         if (!l) return prev
         return {
@@ -202,8 +215,8 @@ export default function FloorPlan({ onBack }: Props) {
       })
     }
 
-    if (resize?.type === 'table') {
-      setTableLayouts((prev) => {
+    if (resize?.type === 'shop') {
+      setShopLayouts((prev) => {
         const l = prev[resize.id]
         if (!l) return prev
         return {
@@ -237,21 +250,21 @@ export default function FloorPlan({ onBack }: Props) {
     forceRender((n) => n + 1)
   }
 
-  const toggleShape = (tableId: string) => {
-    setTableLayouts((prev) => {
-      const l = prev[tableId]
+  const toggleShape = (shopId: string) => {
+    setShopLayouts((prev) => {
+      const l = prev[shopId]
       if (!l) return prev
-      return { ...prev, [tableId]: { ...l, shape: l.shape === 'rect' ? 'circle' : 'rect' } }
+      return { ...prev, [shopId]: { ...l, shape: l.shape === 'rect' ? 'circle' : 'rect' } }
     })
   }
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const data: FloorPlanData = { tables: tableLayouts, zones: zoneBounds }
+      const data: FloorPlanData = { tables: shopLayouts, zones: zoneBounds }
       const { error } = await supabase.from('settings').upsert(
         {
-          id: 'floor_plan_layout',
+          id: 'mall_floor_plan_layout',
           value: JSON.stringify(data),
           updated_at: new Date().toISOString(),
         },
@@ -270,18 +283,26 @@ export default function FloorPlan({ onBack }: Props) {
     const fresh: Record<string, TableLayout> = {}
     let col = 0
     let row = 0
-    for (const t of tables) {
-      fresh[t.id] = { x: 40 + col * 120, y: 40 + row * 120, ...DEFAULT_SIZE, shape: 'rect' }
+    for (const shop of shops) {
+      fresh[shop.id] = {
+        x: 40 + col * 130,
+        y: 40 + row * 100,
+        ...DEFAULT_SIZE,
+        shape: 'rect',
+      }
       col++
-      if (col > 8) {
+      if (col > 9) {
         col = 0
         row++
       }
     }
-    setTableLayouts(fresh)
+    setShopLayouts(fresh)
     const freshZones: Record<string, ZoneBounds[]> = {}
-    for (const z of zones) {
-      freshZones[z.name] = [DEFAULT_ZONE_BOUNDS[z.name] || { x: 20, y: 20, w: 400, h: 300 }]
+    for (const fl of floors) {
+      freshZones[fl.name] = DEFAULT_ZONE_BOUNDS[fl.name] || [
+        { x: 20, y: 20, w: 800, h: 600 },
+        { x: 600, y: 620, w: 400, h: 300 },
+      ]
     }
     setZoneBounds(freshZones)
     setSelectedId(null)
@@ -291,13 +312,13 @@ export default function FloorPlan({ onBack }: Props) {
   const addZoneSection = (zoneName: string) => {
     setZoneBounds((prev) => {
       const sections = prev[zoneName] || []
-      const last = sections[sections.length - 1] || { x: 20, y: 20, w: 300, h: 200 }
+      const last = sections[sections.length - 1] || { x: 20, y: 20, w: 400, h: 300 }
       return {
         ...prev,
-        [zoneName]: [...sections, { x: last.x + 40, y: last.y + 40, w: 300, h: 200 }],
+        [zoneName]: [...sections, { x: last.x + 40, y: last.y + 40, w: 400, h: 300 }],
       }
     })
-    toast.success('Section added', `Drag and resize the new ${zoneName} section`)
+    toast.success('Section added', `Drag and resize the new section`)
   }
 
   const removeZoneSection = (zoneName: string, idx: number) => {
@@ -311,8 +332,8 @@ export default function FloorPlan({ onBack }: Props) {
     })
   }
 
-  const filteredTables =
-    filterZone === 'All' ? tables : tables.filter((t) => t.table_categories?.name === filterZone)
+  const filteredShops =
+    activeFloor === 'All' ? shops : shops.filter((s) => s.table_categories?.name === activeFloor)
 
   if (loading) {
     return (
@@ -326,95 +347,86 @@ export default function FloorPlan({ onBack }: Props) {
 
   return (
     <div className="min-h-full bg-gray-950 flex flex-col">
-      {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center gap-3 shrink-0">
-        <button onClick={onBack} className="text-gray-400 hover:text-white">
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-white font-bold">Floor Plan Editor</h1>
-          <p className="text-gray-400 text-xs">
-            Drag zone areas and tables to match your real layout. Resize with corner handles.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}
-            className="p-2 bg-gray-800 text-gray-400 hover:text-white rounded-lg"
-          >
-            <ZoomOut size={16} />
-          </button>
-          <span className="text-gray-400 text-xs w-12 text-center">{Math.round(zoom * 100)}%</span>
-          <button
-            onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))}
-            className="p-2 bg-gray-800 text-gray-400 hover:text-white rounded-lg"
-          >
-            <ZoomIn size={16} />
-          </button>
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 border border-gray-700 text-gray-300 hover:text-white rounded-xl text-sm transition-colors"
-          >
-            <RotateCcw size={14} /> Reset
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-xl text-sm transition-colors disabled:opacity-50"
-          >
-            <Save size={14} /> {saving ? 'Saving...' : 'Save Layout'}
-          </button>
-        </div>
-      </div>
-
-      {/* Zone filter + selected table info */}
+      {/* Toolbar */}
       <div className="px-6 py-3 flex items-center gap-3 border-b border-gray-800 shrink-0 overflow-x-auto">
-        {['All', ...zones.map((z) => z.name)].map((zone) => (
+        {/* Floor filter */}
+        {['All', ...floors.map((f) => f.name)].map((floor) => (
           <button
-            key={zone}
-            onClick={() => setFilterZone(zone)}
+            key={floor}
+            onClick={() => setActiveFloor(floor)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-              filterZone === zone
+              activeFloor === floor
                 ? 'bg-amber-500 text-black'
                 : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
-            {zone}
+            {floor}
           </button>
         ))}
-        {/* Add section button — visible when a specific zone is selected */}
-        {filterZone !== 'All' && (
-          <button
-            onClick={() => addZoneSection(filterZone)}
-            className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition-colors"
-          >
-            <Plus size={12} /> Add Section
-          </button>
+        <div className="w-px h-5 bg-gray-700 mx-1" />
+        {/* Zoom */}
+        <button
+          onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}
+          className="p-1.5 bg-gray-800 text-gray-400 hover:text-white rounded-lg"
+        >
+          <ZoomOut size={14} />
+        </button>
+        <span className="text-gray-400 text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button
+          onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))}
+          className="p-1.5 bg-gray-800 text-gray-400 hover:text-white rounded-lg"
+        >
+          <ZoomIn size={14} />
+        </button>
+        <div className="w-px h-5 bg-gray-700 mx-1" />
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition-colors"
+        >
+          <RotateCcw size={13} /> Reset
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg text-xs transition-colors disabled:opacity-50"
+        >
+          <Save size={13} /> {saving ? 'Saving...' : 'Save Layout'}
+        </button>
+        {/* Section controls */}
+        {activeFloor !== 'All' && (
+          <>
+            <div className="w-px h-5 bg-gray-700 mx-1" />
+            <button
+              onClick={() => addZoneSection(activeFloor)}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition-colors"
+            >
+              <Plus size={12} /> Add Zone Section
+            </button>
+          </>
         )}
-
-        <div className="ml-auto flex items-center gap-3">
-          {selectedId && (
-            <>
-              <span className="text-gray-500 text-xs">
-                Selected: {tables.find((t) => t.id === selectedId)?.name}
-              </span>
-              <button
-                onClick={() => toggleShape(selectedId)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition-colors"
-              >
-                {tableLayouts[selectedId]?.shape === 'rect' ? (
-                  <>
-                    <Circle size={12} /> Make Round
-                  </>
-                ) : (
-                  <>
-                    <Square size={12} /> Make Square
-                  </>
-                )}
-              </button>
-            </>
-          )}
-        </div>
+        {/* Selected shop controls */}
+        {selectedId && (
+          <>
+            <div className="w-px h-5 bg-gray-700 mx-1" />
+            <span className="text-gray-500 text-xs">
+              {shops.find((s) => s.id === selectedId)?.name}
+            </span>
+            <button
+              onClick={() => toggleShape(selectedId)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800 border border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition-colors"
+            >
+              {shopLayouts[selectedId]?.shape === 'rect' ? (
+                <>
+                  <Circle size={11} /> Round
+                </>
+              ) : (
+                <>
+                  <Square size={11} /> Square
+                </>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Canvas */}
@@ -439,9 +451,9 @@ export default function FloorPlan({ onBack }: Props) {
             setSelectedId(null)
           }}
         >
-          {/* Zone boundary sections — rendered first (behind tables) */}
+          {/* Zone boundary sections */}
           {Object.entries(zoneBounds).map(([zoneName, sections]) => {
-            if (filterZone !== 'All' && filterZone !== zoneName) return null
+            if (activeFloor !== 'All' && activeFloor !== zoneName) return null
             const c = ZONE_COLORS[zoneName] || DEFAULT_ZONE_COLOR
             return sections.map((bounds, idx) => (
               <div
@@ -467,7 +479,6 @@ export default function FloorPlan({ onBack }: Props) {
                   handleMouseDown(e, { type: 'zone', name: zoneName, idx }, false)
                 }
               >
-                {/* Zone label — only on first section */}
                 {idx === 0 && (
                   <span
                     style={{
@@ -483,10 +494,13 @@ export default function FloorPlan({ onBack }: Props) {
                       letterSpacing: '0.05em',
                     }}
                   >
+                    <Building2
+                      size={14 * zoom}
+                      style={{ display: 'inline', marginRight: 4 * zoom }}
+                    />
                     {zoneName}
                   </span>
                 )}
-                {/* Section number badge for multi-section zones */}
                 {sections.length > 1 && (
                   <span
                     style={{
@@ -499,10 +513,9 @@ export default function FloorPlan({ onBack }: Props) {
                       pointerEvents: 'none',
                     }}
                   >
-                    {idx + 1}/{sections.length}
+                    Sec {idx + 1}/{sections.length}
                   </span>
                 )}
-                {/* Remove section button (only if multiple sections) */}
                 {sections.length > 1 && (
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
@@ -529,7 +542,6 @@ export default function FloorPlan({ onBack }: Props) {
                     <Trash2 size={Math.max(8, 10 * zoom)} color="#f87171" />
                   </button>
                 )}
-                {/* Resize handle */}
                 <div
                   onMouseDown={(e) =>
                     handleMouseDown(e, { type: 'zone', name: zoneName, idx }, true)
@@ -551,14 +563,14 @@ export default function FloorPlan({ onBack }: Props) {
             ))
           })}
 
-          {/* Tables — rendered on top */}
-          {filteredTables.map((table) => {
-            const layout = tableLayouts[table.id]
+          {/* Shops */}
+          {filteredShops.map((shop) => {
+            const layout = shopLayouts[shop.id]
             if (!layout) return null
-            const zoneName = table.table_categories?.name
+            const zoneName = shop.table_categories?.name
             const c = getZoneColor(zoneName)
-            const isSelected = selectedId === table.id
-            const isOccupied = table.status === 'occupied'
+            const isSelected = selectedId === shop.id
+            const isOccupied = shop.status === 'occupied'
 
             const style: React.CSSProperties = {
               position: 'absolute',
@@ -566,12 +578,12 @@ export default function FloorPlan({ onBack }: Props) {
               top: layout.y * zoom,
               width: layout.w * zoom,
               height: layout.h * zoom,
-              borderRadius: layout.shape === 'circle' ? '50%' : 12 * zoom,
+              borderRadius: layout.shape === 'circle' ? '50%' : 10 * zoom,
               background: isOccupied ? c.stroke : c.fill.replace('0.08', '0.25'),
               border: `${2 * zoom}px solid ${isSelected ? '#f59e0b' : c.stroke}`,
               boxShadow: isSelected ? '0 0 0 3px rgba(245,158,11,0.3)' : 'none',
               cursor:
-                dragTargetRef.current?.type === 'table' && dragTargetRef.current.id === table.id
+                dragTargetRef.current?.type === 'shop' && dragTargetRef.current.id === shop.id
                   ? 'grabbing'
                   : 'grab',
               display: 'flex',
@@ -585,34 +597,43 @@ export default function FloorPlan({ onBack }: Props) {
 
             return (
               <div
-                key={table.id}
+                key={shop.id}
                 style={style}
-                onMouseDown={(e) => handleMouseDown(e, { type: 'table', id: table.id }, false)}
+                onMouseDown={(e) => handleMouseDown(e, { type: 'shop', id: shop.id }, false)}
               >
+                <Store
+                  size={Math.max(10, 14 * zoom)}
+                  style={{
+                    color: isOccupied ? '#fff' : c.text,
+                    opacity: 0.7,
+                    pointerEvents: 'none',
+                    marginBottom: 2 * zoom,
+                  }}
+                />
                 <span
                   style={{
                     color: isOccupied ? '#fff' : c.text,
-                    fontSize: Math.max(10, 13 * zoom),
+                    fontSize: Math.max(8, 11 * zoom),
                     fontWeight: 700,
                     lineHeight: 1.2,
                     textAlign: 'center',
                     pointerEvents: 'none',
                   }}
                 >
-                  {table.name}
+                  {shop.shop_number || shop.name}
                 </span>
                 <span
                   style={{
                     color: isOccupied ? 'rgba(255,255,255,0.7)' : 'rgba(156,163,175,0.8)',
-                    fontSize: Math.max(8, 10 * zoom),
+                    fontSize: Math.max(7, 9 * zoom),
                     pointerEvents: 'none',
                   }}
                 >
-                  {table.capacity} seats
+                  {shop.size_sqm || shop.capacity} m²
                 </span>
                 {isSelected && (
                   <div
-                    onMouseDown={(e) => handleMouseDown(e, { type: 'table', id: table.id }, true)}
+                    onMouseDown={(e) => handleMouseDown(e, { type: 'shop', id: shop.id }, true)}
                     style={{
                       position: 'absolute',
                       right: -4 * zoom,
@@ -633,14 +654,14 @@ export default function FloorPlan({ onBack }: Props) {
       </div>
 
       {/* Legend */}
-      <div className="px-6 py-3 border-t border-gray-800 flex items-center gap-6 shrink-0">
-        {Object.entries(ZONE_COLORS).map(([zone, c]) => (
+      <div className="px-6 py-3 border-t border-gray-800 flex items-center gap-6 shrink-0 flex-wrap">
+        {Object.entries(ZONE_COLORS).map(([zone, clr]) => (
           <div key={zone} className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm" style={{ background: c.stroke }} />
+            <div className="w-3 h-3 rounded-sm" style={{ background: clr.stroke }} />
             <span className="text-gray-400 text-xs">{zone}</span>
           </div>
         ))}
-        <div className="flex items-center gap-2 ml-4">
+        <div className="flex items-center gap-2 ml-2">
           <div className="w-3 h-3 rounded-sm bg-gray-600" />
           <span className="text-gray-400 text-xs">Available</span>
         </div>

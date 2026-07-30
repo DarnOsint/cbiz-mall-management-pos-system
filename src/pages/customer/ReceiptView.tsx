@@ -32,7 +32,10 @@ interface Order {
   tables?: OrderTable | null
 }
 
-const ITEM_STATUS: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+const ITEM_STATUS: Record<
+  string,
+  { label: string; icon: React.ComponentType<{ size?: number; className?: string }>; color: string }
+> = {
   pending: { label: 'Waiting', icon: Clock, color: 'text-gray-400' },
   preparing: { label: 'Preparing', icon: ChefHat, color: 'text-amber-400' },
   ready: { label: 'Ready!', icon: CheckCircle, color: 'text-green-400' },

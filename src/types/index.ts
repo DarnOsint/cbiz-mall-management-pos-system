@@ -1,9 +1,19 @@
-// ─── Core domain types ────────────────────────────────────────────────────
-
-export type Role = 'owner' | 'manager' | 'waitron' | 'kitchen' | 'bar'
+export type Role =
+  | 'owner'
+  | 'manager'
+  | 'staff'
+  | 'accountant'
+  | 'waitron'
+  | 'bar'
+  | 'kitchen'
+  | 'griller'
+  | 'mixologist'
+  | 'games_master'
+  | 'shisha_attendant'
+  | 'auditor'
 
 export type OrderStatus = 'open' | 'paid' | 'voided' | 'pending'
-export type OrderType = 'table' | 'cash_sale' | 'takeaway'
+export type OrderType = 'direct' | 'cash_sale' | 'table' | 'takeaway'
 export type PaymentMethod =
   | 'cash'
   | 'bank_pos'
@@ -12,10 +22,9 @@ export type PaymentMethod =
   | 'card'
   | 'transfer'
   | 'split'
-export type ItemDestination = 'kitchen' | 'bar'
-export type ItemStatus = 'pending' | 'preparing' | 'ready' | 'delivered'
+export type ItemStatus = 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled'
 export type TableStatus = 'available' | 'occupied' | 'reserved'
-// ─── Database row types ────────────────────────────────────────────────────
+export type ItemDestination = 'kitchen' | 'bar' | 'mixologist' | 'griller' | 'shisha' | 'games'
 
 export interface Profile {
   id: string
@@ -31,6 +40,7 @@ export interface Profile {
 export interface TableCategory {
   id: string
   name: string
+  hire_fee?: number | null
 }
 
 export interface Table {
@@ -43,61 +53,57 @@ export interface Table {
   table_categories?: TableCategory
 }
 
-export interface MenuCategory {
-  id: string
-  name: string
-  destination: ItemDestination
-}
-
 export interface MenuItem {
   id: string
   name: string
   price: number
-  is_available: boolean
-  category_id: string
-  menu_categories?: MenuCategory
-  current_stock?: number | null
-  hasZonePrice?: boolean
+  description?: string | null
+  image_url?: string | null
+  is_available?: boolean
+  category_id?: string | null
+  menu_categories?: { name?: string; destination?: string } | null
 }
 
 export interface OrderItem {
   id: string
   order_id: string
-  menu_item_id: string
+  menu_item_id?: string | null
+  item_name: string
   quantity: number
   unit_price: number
   total_price: number
   status?: ItemStatus
-  destination?: ItemDestination
+  destination?: string | null
   modifier_notes?: string | null
   extra_charge?: number
+  return_requested?: boolean
+  return_accepted?: boolean
+  return_reason?: string | null
   created_at: string
-  menu_items?:
-    | (Pick<MenuItem, 'name' | 'price'> & { menu_categories?: MenuCategory })
-    | { name: string; price?: number; menu_categories?: MenuCategory }
-    | null
+  menu_items?: {
+    name: string
+    price?: number
+    menu_categories?: { name?: string; destination?: string } | null
+  } | null
 }
 
 export interface Order {
   id: string
-  table_id?: string | null
   staff_id?: string | null
+  table_id?: string | null
   order_type: OrderType
   status: OrderStatus
   total_amount: number
   notes?: string | null
-  covers?: number | null
-  payment_method?: PaymentMethod | null
+  payment_method?: PaymentMethod | string | null
   customer_name?: string | null
   customer_phone?: string | null
   created_at: string
   closed_at?: string | null
   updated_at?: string | null
-  tables?:
-    | Pick<Table, 'id' | 'name'>
-    | { name: string; table_categories?: { name: string } | null }
-    | null
   order_items?: OrderItem[]
+  tables?: { name: string; assigned_staff?: string | null } | null
+  profiles?: { full_name: string } | null
 }
 
 export interface TillSession {
@@ -135,7 +141,6 @@ export interface InventoryItem {
   minimum_stock: number
   cost_price?: number
   selling_price?: number
-  menu_item_id?: string | null
   is_active: boolean
 }
 
@@ -163,8 +168,6 @@ export interface SyncStatus {
   status: 'online' | 'offline' | 'syncing' | 'partial'
   pending: number
 }
-
-// ─── Audit helper params ──────────────────────────────────────────────────
 
 export interface AuditParams {
   action: string

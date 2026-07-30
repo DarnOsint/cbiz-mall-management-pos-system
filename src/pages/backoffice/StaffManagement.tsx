@@ -24,8 +24,8 @@ import {
 import type { Profile } from '../../types'
 import { useToast } from '../../context/ToastContext'
 
-const DEFAULT_ROLES = ['waitron', 'kitchen', 'bar', 'manager', 'owner'] as const
-const DEFAULT_FLOOR_ROLES = ['waitron', 'kitchen', 'bar']
+const DEFAULT_ROLES = ['staff', 'manager', 'owner'] as const
+const DEFAULT_FLOOR_ROLES = ['staff']
 type AccessMode = 'floor' | 'office'
 interface CustomRoleConfig {
   role: string
@@ -34,9 +34,7 @@ interface CustomRoleConfig {
 const roleColors: Record<string, string> = {
   owner: 'bg-amber-500/20 text-amber-400',
   manager: 'bg-purple-500/20 text-purple-400',
-  waitron: 'bg-green-500/20 text-green-400',
-  kitchen: 'bg-red-500/20 text-red-400',
-  bar: 'bg-cyan-500/20 text-cyan-400',
+  staff: 'bg-green-500/20 text-green-400',
 }
 interface StaffForm {
   full_name: string
@@ -98,7 +96,7 @@ export default function StaffManagement({ onBack }: Props) {
     full_name: '',
     email: '',
     phone: '',
-    role: 'waitron',
+    role: 'staff',
     pin: '',
     password: '',
     hire_date: new Date().toISOString().split('T')[0],

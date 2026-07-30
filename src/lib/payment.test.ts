@@ -22,6 +22,7 @@ function makeItem(id: string, total_price: number, extra_charge = 0): OrderItem 
     id,
     order_id: 'order-1',
     menu_item_id: 'menu-1',
+    item_name: '',
     quantity: 1,
     unit_price: total_price,
     total_price,

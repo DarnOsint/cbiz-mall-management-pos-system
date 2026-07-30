@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { UtensilsCrossed, RefreshCw, Printer, Wrench } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { useAuth } from '../../../context/AuthContext'
-import BarChillerStock from '../../backoffice/BarChillerStock'
-
 const todayStr = () => {
   const now = new Date()
   const d = new Date(now)
@@ -287,7 +285,17 @@ export default function ChillerSummaryTab() {
   const totalVariance = totalExpected - totalClosing
 
   if (editMode && isManager) {
-    return <BarChillerStock onBack={() => setEditMode(false)} embedded />
+    return (
+      <div className="p-4 text-center">
+        <p className="text-gray-400 mb-3">Chiller stock editing is disabled</p>
+        <button
+          onClick={() => setEditMode(false)}
+          className="text-amber-400 hover:text-amber-300 text-sm"
+        >
+          Back
+        </button>
+      </div>
+    )
   }
 
   const printReport = () => {

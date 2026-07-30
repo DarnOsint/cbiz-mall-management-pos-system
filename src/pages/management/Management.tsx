@@ -16,7 +16,6 @@ import {
 import ShiftManager from './ShiftManager'
 import TableAssignment from './TableAssignment'
 import WaiterCalls from './WaiterCalls'
-import KitchenStock from '../backoffice/KitchenStock'
 import ReturnedDrinksTab from './mgmt/ReturnedDrinksTab'
 import ChillerTab from './mgmt/ChillerTab'
 import StaffPerformanceTab from './mgmt/StaffPerformanceTab'
@@ -218,7 +217,6 @@ export default function Management() {
       description:
         'Complete audit trail of everything that has happened: logins (email and PIN, with device type), clock-ins and outs, orders placed and paid, voids, supplier actions, and settings changes. Filter by group (Login, Sales, Voids, Shifts, BackOffice) or search by staff name or action. Exportable to CSV.',
     },
-
   ]
 
   return (
