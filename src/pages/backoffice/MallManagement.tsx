@@ -10,8 +10,9 @@ import {
   Move, Maximize, LayoutDashboard, Map, FileText,
   Download, Info, Phone, Mail, Tag, CreditCard,
   Clock, AlertTriangle, ChevronRight, Store,
-  BarChart3, Percent, Home, KeyRound, Wrench, Receipt
+  BarChart3, Percent, Home, KeyRound, Wrench, Receipt, Box
 } from 'lucide-react'
+import Mall3DView from '../mall/Mall3DView'
 import type { MallFloor, MallShop, MallRentPayment, MallMaintenanceRequest, MallRentInvoice, Profile } from '../../types'
 
 interface Props {
@@ -71,7 +72,7 @@ export default function MallManagement({ onBack }: Props) {
   const [rentPayments, setRentPayments] = useState<Record<string, MallRentPayment[]>>({})
   const [loading, setLoading] = useState(true)
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'floor-plan' | 'tenants' | 'reports' | 'maintenance'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'floor-plan' | 'tenants' | 'reports' | 'maintenance' | '3d-view'>('overview')
 
   const [showShopForm, setShowShopForm] = useState(false)
   const [editingShop, setEditingShop] = useState<MallShop | null>(null)
@@ -721,6 +722,7 @@ export default function MallManagement({ onBack }: Props) {
             { id: 'tenants' as const, label: 'Tenants', icon: Users },
             { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
             { id: 'maintenance' as const, label: 'Maintenance', icon: Wrench },
+            { id: '3d-view' as const, label: '3D View', icon: Box },
           ].map(tab => (
             <button
               key={tab.id}
@@ -802,6 +804,11 @@ export default function MallManagement({ onBack }: Props) {
             )}
           </div>
         </div>
+
+        {/* ─── 3D VIEW TAB ─── */}
+        {activeTab === '3d-view' && (
+          <Mall3DView />
+        )}
 
         {/* ─── OVERVIEW TAB ─── */}
         {activeTab === 'overview' && (

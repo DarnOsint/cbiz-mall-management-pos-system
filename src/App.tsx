@@ -16,7 +16,7 @@ const Debtors = lazy(() => import('./pages/accounting/Debtors'))
 const Reports = lazy(() => import('./pages/reports/Reports'))
 const BackOffice = lazy(() => import('./pages/backoffice/BackOffice'))
 const MonthEnd = lazy(() => import('./pages/monthend/MonthEnd'))
-const MallManagement = lazy(() => import('./pages/mall/MallManagement'))
+const MallManagement = lazy(() => import('./pages/backoffice/MallManagement'))
 import type { Role } from './types'
 
 function ScrollToTop() {
@@ -212,7 +212,7 @@ function AppRoutes() {
             }
           />
           <Route
-            path="/mall"
+            path="/mallmanagement"
             element={
               <PrivateRoute>
                 <RoleGuard allowed={['owner', 'manager']}>
@@ -223,6 +223,7 @@ function AppRoutes() {
               </PrivateRoute>
             }
           />
+          <Route path="/mall" element={<Navigate to="/mallmanagement" replace />} />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Suspense>

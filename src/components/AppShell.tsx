@@ -30,7 +30,7 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'Dashboard', icon: LayoutDashboard, path: '/executive' },
     { label: 'Reports', icon: TrendingUp, path: '/reports' },
     { label: 'Back Office', icon: Settings, path: '/backoffice' },
-    { label: 'Mall', icon: Store, path: '/mall' },
+    { label: 'Mall', icon: Store, path: '/mallmanagement' },
     { label: 'Month End', icon: CalendarDays, path: '/month-end' },
   ],
   manager: [
@@ -38,7 +38,7 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { label: 'POS', icon: ShoppingBag, path: '/pos' },
     { label: 'Reports', icon: TrendingUp, path: '/reports' },
     { label: 'Inventory', icon: Package, path: '/backoffice' },
-    { label: 'Mall', icon: Store, path: '/mall' },
+    { label: 'Mall', icon: Store, path: '/mallmanagement' },
     { label: 'Month End', icon: CalendarDays, path: '/month-end' },
   ],
   staff: [{ label: 'POS', icon: ShoppingBag, path: '/pos' }],
