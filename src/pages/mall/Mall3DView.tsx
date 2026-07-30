@@ -53,7 +53,17 @@ const FLOOR_COLORS: Record<string, string> = {
 const FLOOR_H = 0.2
 const FLOOR_GAP = 2.5
 
-function FaceFeature({ feature, shopW, shopD, shopH }: { feature: ShopFeature; shopW: number; shopD: number; shopH: number }) {
+function FaceFeature({
+  feature,
+  shopW,
+  shopD,
+  shopH,
+}: {
+  feature: ShopFeature
+  shopW: number
+  shopD: number
+  shopH: number
+}) {
   const w = feature.width
   const h = feature.height
   const ox = feature.offset_x - 0.5
@@ -94,10 +104,17 @@ function FaceFeature({ feature, shopW, shopD, shopH }: { feature: ShopFeature; s
 }
 
 function ShopBox({
-  shop, position, selected, onClick, floorColor
+  shop,
+  position,
+  selected,
+  onClick,
+  floorColor,
 }: {
-  shop: Shop3D; position: [number, number, number]; selected: boolean
-  onClick: () => void; floorColor: string
+  shop: Shop3D
+  position: [number, number, number]
+  selected: boolean
+  onClick: () => void
+  floorColor: string
 }) {
   const shopW = shop.width / 10
   const shopD = shop.height / 10
@@ -110,7 +127,13 @@ function ShopBox({
         <boxGeometry args={[shopW, shopH, shopD]} />
         <meshStandardMaterial color={color} opacity={selected ? 1 : 0.8} transparent />
       </mesh>
-      <Text position={[0, shopH / 2 + 0.3, 0]} fontSize={0.4} color="white" anchorX="center" anchorY="middle">
+      <Text
+        position={[0, shopH / 2 + 0.3, 0]}
+        fontSize={0.4}
+        color="white"
+        anchorX="center"
+        anchorY="middle"
+      >
         {shop.shop_number}
       </Text>
       {shop.features.map((f) => (
@@ -121,13 +144,25 @@ function ShopBox({
 }
 
 function FloorLevel({
-  floor, shops, yOffset, selectedId, onShopClick, floorColor
+  floor,
+  shops,
+  yOffset,
+  selectedId,
+  onShopClick,
+  floorColor,
 }: {
-  floor: MallFloor; shops: Shop3D[]; yOffset: number
-  selectedId: string | null; onShopClick: (id: string) => void; floorColor: string
+  floor: MallFloor
+  shops: Shop3D[]
+  yOffset: number
+  selectedId: string | null
+  onShopClick: (id: string) => void
+  floorColor: string
 }) {
   const SCALE = 10
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
+  let minX = Infinity,
+    maxX = -Infinity,
+    minZ = Infinity,
+    maxZ = -Infinity
   for (const s of shops) {
     if (s.pos_x < minX) minX = s.pos_x
     if (s.pos_x + s.width > maxX) maxX = s.pos_x + s.width
@@ -164,10 +199,19 @@ function FloorLevel({
 }
 
 function Scene({
-  floors, shops, selectedId, onShopClick, editMode, onPlaceFeature, onRemoveFeature
+  floors,
+  shops,
+  selectedId,
+  onShopClick,
+  editMode,
+  onPlaceFeature,
+  onRemoveFeature,
 }: {
-  floors: MallFloor[]; shops: Shop3D[]; selectedId: string | null
-  onShopClick: (id: string) => void; editMode: boolean
+  floors: MallFloor[]
+  shops: Shop3D[]
+  selectedId: string | null
+  onShopClick: (id: string) => void
+  editMode: boolean
   onPlaceFeature: (shopId: string, face: string) => void
   onRemoveFeature: (featureId: string) => void
 }) {
@@ -191,10 +235,14 @@ function Scene({
         />
       ))}
       <OrbitControls
-        target={[0, FLOOR_GAP, 0]}
+        target={[0, ((floors.length - 1) * FLOOR_GAP) / 2, 0]}
+        enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
         minDistance={5}
-        maxDistance={80}
-        maxPolarAngle={Math.PI / 2.1}
+        maxDistance={120}
+        maxPolarAngle={Math.PI / 1.8}
+        minPolarAngle={0.1}
       />
       <gridHelper args={[80, 40, '#444444', '#333333']} position={[0, -0.1, 0]} />
     </>
@@ -225,7 +273,9 @@ export default function Mall3DView() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   const selectedShop = shops.find((s) => s.id === selectedShopId) || null
 
@@ -279,7 +329,7 @@ export default function Mall3DView() {
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" onContextMenu={(e) => e.preventDefault()}>
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
         <button
           onClick={() => setEditMode(!editMode)}
@@ -297,7 +347,10 @@ export default function Mall3DView() {
             const count = shops.filter((s) => s.floor_id === floor.id).length
             return (
               <div key={floor.id} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded" style={{ backgroundColor: FLOOR_COLORS[floor.name] || '#6b7280' }} />
+                <div
+                  className="w-3 h-3 rounded"
+                  style={{ backgroundColor: FLOOR_COLORS[floor.name] || '#6b7280' }}
+                />
                 <span className="text-gray-300">
                   {floor.name} ({count} shop{count !== 1 ? 's' : ''})
                 </span>
@@ -331,9 +384,11 @@ export default function Mall3DView() {
       )}
 
       <Canvas
-        camera={{ position: [20, 15, 20], fov: 50 }}
+        camera={{ position: [30, 25, 30], fov: 45 }}
         gl={{ antialias: true, alpha: false }}
-        onCreated={({ gl }) => { gl.setClearColor('#1a1a2e') }}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#1a1a2e')
+        }}
       >
         <Scene
           floors={floors}
@@ -350,23 +405,33 @@ export default function Mall3DView() {
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-gray-900/95 border border-gray-700 rounded-xl p-3 text-xs min-w-[280px]">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-white font-bold text-sm">{selectedShop.shop_name}</p>
-              <p className="text-gray-400">{selectedShop.shop_number}</p>
+              <p className="text-white font-bold text-sm">{selectedShop.shop_number}</p>
+              <p className="text-gray-400">{selectedShop.tenant_name || 'Vacant'}</p>
             </div>
-            <button onClick={() => setSelectedShopId(null)} className="text-gray-400 hover:text-white">
+            <button
+              onClick={() => setSelectedShopId(null)}
+              className="text-gray-400 hover:text-white"
+            >
               <X size={14} />
             </button>
           </div>
           <div className="flex items-center gap-3 text-gray-400">
-            <span>{selectedShop.is_occupied ? `Tenant: ${selectedShop.tenant_name || 'N/A'}` : 'Vacant'}</span>
+            <span>
+              {selectedShop.is_occupied ? `Tenant: ${selectedShop.tenant_name || 'N/A'}` : 'Vacant'}
+            </span>
             <span>{selectedShop.shop_category || '—'}</span>
           </div>
           {selectedShop.features.length > 0 && (
             <div className="mt-2 flex items-center gap-1.5 flex-wrap">
               <span className="text-gray-500">Features:</span>
               {selectedShop.features.map((f) => (
-                <span key={f.id} className="inline-flex items-center gap-1 bg-gray-800 px-2 py-0.5 rounded-full text-gray-300">
-                  <span className={`w-2 h-2 rounded-sm ${f.feature_type === 'door' ? 'bg-amber-600' : 'bg-sky-400'}`} />
+                <span
+                  key={f.id}
+                  className="inline-flex items-center gap-1 bg-gray-800 px-2 py-0.5 rounded-full text-gray-300"
+                >
+                  <span
+                    className={`w-2 h-2 rounded-sm ${f.feature_type === 'door' ? 'bg-amber-600' : 'bg-sky-400'}`}
+                  />
                   {f.face}
                 </span>
               ))}

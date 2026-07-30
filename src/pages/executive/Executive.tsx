@@ -76,8 +76,12 @@ export default function Executive() {
   const [trendData, setTrendData] = useState<TrendDay[]>([])
   const [loading, setLoading] = useState(true)
   const [mallSummary, setMallSummary] = useState({
-    totalShops: 0, occupiedShops: 0, vacantShops: 0,
-    overdueCount: 0, paidCount: 0, totalRentDue: 0
+    totalShops: 0,
+    occupiedShops: 0,
+    vacantShops: 0,
+    overdueCount: 0,
+    paidCount: 0,
+    totalRentDue: 0,
   })
 
   const statsRefreshTimer = useRef<number | null>(null)
@@ -89,53 +93,67 @@ export default function Executive() {
   const fetchStats = useCallback(async () => {
     const { sessionStart, sessionEnd } = getSessionWindow()
 
-    supabase.from('mall_shops').select('*, mall_rent_payments(*)').then(({ data }) => {
-      if (!data) return
-      const shops = data as unknown as (MallShop & { mall_rent_payments: MallRentPayment[] })[]
-      const now = new Date()
-      let overdue = 0, paid = 0
-      for (const shop of shops) {
-        if (!shop.is_occupied) continue
-        const totalMonths = shop.mall_rent_payments.reduce((s, p) => s + p.months_paid, 0)
-        if (totalMonths <= 0) { overdue++; continue }
-        const lastPaid = new Date(shop.mall_rent_payments.reduce((latest, p) =>
-          new Date(p.paid_at) > new Date(latest.paid_at) ? p : latest
-        , shop.mall_rent_payments[0]).paid_at)
-        const monthsPassed = (now.getFullYear() - lastPaid.getFullYear()) * 12 + (now.getMonth() - lastPaid.getMonth())
-        const remaining = totalMonths - monthsPassed - 1
-        const daysInto = now.getDate() - lastPaid.getDate()
-        const daysLeft = remaining * 30 + (30 - daysInto)
-        if (daysLeft >= 14) paid++
-        else overdue++
-      }
-      setMallSummary({
-        totalShops: shops.length, occupiedShops: shops.filter(s => s.is_occupied).length,
-        vacantShops: shops.filter(s => !s.is_occupied).length,
-        overdueCount: overdue, paidCount: paid,
-        totalRentDue: shops.reduce((s, shop) => s + (shop.is_occupied ? shop.monthly_rent : 0), 0)
+    supabase
+      .from('mall_shops')
+      .select('*, mall_rent_payments(*)')
+      .then(({ data }) => {
+        if (!data) return
+        const shops = data as unknown as (MallShop & { mall_rent_payments: MallRentPayment[] })[]
+        const now = new Date()
+        let overdue = 0,
+          paid = 0
+        for (const shop of shops) {
+          if (!shop.is_occupied) continue
+          const totalMonths = shop.mall_rent_payments.reduce((s, p) => s + p.months_paid, 0)
+          if (totalMonths <= 0) {
+            overdue++
+            continue
+          }
+          const lastPaid = new Date(
+            shop.mall_rent_payments.reduce(
+              (latest, p) => (new Date(p.paid_at) > new Date(latest.paid_at) ? p : latest),
+              shop.mall_rent_payments[0]
+            ).paid_at
+          )
+          const monthsPassed =
+            (now.getFullYear() - lastPaid.getFullYear()) * 12 +
+            (now.getMonth() - lastPaid.getMonth())
+          const remaining = totalMonths - monthsPassed - 1
+          const daysInto = now.getDate() - lastPaid.getDate()
+          const daysLeft = remaining * 30 + (30 - daysInto)
+          if (daysLeft >= 14) paid++
+          else overdue++
+        }
+        setMallSummary({
+          totalShops: shops.length,
+          occupiedShops: shops.filter((s) => s.is_occupied).length,
+          vacantShops: shops.filter((s) => !s.is_occupied).length,
+          overdueCount: overdue,
+          paidCount: paid,
+          totalRentDue: shops.reduce(
+            (s, shop) => s + (shop.is_occupied ? shop.monthly_rent : 0),
+            0
+          ),
+        })
       })
-    })
 
-    const [stockRes, revenueRes, trendRes] =
-      await Promise.all([
-        supabase.from('inventory').select('id, current_stock, minimum_stock').eq('is_active', true),
-        supabase
-          .from('orders')
-          .select(
-            'total_amount, order_items(total_price, return_requested, return_accepted, status)'
-          )
-          .eq('status', 'paid')
-          .gte('closed_at', sessionStart.toISOString())
-          .lt('closed_at', sessionEnd.toISOString()),
-        supabase
-          .from('orders')
-          .select(
-            'closed_at, total_amount, order_items(total_price, status, return_requested, return_accepted)'
-          )
-          .eq('status', 'paid')
-          .gte('closed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-          .order('closed_at', { ascending: true }),
-      ])
+    const [stockRes, revenueRes, trendRes] = await Promise.all([
+      supabase.from('inventory').select('id, current_stock, minimum_stock').eq('is_active', true),
+      supabase
+        .from('orders')
+        .select('total_amount, order_items(total_price, return_requested, return_accepted, status)')
+        .eq('status', 'paid')
+        .gte('closed_at', sessionStart.toISOString())
+        .lt('closed_at', sessionEnd.toISOString()),
+      supabase
+        .from('orders')
+        .select(
+          'closed_at, total_amount, order_items(total_price, status, return_requested, return_accepted)'
+        )
+        .eq('status', 'paid')
+        .gte('closed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .order('closed_at', { ascending: true }),
+    ])
     setStats({
       revenue: (revenueRes.data || []).reduce((s: number, o: any) => {
         const net = (o.order_items || [])
@@ -262,7 +280,9 @@ export default function Executive() {
               </div>
               <div className="bg-gray-900 rounded-2xl p-3 md:p-4 border border-gray-800">
                 <p className="text-gray-500 text-xs">Total Rent/mo</p>
-                <p className="text-amber-400 text-lg font-bold mt-1">₦{mallSummary.totalRentDue.toLocaleString()}</p>
+                <p className="text-amber-400 text-lg font-bold mt-1">
+                  ${mallSummary.totalRentDue.toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
