@@ -438,6 +438,7 @@ export default function MallManagement({ onBack }: Props) {
     try {
       const payload = {
         shop_number: shopForm.shop_number.trim(),
+        shop_name: shopForm.shop_number.trim(),
         floor_id: activeFloor,
         pos_x: shopForm.pos_x,
         pos_y: shopForm.pos_y,
