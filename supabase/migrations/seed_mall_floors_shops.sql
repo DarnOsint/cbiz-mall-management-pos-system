@@ -43,7 +43,7 @@ BEGIN
       x_pos := c * 55;
       y_pos := r * 55;
       shop_num := 'G-' || LPAD(i::text, 2, '0');
-      shop_name := 'Shop ' || shop_num;
+      shop_name := shop_num;
       rent := 500 + (random() * 3000)::int;
       cat := categories[1 + (random() * 4)::int];
       INSERT INTO mall_shops (shop_number, shop_name, floor_id, pos_x, pos_y, width, height, monthly_rent, shop_category, is_occupied)
@@ -60,7 +60,7 @@ BEGIN
       x_pos := c * 55;
       y_pos := r * 55;
       shop_num := '1-' || LPAD(i::text, 2, '0');
-      shop_name := 'Shop ' || shop_num;
+      shop_name := shop_num;
       rent := 600 + (random() * 4000)::int;
       cat := categories[1 + (random() * 4)::int];
       INSERT INTO mall_shops (shop_number, shop_name, floor_id, pos_x, pos_y, width, height, monthly_rent, shop_category, is_occupied)
@@ -77,7 +77,7 @@ BEGIN
       x_pos := c * 55;
       y_pos := r * 55;
       shop_num := '2-' || LPAD(i::text, 2, '0');
-      shop_name := 'Shop ' || shop_num;
+      shop_name := shop_num;
       rent := 400 + (random() * 2500)::int;
       cat := categories[1 + (random() * 4)::int];
       INSERT INTO mall_shops (shop_number, shop_name, floor_id, pos_x, pos_y, width, height, monthly_rent, shop_category, is_occupied)

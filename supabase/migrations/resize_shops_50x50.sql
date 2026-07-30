@@ -1,6 +1,6 @@
--- Resize ALL existing shops to 50x50 and reposition them in a proper 10×5 grid
+-- Resize ALL existing shops to 50x50, fix names (remove "Shop " prefix)
 UPDATE mall_shops SET
-  width = 50, height = 50,
+  width = 50, height = 50, shop_name = shop_number,
   pos_x = ((row_number - 1) % 10) * 55,
   pos_y = floor((row_number - 1) / 10) * 55
 FROM (
