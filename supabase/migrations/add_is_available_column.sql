@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Add is_available column to menu_items (frontend uses this, DB only had is_active)
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS is_available boolean DEFAULT true;
 

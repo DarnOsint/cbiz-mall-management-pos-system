@@ -140,6 +140,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <p className="text-amber-500 text-xs capitalize">{profile.role}</p>
               </div>
               <div className="flex items-center gap-1">
+                <StockAlertBell />
                 {notifPermission === 'granted' && (
                   <Bell size={12} className="text-green-400" aria-label="Notifications enabled" />
                 )}
@@ -187,9 +188,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center">
                 <Store size={13} className="text-black" />
               </div>
-              <span className="text-white font-bold text-sm">C.Biz</span>
+              <span className="text-white font-bold text-sm">C.Biz POS</span>
             </div>
             <div className="flex items-center gap-2">
+              <StockAlertBell />
               {navItems.length > 1 && (
                 <button
                   onClick={() => setDrawerOpen(true)}

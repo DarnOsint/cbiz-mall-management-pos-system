@@ -31,31 +31,6 @@ export function useNotifications(profile: Profile | null) {
     if (!profile) return
     const channels: ReturnType<typeof supabase.channel>[] = []
 
-    if (['owner', 'manager', 'waitron', 'supervisor'].includes(profile.role)) {
-      const orderCh = supabase
-        .channel('notify-order-ready')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'order_items',
-            filter: 'status=eq.ready',
-          },
-          (payload) => {
-            const item = payload.new as { quantity: number }
-            addToast({
-              type: 'ready',
-              title: 'Order Ready',
-              message: `${item.quantity}x item is ready for table`,
-              color: 'green',
-            })
-          }
-        )
-        .subscribe()
-      channels.push(orderCh)
-    }
-
     if (['owner', 'manager'].includes(profile.role)) {
       const invCh = supabase
         .channel('notify-low-stock')
@@ -85,33 +60,6 @@ export function useNotifications(profile: Profile | null) {
         )
         .subscribe()
       channels.push(invCh)
-    }
-
-    if (['owner', 'manager', 'waitron', 'supervisor'].includes(profile.role)) {
-      const callCh = supabase
-        .channel('notify-waiter-calls')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'waiter_calls',
-          },
-          (payload) => {
-            const call = payload.new as { waitron_id: string; table_name?: string }
-            const isMyCall = profile.role !== 'waitron' || call.waitron_id === profile.id
-            if (isMyCall) {
-              addToast({
-                type: 'call',
-                title: 'Table Calling',
-                message: `${call.table_name ?? 'A table'} needs attention`,
-                color: 'blue',
-              })
-            }
-          }
-        )
-        .subscribe()
-      channels.push(callCh)
     }
 
     return () => channels.forEach((ch) => supabase.removeChannel(ch))

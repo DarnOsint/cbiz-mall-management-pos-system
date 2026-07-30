@@ -161,7 +161,7 @@ export default function StaffManagement({ onBack }: Props) {
       full_name: member.full_name || '',
       email: (member as unknown as { email?: string }).email || '',
       phone: (member as unknown as { phone?: string }).phone || '',
-      role: member.role || 'waitron',
+      role: member.role || 'cashier',
       pin: (member as unknown as { pin?: string }).pin || '',
       password: '',
       hire_date:
@@ -401,6 +401,8 @@ export default function StaffManagement({ onBack }: Props) {
   }
 
   const toggleActive = async (member: Profile) => {
+    const isActive = !!(member as unknown as { is_active?: boolean }).is_active
+    if (isActive && !confirm(`Deactivate ${member.full_name}? They will lose access to the system.`)) return
     const { error } = await supabase
       .from('profiles')
       .update({ is_active: !(member as unknown as { is_active?: boolean }).is_active })
@@ -470,7 +472,7 @@ export default function StaffManagement({ onBack }: Props) {
           </div>
         </div>
         {loading ? (
-          <div className="text-amber-500 text-center py-12">Loading...</div>
+          <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-500">No staff found</div>
         ) : (

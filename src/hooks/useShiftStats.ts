@@ -12,16 +12,16 @@ interface ShiftOrder {
     status: string
     return_requested: boolean
     return_accepted: boolean
-    menu_items: { name: string } | null
+    item: { name: string } | null
   }>
 }
 
 export interface ShiftStats {
   clockIn: string
-  ordersCount: number
+  salesCount: number
   totalSales: number
   totalItems: number
-  uniqueTables: number
+  uniqueAreas: number
   recentOrders: ShiftOrder[]
 }
 
@@ -49,11 +49,11 @@ export function useShiftStats(profileId?: string) {
         supabase
           .from('orders')
           .select(
-            `id, total_amount, closed_at, tables(name),
+            `id, total_amount, closed_at,
             order_items(
               quantity, total_price, status,
               return_requested, return_accepted,
-              menu_items(name)
+              item(name)
             )`
           )
           .eq('staff_id', profileId)
@@ -80,14 +80,14 @@ export function useShiftStats(profileId?: string) {
         (s, o) => s + o.order_items.reduce((ss, i) => ss + (i.quantity || 0), 0),
         0
       )
-      const uniqueTables = new Set(orders.map((o) => o.tables?.name).filter(Boolean)).size
+      const uniqueAreas = new Set(orders.map((o) => o.tables?.name).filter(Boolean)).size
 
       setStats({
         clockIn: attendance?.clock_in ?? '',
-        ordersCount: orders.length,
+        salesCount: orders.length,
         totalSales,
         totalItems,
-        uniqueTables,
+        uniqueAreas,
         recentOrders: filteredOrders.slice(0, 5),
       })
     } catch (err) {

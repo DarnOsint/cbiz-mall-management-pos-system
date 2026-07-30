@@ -1,8 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-const BRAND = 'C.Biz Lounge'
-const SUBTEXT = 'Restaurant & Bar'
+const BRAND = 'C.Biz POS'
+const SUBTEXT = ''
 
 export function createPDF(title: string, subtitle?: string): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })

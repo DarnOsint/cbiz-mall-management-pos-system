@@ -92,8 +92,8 @@ const statusConfig = {
   },
 }
 const debtTypeLabels: Record<string, string> = {
-  table_order: 'Table Order',
-  bar_tab: 'Bar Tab',
+  walk_in: 'Walk-in Sale',
+  credit_sale: 'Credit Sale',
 }
 
 export default function Debtors({ onBack, embedded = false }: Props) {
@@ -117,7 +117,7 @@ export default function Debtors({ onBack, embedded = false }: Props) {
     name: '',
     phone: '',
     email: '',
-    debt_type: 'table_order',
+    debt_type: 'walk_in',
     credit_limit: '',
     due_date: '',
     notes: '',
@@ -164,12 +164,12 @@ export default function Debtors({ onBack, embedded = false }: Props) {
       if (orderIds.length > 0) {
         const { data: ois } = await supabase
           .from('order_items')
-          .select('order_id, quantity, menu_items(name)')
+          .select('order_id, quantity, item(name)')
           .in('order_id', orderIds)
         const oiMap: Record<string, string[]> = {}
         for (const oi of (ois || []) as any[]) {
           if (!oiMap[oi.order_id]) oiMap[oi.order_id] = []
-          oiMap[oi.order_id].push(`${oi.quantity}x ${oi.menu_items?.name || 'Item'}`)
+          oiMap[oi.order_id].push(`${oi.quantity}x ${oi.item?.name || 'Item'}`)
         }
         setDebtorItems(oiMap)
       }

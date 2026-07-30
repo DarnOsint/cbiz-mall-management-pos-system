@@ -36,7 +36,7 @@ describe('audit()', () => {
       entityId: 'order-123',
       entityName: 'Table 5',
       newValue: { total: 1500 },
-      performer: { id: 'staff-1', full_name: 'Tunde Adeyemi', role: 'waitron' },
+      performer: { id: 'staff-1', full_name: 'Tunde Adeyemi', role: 'cashier' },
     }
     await audit(params)
     expect(mockInsert).toHaveBeenCalledTimes(1)

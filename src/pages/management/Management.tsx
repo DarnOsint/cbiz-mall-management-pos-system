@@ -26,16 +26,16 @@ import { HelpTooltip } from '../../components/HelpTooltip'
 import OverviewTab from './mgmt/OverviewTab'
 import OpenOrdersTab from './mgmt/OpenOrdersTab'
 import ActivityLogTab from './mgmt/ActivityLogTab'
-import MainStoreSummaryTab from './mgmt/MainStoreSummaryTab'
-import OrdersByWaitronTab from './mgmt/OrdersByWaitronTab'
-import VoidsTab from './mgmt/VoidsTab'
+import ShiftReport from './mgmt/ShiftReport'
+import ExpensesTab from './mgmt/ExpensesTab'
+import SalesByCategory from './mgmt/SalesByCategory'
 
 const sessionWindow = () => {
   const now = new Date()
   const lagosNow = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
   const start = new Date(lagosNow)
-  start.setHours(8, 0, 0, 0)
-  if (lagosNow.getHours() < 8) start.setDate(start.getDate() - 1)
+  start.setHours(23, 0, 0, 0)
+  if (lagosNow.getHours() < 23) start.setDate(start.getDate() - 1)
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
   return { start, end }
@@ -43,9 +43,9 @@ const sessionWindow = () => {
 
 const activityWindow = (dateStr: string) => {
   const lagosNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
-  const base = new Date(`${dateStr}T08:00:00+01:00`) // WAT no DST
+  const base = new Date(`${dateStr}T23:00:00+01:00`)
   const todayStr = lagosNow.toISOString().slice(0, 10)
-  if (dateStr === todayStr && lagosNow.getHours() < 8) {
+  if (dateStr === todayStr && lagosNow.getHours() < 23) {
     base.setDate(base.getDate() - 1)
   }
   const start = base
@@ -56,32 +56,22 @@ const activityWindow = (dateStr: string) => {
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'shifts', label: 'Shifts', icon: Clock },
-  { id: 'tables', label: 'Zone Assignment', icon: Users },
-  { id: 'orders', label: 'Orders', icon: ShoppingBag },
-  { id: 'performance', label: 'Staff Performance', icon: Trophy },
-  { id: 'barsales', label: 'Bar Sales', icon: UtensilsCrossed },
-  { id: 'kitchen', label: 'Kitchen Sales', icon: UtensilsCrossed },
-  { id: 'chiller', label: 'Chiller', icon: UtensilsCrossed },
-  { id: 'mainstore', label: 'Main Store', icon: Package },
-  { id: 'returns', label: 'Returns', icon: RotateCcw },
-  { id: 'voids', label: 'Voids', icon: AlertTriangle },
-
+  { id: 'sales', label: 'Sales', icon: ShoppingBag },
   { id: 'activity', label: 'Activity Log', icon: Shield },
+  { id: 'shift', label: 'Shift Report', icon: ReceiptText },
+  { id: 'expenses', label: 'Expenses', icon: TrendingDown },
+  { id: 'category', label: 'Sales by Category', icon: PieChart },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
 
 interface Stats {
-  openOrders: number
-  occupiedTables: number
-  staffOnShift: number
+  openSales: number
   todayRevenue: number
 }
 export default function Management() {
   useAuth()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
-  const { lateOrders, threshold, markDelivered } = useLateOrders()
 
   const [activityDate, setActivityDate] = useState(() => new Date().toISOString().slice(0, 10))
   const activityRange = useMemo(() => {
@@ -89,9 +79,7 @@ export default function Management() {
     return { start: start.toISOString(), end: end.toISOString() }
   }, [activityDate])
   const [stats, setStats] = useState<Stats>({
-    openOrders: 0,
-    occupiedTables: 0,
-    staffOnShift: 0,
+    openSales: 0,
     todayRevenue: 0,
   })
 
@@ -101,12 +89,9 @@ export default function Management() {
   const isVisible = () => document.visibilityState === 'visible'
 
   const fetchStats = useCallback(async () => {
-    void supabase.rpc('free_orphaned_tables')
     const { start, end } = sessionWindow()
-    const [ordersRes, tablesRes, staffRes, revenueRes] = await Promise.all([
+    const [salesRes, revenueRes] = await Promise.all([
       supabase.from('orders').select('id').eq('status', 'open'),
-      supabase.from('tables').select('id').eq('status', 'occupied'),
-      supabase.from('attendance').select('staff_id').or('clock_out.is.null'),
       supabase
         .from('orders')
         .select('total_amount, order_items(total_price, return_requested, return_accepted, status)')
@@ -115,10 +100,7 @@ export default function Management() {
         .lt('closed_at', end.toISOString()),
     ])
     setStats({
-      openOrders: ordersRes.data?.length || 0,
-      occupiedTables: tablesRes.data?.length || 0,
-      staffOnShift: new Set((staffRes.data || []).map((r: { staff_id: string }) => r.staff_id))
-        .size,
+      openSales: salesRes.data?.length || 0,
       todayRevenue: (revenueRes.data || []).reduce((s: number, o: any) => {
         const net = (o.order_items || [])
           .filter(
@@ -169,9 +151,6 @@ export default function Management() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () =>
         scheduleFetchStats(10000)
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () =>
-        scheduleFetchStats(10000)
-      )
       .subscribe()
     return () => {
       clearInterval(iv)
@@ -185,100 +164,22 @@ export default function Management() {
       id: 'mgmt-overview',
       title: 'Overview',
       description:
-        "Live dashboard: open orders, occupied tables, staff on shift, and today's revenue — all updating in real time. The late orders banner turns red when any order exceeds the alert threshold. Figures are deduplicated so one waitron always counts as one.",
+        "Live dashboard: open sales and today's revenue — all updating in real time.",
     },
     {
-      id: 'mgmt-shifts',
-      title: 'Shifts Tab',
-      description:
-        'Clock staff in and out. The system checks the database live before every clock-in to prevent duplicate entries. Clocking out a waitron with open orders triggers a warning — resolve those orders first.',
-    },
-    {
-      id: 'mgmt-tables',
-      title: 'Zone Assignment',
-      description:
-        'Assign waitrons to zones (Inside, Outside) or to specific individual tables. A waitron only sees and serves tables in their assigned area. You can reassign mid-shift if needed.',
-    },
-    {
-      id: 'mgmt-orders',
-      title: 'Orders Tab',
-      description:
-        'Live view of all open orders — table, waitron, items, and total. Use Force Close on any order that is stuck as open after payment has already been collected. Force Close marks all items as delivered so the KDS clears, frees the table, and closes the order cleanly.',
-    },
-    {
-      id: 'mgmt-kitchen',
-      title: 'Kitchen Stock Tab',
-      description:
-        'Daily food stock register — records what was received, auto-syncs what was sold from POS, and calculates what should remain. Managers can edit and delete entries; kitchen staff can only add new entries. Variance alarms flag possible theft or waste.',
+      id: 'mgmt-sales',
+      title: 'Sales',
+      description: 'View and manage open sales.',
     },
     {
       id: 'mgmt-activity',
-      title: 'Activity Log Tab',
-      description:
-        'Complete audit trail of everything that has happened: logins (email and PIN, with device type), clock-ins and outs, orders placed and paid, voids, supplier actions, and settings changes. Filter by group (Login, Sales, Voids, Shifts, BackOffice) or search by staff name or action. Exportable to CSV.',
+      title: 'Activity Log',
+      description: 'Full audit trail of all actions, filterable by date.',
     },
   ]
 
   return (
     <div className="min-h-full bg-gray-950">
-      <WaiterCalls />
-
-      {/* Late Orders Banner */}
-      {lateOrders.length > 0 && (
-        <div className="bg-red-500/10 border-b border-red-500/30 px-4 py-3">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={16} className="text-red-400 animate-pulse" />
-            <span className="text-red-400 font-bold text-sm">
-              {lateOrders.length} overdue table{lateOrders.length > 1 ? 's' : ''} — pending over{' '}
-              {threshold} mins
-            </span>
-          </div>
-          <div className="space-y-2">
-            {lateOrders.map((order) => {
-              const pendingItems = (order.order_items || []).filter(
-                (i: Record<string, unknown>) => i.status === 'pending'
-              )
-              const destinations = [
-                ...new Set(
-                  pendingItems
-                    .map((i: Record<string, unknown>) => (i.destination as string)?.toUpperCase())
-                    .filter(Boolean)
-                ),
-              ]
-              const mins = Math.floor(
-                (new Date().getTime() - new Date(order.created_at).getTime()) / 60000
-              )
-              return (
-                <div
-                  key={order.id}
-                  className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-white text-sm font-bold">
-                        {order.order_type === 'takeaway'
-                          ? `Takeaway — ${order.customer_name || 'Guest'}`
-                          : order.tables?.name || 'Table ?'}
-                      </p>
-                      <p className="text-red-300 text-xs mt-0.5">
-                        {pendingItems.length} pending item{pendingItems.length > 1 ? 's' : ''} ·{' '}
-                        {(destinations as string[]).join(', ')} · {mins} mins ago
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => markDelivered(order.id)}
-                      className="shrink-0 bg-green-500 hover:bg-green-400 text-black text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                    >
-                      Delivered
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Tab bar */}
       <div className="flex border-b border-gray-800 bg-gray-900 px-4 overflow-x-auto items-center">
         <div className="ml-auto pl-2 py-1 shrink-0">
@@ -305,16 +206,10 @@ export default function Management() {
         {activeTab === 'overview' && (
           <OverviewTab stats={stats} onTabChange={(id) => setActiveTab(id as TabId)} />
         )}
-        {activeTab === 'shifts' && <ShiftManager onRefreshStats={fetchStats} />}
-        {activeTab === 'tables' && <TableAssignment />}
-        {activeTab === 'orders' && <OpenOrdersTab />}
-        {activeTab === 'barsales' && <StationSalesTab destination="bar" label="Bar" />}
-        {activeTab === 'kitchen' && <StationSalesTab destination="kitchen" label="Kitchen" />}
-        {activeTab === 'performance' && <StaffPerformanceTab />}
-        {activeTab === 'chiller' && <ChillerTab />}
-        {activeTab === 'mainstore' && <MainStoreSummaryTab />}
-        {activeTab === 'returns' && <ReturnedDrinksTab />}
-        {activeTab === 'voids' && <VoidsTab />}
+        {activeTab === 'sales' && <OpenOrdersTab />}
+        {activeTab === 'shift' && <ShiftReport />}
+        {activeTab === 'expenses' && <ExpensesTab />}
+        {activeTab === 'category' && <SalesByCategory />}
         {activeTab === 'activity' && (
           <div>
             <div className="flex items-center gap-3 mb-4">
@@ -347,6 +242,11 @@ export default function Management() {
               </button>
             </div>
             <ActivityLogTab dateRange={activityRange} />
+          </div>
+        )}
+        {!activeTab && (
+          <div className="flex items-center justify-center h-full py-20 text-gray-600">
+            <p>Select a tab to view</p>
           </div>
         )}
       </div>

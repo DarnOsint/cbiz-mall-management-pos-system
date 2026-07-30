@@ -1,40 +1,40 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import type { WaitronStat } from './types'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import type { StaffStat } from './types'
+import { formatPrice } from '../../lib/currency'
 
 interface Props {
-  waitronStats: WaitronStat[]
+  staffStats: StaffStat[]
 }
 
-export default function StaffTab({ waitronStats }: Props) {
+export default function StaffTab({ staffStats }: Props) {
   return (
     <div className="space-y-4">
-      {waitronStats.length > 0 ? (
+      {staffStats.length > 0 ? (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-800 text-gray-400 uppercase tracking-wider">
                 <th className="text-left px-3 py-2">#</th>
                 <th className="text-left px-2 py-2">Staff</th>
-                <th className="text-right px-2 py-2">Orders</th>
+                <th className="text-right px-2 py-2">Sales</th>
                 <th className="text-right px-2 py-2">Revenue</th>
                 <th className="text-right px-2 py-2">Avg</th>
                 <th className="text-right px-3 py-2">%</th>
               </tr>
             </thead>
             <tbody>
-              {waitronStats.map((w, i) => {
-                const totalRev = waitronStats.reduce((s, ws) => s + ws.revenue, 0)
+              {staffStats.map((w, i) => {
+                const totalRev = staffStats.reduce((s, ws) => s + ws.revenue, 0)
                 return (
                   <tr key={w.name} className="border-t border-gray-800 hover:bg-gray-800/50">
                     <td className="px-3 py-2 text-gray-600">{i + 1}</td>
                     <td className="px-2 py-2 text-white font-medium">{w.name}</td>
-                    <td className="px-2 py-2 text-gray-300 text-right">{w.orders}</td>
+                    <td className="px-2 py-2 text-gray-300 text-right">{w.sales}</td>
                     <td className="px-2 py-2 text-amber-400 text-right font-bold">
                       {formatPrice(w.revenue)}
                     </td>
                     <td className="px-2 py-2 text-gray-400 text-right">
-                      {formatPrice(Math.round(w.revenue / w.orders))}
+                      {formatPrice(Math.round(w.revenue / w.sales))}
                     </td>
                     <td className="px-3 py-2 text-gray-500 text-right">
                       {totalRev ? Math.round((w.revenue / totalRev) * 100) : 0}%
@@ -49,10 +49,10 @@ export default function StaffTab({ waitronStats }: Props) {
                   TOTAL
                 </td>
                 <td className="px-2 py-2 text-right text-white">
-                  {waitronStats.reduce((s, w) => s + w.orders, 0)}
+                  {staffStats.reduce((s, w) => s + w.sales, 0)}
                 </td>
                 <td className="px-2 py-2 text-right text-amber-400">
-                  {formatPrice(waitronStats.reduce((s, w) => s + w.revenue, 0))}
+                  {formatPrice(staffStats.reduce((s, w) => s + w.revenue, 0))}
                 </td>
                 <td className="px-2 py-2" colSpan={2}></td>
               </tr>
@@ -65,15 +65,15 @@ export default function StaffTab({ waitronStats }: Props) {
         </div>
       )}
 
-      {waitronStats.length > 1 && (
+      {staffStats.length > 1 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={waitronStats}>
+            <BarChart data={staffStats}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#6b7280', fontSize: 9 }}
-                tickFormatter={(v) => `${getCurrencySymbol()}${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `SSP ${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={{

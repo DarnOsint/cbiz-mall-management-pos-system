@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Celebiz Restaurant OS — Full Database Schema
 -- Run this in Supabase SQL editor (Dashboard → SQL Editor)
 -- Safe to re-run: uses CREATE TABLE IF NOT EXISTS and ALTER TABLE ADD COLUMN IF NOT EXISTS
@@ -625,4 +628,64 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO settings (id, value) VALUES ('business_name', '"Celebiz"')
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO settings (id, value) VALUES ('vat_rate', '7.5')
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================
+-- PRINT JOBS (print queue for network receipt printers)
+-- ============================================
+CREATE TABLE IF NOT EXISTS print_jobs (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id        uuid REFERENCES orders(id) ON DELETE SET NULL,
+  receipt_number  text NOT NULL,
+  type            text NOT NULL CHECK (type IN ('customer', 'waiter', 'kitchen', 'bar')),
+  status          text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','printing','printed','failed','cancelled')),
+  copies          int DEFAULT 1,
+  printer_ip      text,
+  receipt_data    jsonb DEFAULT '{}',
+  error_message   text,
+  retry_count     int DEFAULT 0,
+  max_retries     int DEFAULT 5,
+  next_retry_at   timestamptz,
+  created_at      timestamptz DEFAULT now(),
+  started_at      timestamptz,
+  printed_at      timestamptz
+);
+
+ALTER TABLE print_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "print_jobs_read_all" ON print_jobs FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "print_jobs_insert_all" ON print_jobs FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY IF NOT EXISTS "print_jobs_update_own" ON print_jobs FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- Index for retry polling
+CREATE INDEX IF NOT EXISTS idx_print_jobs_retry ON print_jobs (status, next_retry_at) WHERE status = 'failed';
+
+-- ============================================
+-- PRINTER CONFIGURATION DEFAULTS
+-- ============================================
+INSERT INTO settings (id, value) VALUES ('printers', jsonb_build_array(
+  jsonb_build_object(
+    'id', 'cashier',
+    'name', 'Cashier Printer',
+    'ip', '192.168.1.50',
+    'port', 9100,
+    'copies', 1,
+    'types', jsonb_build_array('customer', 'waiter')
+  ),
+  jsonb_build_object(
+    'id', 'kitchen',
+    'name', 'Kitchen Printer',
+    'ip', '192.168.1.51',
+    'port', 9100,
+    'copies', 1,
+    'types', jsonb_build_array('kitchen')
+  ),
+  jsonb_build_object(
+    'id', 'bar',
+    'name', 'Bar Printer',
+    'ip', '192.168.1.52',
+    'port', 9100,
+    'copies', 1,
+    'types', jsonb_build_array('bar')
+  )
+))
 ON CONFLICT (id) DO NOTHING;

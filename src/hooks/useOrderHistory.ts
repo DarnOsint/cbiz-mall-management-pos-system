@@ -5,9 +5,9 @@ interface MenuItemSummary {
   name: string
 }
 
-interface OrderItemSummary {
+interface SaleItemSummary {
   id: string
-  menu_item_id: string
+  item_id: string
   quantity: number
   total_price: number
   status: string
@@ -17,7 +17,7 @@ interface OrderItemSummary {
   modifier_notes: string | null
   extra_charge: number | null
   created_at: string
-  menu_items: MenuItemSummary | null
+  item: MenuItemSummary | null
 }
 
 export interface HistoryOrder {
@@ -28,11 +28,11 @@ export interface HistoryOrder {
   status: string
   customer_name: string | null
   tables: { name: string } | null
-  order_items: OrderItemSummary[]
+  order_items: SaleItemSummary[]
 }
 
-export function useOrderHistory(profileId?: string) {
-  const [orders, setOrders] = useState<HistoryOrder[]>([])
+export function useSaleHistory(profileId?: string) {
+  const [sales, setSales] = useState<HistoryOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
@@ -66,9 +66,8 @@ export function useOrderHistory(profileId?: string) {
           .from('orders')
           .select(
             `id, closed_at, payment_method, order_type, status, customer_name,
-          tables(name),
-          order_items(id, menu_item_id, quantity, total_price, status, return_requested, return_accepted, destination, modifier_notes, extra_charge, created_at,
-            menu_items(name))`
+          order_items(id, item_id, quantity, total_price, status, return_requested, return_accepted, destination, modifier_notes, extra_charge, created_at,
+            item(name))`
           )
           .eq('status', 'paid')
           .eq('staff_id', profileId)
@@ -78,9 +77,9 @@ export function useOrderHistory(profileId?: string) {
 
         const newOrders = (data || []) as unknown as HistoryOrder[]
         if (loadMore) {
-          setOrders((prev) => [...prev, ...newOrders])
+          setSales((prev) => [...prev, ...newOrders])
         } else {
-          setOrders(newOrders)
+          setSales(newOrders)
         }
         setHasMore(newOrders.length === 60)
         setPage(loadMore ? page + 1 : 0)
@@ -92,5 +91,5 @@ export function useOrderHistory(profileId?: string) {
     [profileId, page]
   )
 
-  return { orders, loading, hasMore, fetchHistory }
+  return { sales, loading, hasMore, fetchHistory }
 }

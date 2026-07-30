@@ -1,3 +1,6 @@
+-- WARNING: This migration references tables/columns dropped by 20260720_restaurant_to_mall_pos.sql.
+-- Do NOT run on a clean database after that migration.
+
 -- Seed zones: Inside & Outside
 -- Run this in Supabase SQL Editor (Dashboard → SQL Editor)
 
@@ -7,4 +10,5 @@ DELETE FROM table_categories;
 
 INSERT INTO table_categories (name, hire_fee, min_spend) VALUES
   ('Inside', 0, 0),
-  ('Outside', 0, 0);
+  ('Outside', 0, 0),
+  ('VIP', 25000, 50000);

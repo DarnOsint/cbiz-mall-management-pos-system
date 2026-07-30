@@ -25,14 +25,8 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { audit } from '../../lib/audit'
-import type { AccountingSummary, TrendPoint, WaitronStat } from './types'
-import {
-  formatPrice,
-  formatSSP,
-  formatDualPrice,
-  getCurrencySymbol,
-  getExchangeRate,
-} from '../../lib/currency'
+import type { AccountingSummary, TrendPoint, StaffStat } from './types'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 
 interface Props {
@@ -40,12 +34,12 @@ interface Props {
   trendData: TrendPoint[]
   totalPayouts: number
   netRevenue: number
-  waitronStats: WaitronStat[]
   dateLabel: string
   sessionDate?: string
   sessionEndDate?: string
   dateRangeType?: string
-  creditByWaitron?: Record<string, number>
+  staffStats?: StaffStat[]
+  creditByStaff?: Record<string, number>
   creditDetails?: Array<{
     name: string
     amount: number
@@ -57,10 +51,10 @@ interface Props {
 }
 
 interface Reconciliation {
-  cashCollected: Record<string, number> // waitron name → cash collected
-  transferReceipts: Record<string, number> // waitron name → transfer receipt handed in
-  outstanding: Record<string, number> // waitron name → outstanding/shortage for the day
-  excess: Record<string, number> // waitron name → excess/surplus for the day
+  cashCollected: Record<string, number> // staff name → cash collected
+  transferReceipts: Record<string, number> // staff name → transfer receipt handed in
+  outstanding: Record<string, number> // staff name → outstanding/shortage for the day
+  excess: Record<string, number> // staff name → excess/surplus for the day
 }
 
 export default function OverviewTab({
@@ -68,12 +62,12 @@ export default function OverviewTab({
   trendData,
   totalPayouts,
   netRevenue,
-  waitronStats,
   dateLabel,
   sessionDate,
   sessionEndDate,
   dateRangeType,
-  creditByWaitron = {},
+  staffStats = [],
+  creditByStaff = {},
   creditDetails = [],
 }: Props) {
   const { profile } = useAuth()
@@ -103,8 +97,8 @@ export default function OverviewTab({
     dateRangeType === 'Today' ||
     dateRangeType === 'Prev Day' ||
     dateRangeType === 'Date'
-  const activeWaitrons =
-    waitronStats.filter((w) => (w.revenue || 0) > 0 || (w.orders || 0) > 0) || waitronStats
+  const activeStaff =
+    staffStats.filter((w) => (w.revenue || 0) > 0 || (w.sales || 0) > 0) || staffStats
 
   const sessionTodayKey = (() => {
     const wat = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }))
@@ -113,7 +107,7 @@ export default function OverviewTab({
   })()
 
   const role = profile?.role || ''
-  const isAccountant = role === 'accountant'
+  const isAccountant = role === 'cashier'
   const isManagement = role === 'owner' || role === 'manager'
 
   // Accountants can only save for the current trading session day (8am WAT boundary).
@@ -245,7 +239,7 @@ export default function OverviewTab({
   // Shortages:
   // - Single day: computed from expected vs remitted (and saved into recon_<date>.outstanding on save)
   // - Range: use locked-in saved shortages per day (summed into recon.outstanding via loadRecon)
-  const autoShortage = activeWaitrons.reduce(
+  const autoShortage = activeStaff.reduce(
     (acc, w) => {
       const expectedTotal = (w.cashExpected || 0) + (w.transferExpected || 0)
       const remittedTotal =
@@ -257,7 +251,7 @@ export default function OverviewTab({
     {} as Record<string, number>
   )
 
-  const autoExcess = activeWaitrons.reduce(
+  const autoExcess = activeStaff.reduce(
     (acc, w) => {
       const expectedTotal = (w.cashExpected || 0) + (w.transferExpected || 0)
       const remittedTotal =
@@ -272,12 +266,10 @@ export default function OverviewTab({
   const saveRecon = async () => {
     if (!canSaveThisDay) return
     setSaving(true)
-    const exchangeRate = getExchangeRate()
-    const payload: Reconciliation & { exchange_rate?: number } = {
+    const payload = {
       ...recon,
       outstanding: autoShortage,
       excess: autoExcess,
-      exchange_rate: exchangeRate,
     }
     await supabase.from('settings').upsert(
       {
@@ -296,7 +288,6 @@ export default function OverviewTab({
         totalCash: totalCashCollected,
         totalTransferReceipts: totalTransferReceipts,
         shortfall,
-        exchangeRate,
       },
       performer: profile as any,
     })
@@ -314,9 +305,9 @@ export default function OverviewTab({
     ? autoShortage
     : ((recon.outstanding || {}) as Record<string, number>)
 
-  // Merge shortages + credit (pay later) per waitron
+  // Merge shortages + credit (pay later) per staff
   const mergedOutstanding: Record<string, number> = { ...shortagesForView }
-  for (const [name, amt] of Object.entries(creditByWaitron)) {
+  for (const [name, amt] of Object.entries(creditByStaff)) {
     mergedOutstanding[name] = (mergedOutstanding[name] || 0) + amt
   }
   const totalOutstanding = Object.values(mergedOutstanding).reduce((s, v) => s + (v || 0), 0)
@@ -345,90 +336,78 @@ export default function OverviewTab({
       month: 'short',
       year: 'numeric',
     })
-    const rate = getExchangeRate()
-    const fmtUSD = (v: number) =>
-      `$${(v / rate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     const fmtSSP = (v: number) =>
       `SSP ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const fmtBoth = (v: number) => {
-      const usd = (v / rate).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-      const ssp = v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      return `$${usd}  (SSP ${ssp})`
-    }
     const lines = [
       '',
       ctr('C.Biz African Food'),
       ctr('DAILY RECONCILIATION'),
       div,
       row('Date:', fmtDate),
-      row('Rate:', `$1 = SSP ${rate.toLocaleString()}`),
       row('Printed:', new Date().toLocaleString('en-NG')),
       div,
       ctr('SALES SUMMARY'),
       div,
-      row('Gross Revenue:', fmtBoth(summary.total)),
-      row('Net Revenue:', fmtBoth(netRevenue)),
-      row('Total Orders:', String(summary.orders)),
-      row('Avg Order Value:', fmtBoth(summary.avgOrder)),
+      row('Gross Revenue:', fmtSSP(summary.total)),
+      row('Net Revenue:', fmtSSP(netRevenue)),
+      row('Total Sales:', String(summary.sales)),
+      row('Avg Sale Value:', fmtSSP(summary.avgSale)),
       div,
       ctr('PAYMENT BREAKDOWN'),
       div,
       ...Object.entries(summary.byMethod || {})
         .filter(([, v]) => v > 0)
-        .map(([k, v]) => row(k + ':', fmtBoth(v))),
+        .map(([k, v]) => row(k + ':', fmtSSP(v))),
       div,
       ctr('STAFF SALES'),
       div,
-      ...waitronStats.map((w) => row(w.name, `${fmtBoth(w.revenue)} (${w.orders})`)),
+      ...staffStats.map((w) => row(w.name, `${fmtSSP(w.revenue)} (${w.sales})`)),
       div,
-      ctr('WAITRON REMITTANCE'),
+      ctr('STAFF REMITTANCE'),
       div,
-      ...activeWaitrons.flatMap((w) => {
+      ...activeStaff.flatMap((w) => {
         const cash = recon.cashCollected[w.name] || 0
         const transfer = recon.transferReceipts[w.name] || 0
         if (cash <= 0 && transfer <= 0) return []
         return [
-          row(`${w.name} Cash:`, fmtBoth(cash)),
-          row(`${w.name} Transfer:`, fmtBoth(transfer)),
+          row(`${w.name} Cash:`, fmtSSP(cash)),
+          row(`${w.name} Transfer:`, fmtSSP(transfer)),
         ]
       }),
-      row('TOTAL CASH:', fmtBoth(totalCashCollected)),
-      row('TOTAL TRANSFER:', fmtBoth(totalTransferReceipts)),
+      row('TOTAL CASH:', fmtSSP(totalCashCollected)),
+      row('TOTAL TRANSFER:', fmtSSP(totalTransferReceipts)),
       div,
-      ctr('OUTSTANDING PER WAITRON'),
+      ctr('OUTSTANDING PER STAFF'),
       div,
       ...Object.entries(mergedOutstanding)
         .filter(([, v]) => v > 0)
-        .map(([name, amt]) => row(name, fmtBoth(amt))),
-      row('TOTAL OUTSTANDING:', fmtBoth(totalOutstanding)),
+        .map(([name, amt]) => row(name, fmtSSP(amt))),
+      row('TOTAL OUTSTANDING:', fmtSSP(totalOutstanding)),
       div,
-      ctr('EXCESS PER WAITRON'),
+      ctr('EXCESS PER STAFF'),
       div,
       ...Object.entries(autoExcess)
         .filter(([, v]) => v > 0)
-        .map(([name, amt]) => row(name, fmtBoth(amt))),
-      row('TOTAL EXCESS:', fmtBoth(totalExcess)),
+        .map(([name, amt]) => row(name, fmtSSP(amt))),
+      row('TOTAL EXCESS:', fmtSSP(totalExcess)),
       div,
       ctr('EXPENSES & PAYOUTS'),
       div,
-      row('Total Payouts:', fmtBoth(totalPayouts)),
+      row('Total Payouts:', fmtSSP(totalPayouts)),
       div,
       sol,
       ctr('END OF DAY RECONCILIATION'),
       sol,
-      row('Total Sales (POS):', fmtBoth(expectedRevenue)),
-      row('Total Received:', fmtBoth(totalReceived)),
-      row('Payouts:', fmtBoth(totalPayouts)),
-      row('Outstanding (Waitrons):', fmtBoth(totalOutstanding)),
-      row('Excess (Waitrons):', fmtBoth(totalExcess)),
-      row('Accounted For:', fmtBoth(totalReceived)),
+      row('Total Sales (POS):', fmtSSP(expectedRevenue)),
+      row('Total Received:', fmtSSP(totalReceived)),
+      row('Payouts:', fmtSSP(totalPayouts)),
+      row('Outstanding (Staff):', fmtSSP(totalOutstanding)),
+      row('Excess (Staff):', fmtSSP(totalExcess)),
+      row('Accounted For:', fmtSSP(totalReceived)),
       sol,
       row(
         shortfall > 0 ? 'SHORTFALL:' : shortfall < 0 ? 'SURPLUS:' : 'BALANCED:',
-        fmtBoth(Math.abs(shortfall))
+        fmtSSP(Math.abs(shortfall))
       ),
       sol,
       '',
@@ -436,7 +415,7 @@ export default function OverviewTab({
       '',
     ].join('\n')
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daily Recon — ${fmtDate}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre}@media print{body{width:80mm}@page{margin:0;size:80mm auto}}</style></head><body>${lines}</body></html>`
-    const w = window.open('', '_blank', 'width=500,height=800')
+    const w = window.open('', 'receipt_print', 'width=500,height=800')
     if (!w) return
     w.document.open('text/html', 'replace')
     w.document.write(html)
@@ -518,10 +497,10 @@ export default function OverviewTab({
       bg: 'bg-purple-400/10',
     },
     {
-      label: 'Avg Order',
+      label: 'Avg Sale',
       value: (
         <PriceDisplay
-          amount={summary.avgOrder}
+          amount={summary.avgSale}
           className="text-white font-bold text-lg leading-tight"
           sspClassName="text-[9px] text-gray-500"
         />
@@ -562,20 +541,20 @@ export default function OverviewTab({
       </div>
 
       {/* Staff Sales Summary */}
-      {waitronStats.length > 0 && (
+      {staffStats.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
             <Users size={16} className="text-amber-400" /> Staff Sales — {dateLabel}
           </h3>
           <div className="space-y-2">
-            {waitronStats.map((w) => (
+            {staffStats.map((w) => (
               <div
                 key={w.name}
                 className="flex items-center justify-between py-1.5 border-b border-gray-800 last:border-0"
               >
                 <div>
                   <span className="text-white text-sm font-medium">{w.name}</span>
-                  <span className="text-gray-500 text-xs ml-2">{w.orders} orders</span>
+                  <span className="text-gray-500 text-xs ml-2">{w.sales} sales</span>
                 </div>
                 <PriceDisplay
                   amount={w.revenue}
@@ -622,9 +601,7 @@ export default function OverviewTab({
           <h3 className="text-amber-400 font-bold flex items-center gap-2">
             <DollarSign size={16} />{' '}
             {isSingleDay ? 'Daily Reconciliation' : 'Reconciliation Summary'}
-            <span className="text-gray-500 text-[10px] font-normal ml-2">
-              Rate: $1 = SSP {getExchangeRate().toLocaleString()}
-            </span>
+
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-gray-400 text-xs">
@@ -692,21 +669,21 @@ export default function OverviewTab({
           )}
         </div>
 
-        {/* Waitron Remittance Per Waitron (single-day only) */}
+        {/* Staff Remittance Per Staff (single-day only) */}
         {isSingleDay && (
           <div className="mb-5">
             <h4 className="text-gray-300 text-sm font-semibold mb-2 flex items-center gap-1.5">
-              <Banknote size={13} className="text-emerald-400" /> Waitron Remittance
+              <Banknote size={13} className="text-emerald-400" /> Staff Remittance
             </h4>
             <p className="text-gray-600 text-xs mb-2">
-              Enter cash collected and POS/transfer receipt submitted by each waitron
+              Enter cash collected and POS/transfer receipt submitted by each staff
             </p>
             <div className="space-y-1.5">
-              {activeWaitrons.map((w) => (
+              {activeStaff.map((w) => (
                 <div key={w.name} className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
                   <span className="text-gray-600 text-xs w-40">
-                    exp {formatDualPrice(w.cashExpected || 0)}
+                    exp {formatPrice(w.cashExpected || 0)}
                   </span>
                   <input
                     type="number"
@@ -725,7 +702,7 @@ export default function OverviewTab({
                     className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500"
                   />
                   <span className="text-gray-600 text-xs w-44">
-                    exp {formatDualPrice(w.transferExpected || 0)}
+                    exp {formatPrice(w.transferExpected || 0)}
                   </span>
                   <input
                     type="number"
@@ -767,43 +744,43 @@ export default function OverviewTab({
           </div>
         )}
 
-        {/* Outstanding per Waitron */}
+        {/* Outstanding per Staff */}
         <div className="mb-5">
           <h4 className="text-gray-300 text-sm font-semibold mb-2 flex items-center gap-1.5">
-            <AlertTriangle size={13} className="text-red-400" /> Outstanding / Shortage per Waitron
+            <AlertTriangle size={13} className="text-red-400" /> Outstanding / Shortage per Staff
           </h4>
           <p className="text-gray-600 text-xs mb-2">
             Shortages are calculated automatically from cash and POS/transfer remittance. Surplus is
-            shown as excess. Credit and pay-later orders are added automatically.
+            shown as excess. Credit and pay-later sales are added automatically.
           </p>
           <div className="space-y-1.5">
-            {activeWaitrons.map((w) => {
+            {activeStaff.map((w) => {
               const shortage = shortagesForView[w.name] || 0
               const excess = autoExcess[w.name] || 0
-              const credit = creditByWaitron[w.name] || 0
+              const credit = creditByStaff[w.name] || 0
               return (
                 <div key={w.name} className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-32 truncate">{w.name}</span>
                   <span className="text-gray-500 text-xs shrink-0">
                     remitted{' '}
-                    {formatDualPrice(
+                    {formatPrice(
                       (recon.cashCollected[w.name] || 0) + (recon.transferReceipts[w.name] || 0)
                     )}
                   </span>
                   <span className="text-gray-500 text-xs shrink-0">
-                    expected {formatDualPrice((w.cashExpected || 0) + (w.transferExpected || 0))}
+                    expected {formatPrice((w.cashExpected || 0) + (w.transferExpected || 0))}
                   </span>
                   <span className="text-red-400 text-xs shrink-0">
-                    shortage: {formatDualPrice(shortage)}
+                    shortage: {formatPrice(shortage)}
                   </span>
                   {isSingleDay && excess > 0 && (
                     <span className="text-green-400 text-xs shrink-0">
-                      excess: {formatDualPrice(excess)}
+                      excess: {formatPrice(excess)}
                     </span>
                   )}
                   {credit > 0 && (
                     <span className="text-amber-400 text-xs shrink-0">
-                      Credit: {formatDualPrice(credit)}
+                      Credit: {formatPrice(credit)}
                     </span>
                   )}
                 </div>
@@ -897,7 +874,7 @@ export default function OverviewTab({
             />
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Outstanding / Shortage (Waitrons)</span>
+            <span className="text-gray-400">Outstanding / Shortage (Staff)</span>
             <PriceDisplay
               amount={totalOutstanding}
               className="text-red-400 text-sm"
@@ -951,7 +928,7 @@ export default function OverviewTab({
               <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#6b7280', fontSize: 10 }}
-                tickFormatter={(v) => `${getCurrencySymbol()}${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `SSP ${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={{
@@ -960,7 +937,7 @@ export default function OverviewTab({
                   borderRadius: '8px',
                 }}
                 labelStyle={{ color: '#fff' }}
-                formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
+                formatter={(v: number) => [formatPrice(v), 'Revenue']}
               />
               <Line
                 type="monotone"

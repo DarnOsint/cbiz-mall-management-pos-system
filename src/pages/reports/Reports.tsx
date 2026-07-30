@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { createPDF, addTable, savePDF } from '../../lib/pdfExport'
 import { supabase } from '../../lib/supabase'
-import { formatPrice, formatDualPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 import { HelpTooltip } from '../../components/HelpTooltip'
 import { useAuth } from '../../context/AuthContext'
@@ -91,8 +91,7 @@ interface TableStat {
 interface Payout {
   id: string
   created_at: string
-  reason?: string
-  category?: string
+  description?: string
   amount?: number
 }
 interface TillSession {
@@ -104,20 +103,15 @@ interface TillSession {
 interface VoidEntry {
   total_value?: number
 }
-interface AttendanceEntry {
-  staff_name?: string
-  role?: string
-  duration_minutes?: number
-}
+
 interface PaidOrder {
   id: string
   total_amount?: number
   payment_method?: string
   order_type?: string
   created_at: string
-  covers?: number | null
   profiles?: { full_name?: string } | null
-  tables?: { name?: string; table_categories?: { name?: string } | null } | null
+  areas?: { name?: string; area_categories?: { name?: string } | null } | null
 }
 
 interface Report {
@@ -129,31 +123,28 @@ interface Report {
   totalExpenses: number
   totalRevenue: number
   totalOrders: number
-  totalCovers: number
-  revenuePerCover: number
   paidOrders: PaidOrder[]
   paidOrdersCount: number
   cancelledOrders: number
   returnedItems: number
   returnedValue: number
-  avgOrderValue: number
+  avgSaleValue: number
   byPayment: Record<string, number>
   byCategory: CategoryStat[]
   topItems: ItemStat[]
   staffPerformance: StaffStat[]
   hourlyData: ChartPoint[]
   dailyBreakdown: ChartPoint[]
-  tableStats: TableStat[]
+  areaStats: TableStat[]
   totalDebt: number
   totalDebtCreated: number
   debtorCount: number
   totalOpeningFloat: number
   totalClosingFloat: number
-  byOrderType: { table: number; cash_sale: number; takeaway: number }
+  bySaleType: { walk_in: number; cash_sale: number; takeaway: number }
   payouts: Payout[]
   tillSessions: TillSession[]
   voids: VoidEntry[]
-  attendance: AttendanceEntry[]
 }
 
 export default function Reports() {
@@ -215,29 +206,6 @@ export default function Reports() {
   }
 
   const generateReport = async () => {
-    if (reportType === 'zreport') {
-      const { start, end } = getDateBounds()
-      const { data: openShifts } = await supabase
-        .from('attendance')
-        .select('*, profiles(full_name)')
-        .gte('clock_in', start)
-        .lte('clock_in', end)
-        .or('clock_out.is.null')
-      if (openShifts && openShifts.length > 0) {
-        const names = openShifts
-          .map(
-            (s: { profiles?: { full_name?: string } | null }) => s.profiles?.full_name || 'Unknown'
-          )
-          .join(', ')
-        toast.warning(
-          'Required',
-          'Z-Report blocked. The following staff are still clocked in:\n\n' +
-            names +
-            '\n\nAll staff must be clocked out before running the Z-Report.'
-        )
-        return
-      }
-    }
     setLoading(true)
     try {
       const { start, end } = getDateBounds()
@@ -248,40 +216,38 @@ export default function Reports() {
         tillRes,
         debtorsRes,
         voidsRes,
-        attendanceRes,
         returnsRes,
       ] = await Promise.all([
         supabase
           .from('orders')
           .select(
-            '*, profiles(full_name), tables(name, table_categories(name)), order_items(total_price, return_requested, return_accepted, status)'
+            '*, profiles(full_name), order_items(total_price, return_requested, return_accepted, status)'
           )
           .gte('created_at', start)
           .lte('created_at', end),
         supabase
           .from('order_items')
           .select(
-            '*, menu_items(name, price, menu_categories(name, destination)), orders(created_at, status)'
+            '*, item(name, price, item_categories(name)), orders(created_at, status)'
           )
           .gte('created_at', start)
           .lte('created_at', end),
-        supabase.from('payouts').select('*').gte('created_at', start).lte('created_at', end),
+        supabase.from('cash_movements').select('*').eq('type', 'payout').gte('created_at', start).lte('created_at', end),
         supabase
           .from('till_sessions')
           .select('*, profiles(full_name)')
           .gte('opened_at', start)
           .lte('opened_at', end),
         supabase.from('debtors').select('*').gte('created_at', start).lte('created_at', end),
-        supabase.from('void_log').select('*').gte('created_at', start).lte('created_at', end),
-        supabase.from('attendance').select('*').gte('clock_in', start).lte('clock_in', end),
+        supabase.from('audit_log').select('new_value, created_at').eq('action', 'VOID').gte('created_at', start).lte('created_at', end),
         supabase
-          .from('returns_log')
-          .select('id, item_name, quantity, item_total, status, requested_at')
-          .gte('requested_at', start)
-          .lte('requested_at', end),
+          .from('refunds')
+          .select('id, item_name, quantity, refund_amount, status, created_at')
+          .gte('created_at', start)
+          .lte('created_at', end),
       ])
 
-      const orders = (ordersRes.data || []) as PaidOrder[]
+      const orders = ((ordersRes.data || []) as unknown as Array<PaidOrder & { tables?: PaidOrder['areas'] }>).map(o => ({ ...o, areas: o.areas ?? o.tables ?? null })) as PaidOrder[]
       const paidOrders = orders.filter(
         (o) => (o as unknown as { status: string }).status === 'paid'
       ) as PaidOrder[]
@@ -297,10 +263,10 @@ export default function Reports() {
         return_accepted?: boolean | null
         order_id?: string
         orders?: { created_at?: string; status?: string } | null
-        menu_items?: {
+        item?: {
           name?: string
           price?: number
-          menu_categories?: { name?: string; destination?: string } | null
+          item_categories?: { name?: string } | null
         } | null
       }[]
       const payouts = (payoutsRes.data || []) as Payout[]
@@ -309,22 +275,25 @@ export default function Reports() {
         current_balance?: number
         credit_limit?: number
       }[]
-      const voids = (voidsRes.data || []) as VoidEntry[]
-      const attendance = (attendanceRes.data || []) as AttendanceEntry[]
+      const voids = (voidsRes.data || [] as any[]).map((v) => ({
+        total_value: (typeof v.new_value === 'object' && v.new_value !== null
+          ? (v.new_value as any).total_price || (v.new_value as any).amount || 0
+          : 0)
+      }))
       const returnsData = (returnsRes.data || []) as Array<{
         id: string
         item_name: string
         quantity: number
-        item_total: number
+        refund_amount: number
         status: string
-        requested_at: string
+        created_at: string
       }>
       // Accepted returns (bar_accepted or accepted by manager)
       const acceptedReturns = returnsData.filter(
-        (r) => r.status !== 'rejected' && r.status !== 'manager_rejected' && r.status !== 'expired'
+        (r) => r.status === 'approved'
       )
       const returnedItems = acceptedReturns.reduce((s, r) => s + (r.quantity || 0), 0)
-      const returnedValue = acceptedReturns.reduce((s, r) => s + (r.item_total || 0), 0)
+      const returnedValue = acceptedReturns.reduce((s, r) => s + (r.refund_amount || 0), 0)
       // Build return count per item name for return rate
       const returnCountMap: Record<string, number> = {}
       acceptedReturns.forEach((r) => {
@@ -373,7 +342,7 @@ export default function Reports() {
 
       const categoryMap: Record<string, CategoryStat> = {}
       filteredItems.forEach((item) => {
-        const cat = item.menu_items?.menu_categories?.name || 'Unknown'
+        const cat = item.item?.item_categories?.name || 'Unknown'
         if (!categoryMap[cat]) categoryMap[cat] = { name: cat, revenue: 0, quantity: 0 }
         const revenue = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
         categoryMap[cat].revenue += revenue
@@ -382,7 +351,7 @@ export default function Reports() {
 
       const itemMap: Record<string, ItemStat> = {}
       filteredItems.forEach((item) => {
-        const n = item.menu_items?.name || 'Unknown'
+        const n = item.item?.name || 'Unknown'
         if (!itemMap[n]) itemMap[n] = { name: n, quantity: 0, revenue: 0, returned: 0 }
         const revenue = item.total_price || (item.unit_price || 0) * (item.quantity || 0)
         itemMap[n].quantity += item.quantity || 0
@@ -424,14 +393,14 @@ export default function Reports() {
         dayMap[d].orders++
       })
 
-      const tableMap: Record<string, TableStat> = {}
+      const areaMap: Record<string, TableStat> = {}
       paidOrders
-        .filter((o) => o.tables?.name)
+        .filter((o) => o.areas?.name)
         .forEach((o) => {
-          const t = o.tables!.name!
-          if (!tableMap[t]) tableMap[t] = { table: t, orders: 0, revenue: 0 }
-          tableMap[t].orders++
-          tableMap[t].revenue += perOrderNet[o.id] ?? o.total_amount ?? 0
+          const t = o.areas!.name!
+          if (!areaMap[t]) areaMap[t] = { table: t, orders: 0, revenue: 0 }
+          areaMap[t].orders++
+          areaMap[t].revenue += perOrderNet[o.id] ?? o.total_amount ?? 0
         })
 
       setReport({
@@ -443,24 +412,19 @@ export default function Reports() {
         totalExpenses,
         totalRevenue: grossRevenue,
         totalOrders: orders.length,
-        totalCovers: paidOrders.reduce((s, o) => s + (o.covers || 0), 0),
-        revenuePerCover: (() => {
-          const c = paidOrders.reduce((s, o) => s + (o.covers || 0), 0)
-          return c > 0 ? grossRevenue / c : 0
-        })(),
         paidOrders,
         paidOrdersCount: paidOrders.length,
         cancelledOrders,
         returnedItems,
         returnedValue,
-        avgOrderValue: paidOrders.length ? Math.round(grossRevenue / paidOrders.length) : 0,
+        avgSaleValue: paidOrders.length ? Math.round(grossRevenue / paidOrders.length) : 0,
         byPayment,
         byCategory: Object.values(categoryMap).sort((a, b) => b.revenue - a.revenue),
         topItems: Object.values(itemMap).sort((a, b) => b.quantity - a.quantity),
         staffPerformance: Object.values(staffMap).sort((a, b) => b.revenue - a.revenue),
         hourlyData: Object.values(hourMap).filter((h) => h.orders > 0),
         dailyBreakdown: Object.values(dayMap),
-        tableStats: Object.values(tableMap).sort((a, b) => b.revenue - a.revenue),
+        areaStats: Object.values(areaMap).sort((a, b) => b.revenue - a.revenue),
         totalDebt: debtors.reduce((s, d) => s + (d.current_balance || 0), 0),
         totalDebtCreated: debtors.reduce((s, d) => s + (d.credit_limit || 0), 0),
         debtorCount: debtors.length,
@@ -468,8 +432,8 @@ export default function Reports() {
         totalClosingFloat: tillSessions
           .filter((t) => t.status === 'closed')
           .reduce((s, t) => s + (t.closing_float || 0), 0),
-        byOrderType: {
-          table: paidOrders.filter(
+        bySaleType: {
+          walk_in: paidOrders.filter(
             (o) => (o as unknown as { order_type?: string }).order_type === 'table'
           ).length,
           cash_sale: paidOrders.filter(
@@ -482,7 +446,6 @@ export default function Reports() {
         payouts,
         tillSessions,
         voids,
-        attendance,
       })
     } catch (err) {
       toast.error(
@@ -497,7 +460,7 @@ export default function Reports() {
   const exportCSV = () => {
     if (!report) return
     const rows = [
-      ['C.BIZ AFRICAN FOOD - ' + report.period.toUpperCase() + ' REPORT'],
+      ['C.BIZ POS - ' + report.period.toUpperCase() + ' REPORT'],
       ['Generated:', report.generatedAt],
       [],
       ['REVENUE SUMMARY'],
@@ -506,13 +469,13 @@ export default function Reports() {
       ['Total Expenses', formatPrice(report.totalExpenses)],
       ['Net Revenue', formatPrice(report.netRevenue)],
       [],
-      ['ORDERS'],
-      ['Total Orders', report.totalOrders],
-      ['Paid Orders', report.paidOrdersCount],
-      ['Cancelled Orders', report.cancelledOrders],
+      ['SALES'],
+      ['Total Sales', report.totalOrders],
+      ['Completed Sales', report.paidOrdersCount],
+      ['Cancelled Sales', report.cancelledOrders],
       ['Returned Items', report.returnedItems],
       ['Return Value', formatPrice(report.returnedValue)],
-      ['Avg Order Value', formatPrice(report.avgOrderValue)],
+      ['Avg Sale Value', formatPrice(report.avgSaleValue)],
       [],
       ['PAYMENT METHODS'],
       ...Object.entries(report.byPayment)
@@ -527,7 +490,7 @@ export default function Reports() {
       }),
       [],
       ['STAFF PERFORMANCE'],
-      ['Staff', 'Orders', 'Revenue'],
+      ['Staff', 'Sales', 'Revenue'],
       ...report.staffPerformance.map((s) => [s.name, s.orders, formatPrice(s.revenue)]),
     ]
     const csv = rows.map((r) => r.join(',')).join('\n')
@@ -544,7 +507,7 @@ export default function Reports() {
     if (!report) return
     const sheets: Record<string, any[][]> = {
       Summary: [
-        ['C.Biz African Food', report.period],
+        ['C.Biz POS', report.period],
         ['Generated', report.generatedAt],
         [],
         ['Metric', 'Value'],
@@ -552,12 +515,12 @@ export default function Reports() {
         ['Total Revenue', report.totalRevenue],
         ['Total Expenses', report.totalExpenses],
         ['Net Revenue', report.netRevenue],
-        ['Total Orders', report.totalOrders],
-        ['Paid Orders', report.paidOrdersCount],
-        ['Cancelled Orders', report.cancelledOrders],
+        ['Total Sales', report.totalOrders],
+        ['Completed Sales', report.paidOrdersCount],
+        ['Cancelled Sales', report.cancelledOrders],
         ['Returned Items', report.returnedItems],
         ['Return Value', report.returnedValue],
-        ['Avg Order Value', report.avgOrderValue],
+        ['Avg Sale Value', report.avgSaleValue],
       ],
       Payments: [
         ['Method', 'Value'],
@@ -568,8 +531,8 @@ export default function Reports() {
         ['Split', report.byPayment.split],
       ],
       Items: [['Item', 'Qty', 'Revenue', 'Returned']],
-      Staff: [['Staff', 'Orders', 'Revenue']],
-      Tables: [['Table', 'Orders', 'Revenue']],
+      Staff: [['Staff', 'Sales', 'Revenue']],
+      Areas: [['Area', 'Sales', 'Revenue']],
     }
 
     ;(report.topItems || []).forEach((i) =>
@@ -578,7 +541,7 @@ export default function Reports() {
     ;(report.staffPerformance || []).forEach((s) =>
       sheets.Staff.push([s.name, s.orders, s.revenue])
     )
-    ;(report.tableStats || []).forEach((t) => sheets.Tables.push([t.table, t.orders, t.revenue]))
+    ;(report.areaStats || []).forEach((t) => sheets.Areas.push([t.table, t.orders, t.revenue]))
 
     const wb = XLSX.utils.book_new()
     Object.entries(sheets).forEach(([name, data]) => {
@@ -608,9 +571,9 @@ export default function Reports() {
         ['Gross Revenue', formatPrice(r.grossRevenue)],
         ['Total Expenses', formatPrice(r.totalExpenses)],
         ['Net Revenue', formatPrice(r.netRevenue)],
-        ['Total Orders', String(r.totalOrders)],
-        ['Paid Orders', String(r.paidOrdersCount)],
-        ['Avg Order Value', formatPrice(r.avgOrderValue)],
+        ['Total Sales', String(r.totalOrders)],
+        ['Completed Sales', String(r.paidOrdersCount)],
+        ['Avg Sale Value', formatPrice(r.avgSaleValue)],
       ],
       y + 2
     )
@@ -643,13 +606,13 @@ export default function Reports() {
                   id: 'rep-daily',
                   title: 'Daily Report',
                   description:
-                    'Full trading summary for any selected day — total and net revenue, cash/transfer breakdown, order count, top-selling items, per-waitron performance, void log, and payout deductions.',
+                    'Full trading summary for any selected day — total and net revenue, cash/transfer breakdown, sale count, top-selling items, per-staff performance, void log, and payout deductions.',
                 },
                 {
                   id: 'rep-monthly',
                   title: 'Monthly Report',
                   description:
-                    'Aggregated figures for a full calendar month — revenue, orders, average order value, payment method split, and top items.',
+                    'Aggregated figures for a full calendar month — revenue, sales, average sale value, payment method split, and top items.',
                 },
                 {
                   id: 'rep-annual',
@@ -662,12 +625,6 @@ export default function Reports() {
                   title: 'Z-Report',
                   description:
                     'End-of-day closure report. All staff must be clocked out before it runs. Use this to formally close each trading day.',
-                },
-                {
-                  id: 'rep-attendance',
-                  title: 'Attendance in Reports',
-                  description:
-                    'Each report includes the attendance log for the period — staff name, role, and shift duration.',
                 },
                 {
                   id: 'rep-export',
@@ -856,61 +813,40 @@ export default function Reports() {
                     icon: TrendingUp,
                   },
                   {
-                    label: 'Total Orders',
+                    label: 'Total Sales',
                     value: String(report.totalOrders),
                     color: 'text-white',
                     icon: ShoppingBag,
                   },
                   {
-                    label: 'Paid Orders',
+                    label: 'Completed Sales',
                     value: String(report.paidOrdersCount),
                     color: 'text-green-400',
                     icon: ShoppingBag,
                   },
                   {
-                    label: 'Cancelled Orders',
+                    label: 'Cancelled Sales',
                     value: String(report.cancelledOrders),
                     color: 'text-red-400',
                     icon: ShoppingBag,
                   },
                   {
                     label: 'Returned Items',
-                    value: `${report.returnedItems} (${formatDualPrice(report.returnedValue)})`,
+                    value: `${report.returnedItems} (${formatPrice(report.returnedValue)})`,
                     color: 'text-orange-400',
                     icon: ShoppingBag,
                   },
                   {
-                    label: 'Avg Order Value',
+                    label: 'Avg Sale Value',
                     value: (
                       <PriceDisplay
-                        amount={report.avgOrderValue}
+                        amount={report.avgSaleValue}
                         className="text-white font-bold text-lg"
                         sspClassName="text-[9px] text-gray-500"
                       />
                     ),
                     color: 'text-purple-400',
                     icon: BarChart2,
-                  },
-                  {
-                    label: 'Total Covers',
-                    value: report.totalCovers > 0 ? String(report.totalCovers) : '—',
-                    color: 'text-amber-400',
-                    icon: Users,
-                  },
-                  {
-                    label: 'Revenue / Cover',
-                    value:
-                      report.revenuePerCover > 0 ? (
-                        <PriceDisplay
-                          amount={Math.round(report.revenuePerCover)}
-                          className="text-white font-bold text-lg"
-                          sspClassName="text-[9px] text-gray-500"
-                        />
-                      ) : (
-                        '—'
-                      ),
-                    color: 'text-amber-400',
-                    icon: Users,
                   },
                 ] as const
               ).map((m, i) => (
@@ -974,24 +910,24 @@ export default function Reports() {
               </div>
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
                 <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                  <ShoppingBag size={16} className="text-amber-400" /> Order Types
+                  <ShoppingBag size={16} className="text-amber-400" /> Sale Types
                 </h3>
                 <div className="space-y-3">
                   {(
                     [
                       {
-                        label: 'Table Orders',
-                        value: report.byOrderType.table,
+                        label: 'Walk-in Sales',
+                        value: report.bySaleType.walk_in,
                         color: 'bg-amber-500',
                       },
                       {
                         label: 'Cash Sales',
-                        value: report.byOrderType.cash_sale,
+                        value: report.bySaleType.cash_sale,
                         color: 'bg-blue-500',
                       },
                       {
-                        label: 'Takeaway',
-                        value: report.byOrderType.takeaway,
+                        label: 'To-go',
+                        value: report.bySaleType.takeaway,
                         color: 'bg-green-500',
                       },
                     ] as const
@@ -999,7 +935,7 @@ export default function Reports() {
                     <div key={item.label}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-gray-400">{item.label}</span>
-                        <span className="text-white font-medium">{item.value} orders</span>
+                        <span className="text-white font-medium">{item.value} sales</span>
                       </div>
                       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
                         <div
@@ -1033,7 +969,7 @@ export default function Reports() {
                     <YAxis
                       tick={{ fill: '#6b7280', fontSize: 10 }}
                       tickFormatter={(v: number) =>
-                        getCurrencySymbol() + (v / 1000).toFixed(0) + 'k'
+                        'SSP ' + (v / 1000).toFixed(0) + 'k'
                       }
                     />
                     <Tooltip
@@ -1042,7 +978,7 @@ export default function Reports() {
                         border: '1px solid #374151',
                         borderRadius: '8px',
                       }}
-                      formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
+                      formatter={(v: number) => [formatPrice(v), 'Revenue']}
                     />
                     <Bar dataKey="revenue" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -1072,7 +1008,7 @@ export default function Reports() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(v: number) => [formatDualPrice(v), 'Revenue']}
+                        formatter={(v: number) => [formatPrice(v), 'Revenue']}
                         contentStyle={{
                           background: '#111827',
                           border: '1px solid #374151',
@@ -1197,7 +1133,7 @@ export default function Reports() {
                           Staff
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
-                          Ord
+                          Sales
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
                           Revenue
@@ -1231,18 +1167,18 @@ export default function Reports() {
               </div>
             )}
 
-            {report.tableStats.length > 0 && (
+            {report.areaStats.length > 0 && (
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-                <h3 className="text-white font-semibold mb-4">Tables by Revenue</h3>
+                <h3 className="text-white font-semibold mb-4">Areas by Revenue</h3>
                 <div className="overflow-x-auto -mx-2">
                   <table className="w-full min-w-[260px]">
                     <thead>
                       <tr className="border-b border-gray-800">
                         <th className="text-left text-gray-500 text-xs uppercase px-3 py-2">
-                          Table
+                          Area
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
-                          Ord
+                          Sales
                         </th>
                         <th className="text-right text-gray-500 text-xs uppercase px-3 py-2">
                           Revenue
@@ -1250,7 +1186,7 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {report.tableStats.map((t) => (
+                      {report.areaStats.map((t) => (
                         <tr key={t.table} className="border-b border-gray-800 last:border-0">
                           <td className="px-3 py-2.5 text-white text-sm">{t.table}</td>
                           <td className="px-3 py-2.5 text-right text-gray-400 text-sm whitespace-nowrap">
@@ -1314,10 +1250,10 @@ export default function Reports() {
                           <td className="px-3 py-2.5 text-gray-500 text-xs">
                             {new Date(p.created_at).toLocaleDateString('en-NG')}
                           </td>
-                          <td className="px-3 py-2.5 text-white text-sm">{p.reason}</td>
+                          <td className="px-3 py-2.5 text-white text-sm">{p.description}</td>
                           <td className="px-3 py-2.5">
                             <span className="text-xs px-2 py-0.5 rounded-lg bg-red-500/20 text-red-400 capitalize">
-                              {p.category}
+                              Payout
                             </span>
                           </td>
                           <td className="px-3 py-2.5 text-right text-red-400 font-bold text-sm">
@@ -1363,8 +1299,6 @@ export default function Reports() {
 
             {report.reportType === 'zreport' &&
               (() => {
-                const vat = report.grossRevenue * 0.075
-                const totalWithVat = report.grossRevenue + vat
                 const totalReturnsValue = report.returnedValue || 0
                 const totalVoids = (report.voids || []).reduce(
                   (s, v) => s + (v.total_value || 0),
@@ -1394,7 +1328,7 @@ export default function Reports() {
                             ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s
                           const z = [
                             '',
-                            ctr('C.Biz African Food'),
+                            ctr('C.Biz POS'),
                             ctr('Z-REPORT — END OF DAY'),
                             div,
                             row('Period:', getPeriodLabel()),
@@ -1402,15 +1336,13 @@ export default function Reports() {
                             div,
                             ctr('SALES SUMMARY'),
                             div,
-                            row('Total Orders:', String(report.paidOrders.length)),
+                            row('Total Sales:', String(report.paidOrders.length)),
                             row('Cancelled:', String(report.cancelledOrders)),
                             row(
                               'Returned:',
                               `${report.returnedItems} (${formatPrice(report.returnedValue)})`
                             ),
                             row('Gross Revenue:', formatPrice(report.grossRevenue)),
-                            row('VAT (7.5%):', formatPrice(vat)),
-                            row('Total incl. VAT:', formatPrice(totalWithVat)),
                             div,
                             ctr('PAYMENT BREAKDOWN'),
                             div,
@@ -1432,20 +1364,6 @@ export default function Reports() {
                             sol,
                             row('NET CASH:', formatPrice(cashTotal - report.totalExpenses)),
                             sol,
-                            div,
-                            ctr('STAFF ON SHIFT'),
-                            div,
-                            ...((report.attendance || []).length > 0
-                              ? (report.attendance || []).map((a) =>
-                                  row(
-                                    `${a.staff_name} (${a.role})`,
-                                    a.duration_minutes
-                                      ? `${Math.floor(a.duration_minutes / 60)}h ${a.duration_minutes % 60}m`
-                                      : 'Active'
-                                  )
-                                )
-                              : ['  No attendance records']),
-                            div,
                             '',
                             '',
                             row('Manager:', '________________'),
@@ -1459,7 +1377,7 @@ export default function Reports() {
                           const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Z-Report</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Courier New',Courier,monospace;font-size:13px;color:#000;background:#fff;width:80mm;padding:4mm;white-space:pre;}@media print{body{width:80mm;}@page{margin:0;size:80mm auto;}}</style></head><body>${z}</body></html>`
                           const w = window.open(
                             '',
-                            '_blank',
+                            'receipt_print',
                             'width=500,height=700,toolbar=no,menubar=no,scrollbars=no'
                           )
                           if (!w) return
@@ -1487,7 +1405,7 @@ export default function Reports() {
                       style={{ fontFamily: 'monospace', fontSize: '13px' }}
                     >
                       <div className="text-center mb-4">
-                        <div className="text-xl font-bold tracking-widest">C.Biz African Food</div>
+                        <div className="text-xl font-bold tracking-widest">C.Biz POS</div>
                         <div className="text-xs text-gray-500 mt-1">Z-REPORT — END OF DAY</div>
                         <div className="text-xs text-gray-500">{getPeriodLabel()}</div>
                         <div className="text-xs text-gray-400">
@@ -1498,15 +1416,13 @@ export default function Reports() {
                       <div className="font-bold text-xs uppercase mb-2">Sales Summary</div>
                       {(
                         [
-                          ['Total Orders', report.paidOrders.length],
-                          ['Cancelled Orders', report.cancelledOrders],
+                          ['Total Sales', report.paidOrders.length],
+                          ['Cancelled Sales', report.cancelledOrders],
                           [
                             'Returned Items',
                             `${report.returnedItems} (${formatPrice(report.returnedValue)})`,
                           ],
                           ['Gross Revenue', formatPrice(report.grossRevenue)],
-                          ['VAT Collected (7.5%)', formatPrice(vat)],
-                          ['Total incl. VAT', formatPrice(totalWithVat)],
                         ] as const
                       ).map(([label, value]) => (
                         <div key={label} className="flex justify-between my-1 text-sm">
@@ -1565,27 +1481,6 @@ export default function Reports() {
                         <span>{formatPrice(cashTotal - report.totalExpenses)}</span>
                       </div>
                       <div className="border-t border-dashed border-gray-400 my-3" />
-                      <div className="font-bold text-xs uppercase mb-2">Staff on Shift</div>
-                      {(report.attendance || []).length === 0 ? (
-                        <div className="text-xs text-gray-500">No attendance records</div>
-                      ) : (
-                        (report.attendance || []).map((a, i) => (
-                          <div key={i} className="flex justify-between my-1 text-xs">
-                            <span>
-                              {a.staff_name} ({a.role})
-                            </span>
-                            <span>
-                              {a.duration_minutes
-                                ? Math.floor(a.duration_minutes / 60) +
-                                  'h ' +
-                                  (a.duration_minutes % 60) +
-                                  'm'
-                                : 'Active'}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                      <div className="border-t border-dashed border-gray-400 my-3" />
                       <div className="mt-6 grid grid-cols-2 gap-8 text-xs text-center">
                         <div>
                           <div className="border-t border-black pt-1 mt-8">Manager Signature</div>
@@ -1606,7 +1501,7 @@ export default function Reports() {
               <p className="text-gray-500 text-xs">
                 C.Biz · {report.period} Report · Generated {report.generatedAt}
               </p>
-              <p className="text-gray-600 text-xs mt-1">Powered by C.BizOS</p>
+              <p className="text-gray-600 text-xs mt-1">Powered by C.Biz POS</p>
             </div>
           </div>
         )}

@@ -1,33 +1,95 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatSSP } from '../../lib/currency'
-import { X, Printer, Download } from 'lucide-react'
-import type { Order, OrderItem, Table } from '../../types'
+import { formatPrice } from '../../lib/currency'
+import { X, Printer, Download, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react'
+import type { Sale, SaleItem } from '../../types'
+import { queuePrintJob, getPrintServiceUrl } from '../../lib/printService'
+import { useToast } from '../../context/ToastContext'
+
+interface ReceiptSettings {
+  shopName: string
+  address: string
+  phone: string
+  footerMessage: string
+  terms: string
+  logoUrl: string
+}
+
+function getReceiptSettings(): ReceiptSettings {
+  try {
+    const raw = localStorage.getItem('receiptSettings')
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { shopName: '', address: '', phone: '', footerMessage: '', terms: '', logoUrl: '' }
+}
 
 interface Props {
-  order: Order
-  table: Table | null
-  items: OrderItem[]
+  order: Sale
+  items: SaleItem[]
   staffName: string
   tipAmount?: number
   amountReceived?: number
   autoPrint?: boolean
+  discountName?: string | null
+  discountType?: string | null
+  discountValue?: number | null
+  discountAmount?: number
   onClose: () => void
+}
+
+// ─── Print Status Indicator ─────────────────────────────────────────────
+function PrintStatusBadge({ status, label }: { status?: string; label: string }) {
+  if (status === 'success')
+    return (
+      <span className="flex items-center gap-1 text-green-400 text-xs">
+        <CheckCircle2 size={12} /> {label} ✓
+      </span>
+    )
+  if (status === 'failed')
+    return (
+      <span className="flex items-center gap-1 text-red-400 text-xs">
+        <AlertCircle size={12} /> {label} Failed
+      </span>
+    )
+  if (status === 'pending')
+    return (
+      <span className="flex items-center gap-1 text-amber-400 text-xs">
+        <RefreshCw size={12} className="animate-spin" /> {label}...
+      </span>
+    )
+  return null
 }
 
 export default function ReceiptModal({
   order,
-  table,
   items,
   staffName,
   tipAmount = 0,
   amountReceived = 0,
   autoPrint = true,
+  discountName = null,
+  discountType = null,
+  discountValue = null,
+  discountAmount = 0,
   onClose,
 }: Props) {
-  const customerRef = useRef<HTMLDivElement>(null)
-  const waiterRef = useRef<HTMLDivElement>(null)
-  const [printing, setPrinting] = useState(false)
-  const [activeTab, setActiveTab] = useState<'customer' | 'waiter'>('customer')
+  const toast = useToast()
+  const [printing, setPrinting] = useState<'idle' | 'customer' | 'internal' | 'both' | 'done'>('idle')
+  const [printStatus, setPrintStatus] = useState<{
+    customer?: 'pending' | 'success' | 'failed'
+    internal?: 'pending' | 'success' | 'failed'
+    error?: string
+  }>({})
+  const [activeTab, setActiveTab] = useState<'customer' | 'internal'>('customer')
+  const [retrying, setRetrying] = useState(false)
+  const [printServiceStatus, setPrintServiceStatus] = useState<'checking' | 'online' | 'offline'>(
+    'checking'
+  )
+
+  useEffect(() => {
+    fetch(`${getPrintServiceUrl()}/health`, { signal: AbortSignal.timeout(2000) })
+      .then((r) => (r.ok ? setPrintServiceStatus('online') : setPrintServiceStatus('offline')))
+      .catch(() => setPrintServiceStatus('offline'))
+  }, [])
 
   const formatDate = (date: string) =>
     new Date(date).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -38,12 +100,36 @@ export default function ReceiptModal({
     cash: 'Cash',
     card: 'Bank POS',
     transfer: 'Bank Transfer',
+    mtn_momo: 'MTN MoMo',
+    zain_cash: 'Zain Cash',
+    airtel_money: 'Airtel Money',
+    split: 'Split Payment',
   }
+  const getPaymentDisplay = (pm: string) => {
+    const mobiles = ['mtn_momo', 'zain_cash', 'airtel_money']
+    const base = mobiles.find((m) => pm.startsWith(m + ':'))
+    if (base) {
+      const phone = pm.split(':')[1]
+      return phone ? `${paymentLabel[base]} (${phone})` : paymentLabel[base]
+    }
+    return paymentLabel[pm] || pm
+  }
+
+  const parseSplitPayments = (notes?: string | null): { method: string; amount: number }[] | null => {
+    if (!notes) return null
+    try {
+      const parsed = JSON.parse(notes)
+      if (Array.isArray(parsed) && parsed.every((s: any) => s.method && typeof s.amount === 'number')) {
+        return parsed
+      }
+    } catch {}
+    return null
+  }
+
+  const splitPayments = parseSplitPayments((order as unknown as { notes?: string }).notes)
 
   const orderRef = `BSP-${String(order.id).slice(0, 8).toUpperCase()}`
 
-  // For paid orders, use the stored total (what was actually charged).
-  // For open orders, recalculate excluding returned items.
   const isPaid = order.status === 'paid'
   const returnedDisplayItems = items.filter(
     (i) =>
@@ -51,7 +137,7 @@ export default function ReceiptModal({
       (i as unknown as { return_requested?: boolean }).return_requested
   )
   const billableItems = isPaid
-    ? items // paid orders: show all items as they were charged
+    ? items
     : items.filter(
         (i) =>
           !(i as unknown as { return_accepted?: boolean }).return_accepted &&
@@ -73,25 +159,106 @@ export default function ReceiptModal({
           ((i as unknown as { extra_charge?: number }).extra_charge || 0),
         0
       )
-  const total = subtotal
+  const rawTotal = subtotal
+  const receiptDiscount = isPaid ? discountAmount : 0
+  const total = Math.max(0, rawTotal - receiptDiscount)
+  const receiptSettings = getReceiptSettings()
+  const shopName = receiptSettings.shopName || 'C.Biz POS'
+
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.origin}/receipt/${order.id}`)}&color=000000&bgcolor=ffffff`
 
   const handleThermalPrint = async () => {
-    setPrinting(true)
-    handlePrint('customer')
-    setPrinting(false)
+    setPrinting('both')
+    setPrintStatus({ customer: 'pending', internal: 'pending' })
+
+    const customerResult = await queuePrintJob(
+      order,
+      'customer',
+      items,
+      staffName,
+      tipAmount,
+      amountReceived
+    )
+
+    setPrintStatus((prev) => ({
+      ...prev,
+      customer: customerResult.success ? 'success' : 'failed',
+      error: customerResult.error,
+    }))
+
+    // Wait briefly between prints so the printer can finish
+    await new Promise((r) => setTimeout(r, 1000))
+
+    const staffResult = await queuePrintJob(
+      order,
+      'internal',
+      items,
+      staffName,
+      tipAmount,
+      amountReceived
+    )
+
+    setPrintStatus((prev) => ({
+      ...prev,
+      internal: staffResult.success ? 'success' : 'failed',
+      error: staffResult.error || prev.error,
+    }))
+
+    if (customerResult.success && staffResult.success) {
+      toast.success('Printed', 'Customer receipt + internal copy sent to printer')
+    } else if (customerResult.success) {
+      toast.warning('Partial Print', 'Customer receipt printed but internal copy failed')
+    } else if (staffResult.success) {
+      toast.warning('Partial Print', 'Internal copy printed but customer receipt failed')
+    } else {
+      toast.error('Print Failed', customerResult.error || 'Could not reach print service')
+    }
+
+    setPrinting('done')
   }
-  // Auto-trigger print when receipt opens — only when autoPrint is true (post-payment flow)
+
+  // Auto-trigger print when receipt opens
   const hasPrinted = useRef(false)
   useEffect(() => {
     if (!autoPrint) return
     if (hasPrinted.current) return
     hasPrinted.current = true
     void handleThermalPrint()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const buildMonoReceipt = (type: 'customer' | 'waiter') => {
+  const handleReprint = async (type: 'customer' | 'internal') => {
+    setRetrying(true)
+    const result = await queuePrintJob(
+      order,
+      type,
+      items,
+      staffName,
+      tipAmount,
+      amountReceived
+    )
+    setRetrying(false)
+    if (result.success) {
+      toast.success(
+        'Reprinted',
+        `${type === 'customer' ? 'Customer receipt' : 'Internal copy'} sent to printer`
+      )
+    } else {
+      toast.error('Reprint Failed', result.error || 'Could not reach print service')
+    }
+  }
+
+  const handleDownload = (type: 'customer' | 'internal') => {
+    const html = buildMonoReceipt(type)
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type === 'customer' ? 'receipt' : 'internal-copy'}-${orderRef}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const buildMonoReceipt = (type: 'customer' | 'internal') => {
     const W = 40
     const fmtRow = (left: string, right: string) => {
       const l = left.substring(0, W - right.length - 1)
@@ -114,24 +281,32 @@ export default function ReceiptModal({
           ? 'BANK POS'
           : pmRaw === 'credit'
             ? 'PAY LATER (DEBT)'
-            : pmRaw.toUpperCase()
+            : pmRaw.startsWith('mtn_momo')
+              ? (() => { const phone = pmRaw.replace('mtn_momo:', ''); return phone ? `MTN MOMO (${phone})` : 'MTN MOMO' })()
+              : pmRaw.startsWith('zain_cash')
+                ? (() => { const phone = pmRaw.replace('zain_cash:', ''); return phone ? `ZAIN CASH (${phone})` : 'ZAIN CASH' })()
+                : pmRaw.startsWith('airtel_money')
+                  ? (() => { const phone = pmRaw.replace('airtel_money:', ''); return phone ? `AIRTEL MONEY (${phone})` : 'AIRTEL MONEY' })()
+                  : pmRaw === 'split'
+                    ? 'SPLIT PAYMENT'
+                    : pmRaw.toUpperCase()
 
     const activeItems = items.filter(
       (i) =>
         !(i as unknown as { return_accepted?: boolean }).return_accepted &&
         !(i as unknown as { return_requested?: boolean }).return_requested
     )
-    const returnedItems = items.filter(
+    const returnedItemsLocal = items.filter(
       (i) =>
         (i as unknown as { return_accepted?: boolean }).return_accepted ||
         (i as unknown as { return_requested?: boolean }).return_requested
     )
 
-    // Group items by name — combine duplicates
     const grouped = new Map<string, { qty: number; total: number }>()
     activeItems.forEach((item) => {
       const name =
-        (item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+        (item as unknown as { items?: { name: string } }).items?.name ||
+        (item as unknown as { name?: string }).name ||
         (item as unknown as { modifier_notes?: string }).modifier_notes ||
         'Item'
       const existing = grouped.get(name)
@@ -148,11 +323,11 @@ export default function ReceiptModal({
       .map(([name, { qty, total }]) => fmtRow(`${qty}x ${name}`, `N${total.toLocaleString()}`))
       .join('\n')
 
-    // Group returned items too
     const returnedGrouped = new Map<string, number>()
-    returnedItems.forEach((item) => {
+    returnedItemsLocal.forEach((item) => {
       const name =
-        (item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+        (item as unknown as { items?: { name: string } }).items?.name ||
+        (item as unknown as { name?: string }).name ||
         (item as unknown as { modifier_notes?: string }).modifier_notes ||
         'Item'
       returnedGrouped.set(name, (returnedGrouped.get(name) || 0) + (item.quantity || 1))
@@ -179,19 +354,35 @@ export default function ReceiptModal({
           ]
         : []
 
-    if (type === 'waiter') {
-      // Waiter copy — plain monospace
+    const discountLines =
+      receiptDiscount > 0 && discountName
+        ? [
+            fmtRow(
+              `Discount (${discountName}):`,
+              `-N${receiptDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            ),
+          ]
+        : []
+
+    if (type === 'internal') {
       const lines = [
         '',
-        centre('C.Biz African Food'),
-        centre('-- WAITER COPY --'),
+        centre(shopName),
+        centre('-- INTERNAL COPY --'),
         divider,
         fmtRow('Ref:', orderRef),
-        fmtRow('Table:', table?.name ?? 'N/A'),
         fmtRow('Date:', formatDate(order.created_at)),
         fmtRow('Time:', formatTime(order.created_at)),
-        fmtRow('Served by:', staffName || 'Staff'),
+        fmtRow('Staff:', staffName || 'Staff'),
         fmtRow('Payment:', pmLabel),
+      ...(splitPayments ? splitPayments.map(s => fmtRow(`  ${({
+        cash: 'Cash',
+        card: 'Bank POS',
+        transfer: 'Transfer',
+        mtn_momo: 'MTN MoMo',
+        zain_cash: 'Zain Cash',
+        airtel_money: 'Airtel Money',
+      } as Record<string, string>)[s.method] || s.method}:`, `N${s.amount.toLocaleString()}`)) : []),
         divider,
         fmtRow('ITEM', 'AMOUNT'),
         divider,
@@ -201,6 +392,7 @@ export default function ReceiptModal({
           'TOTAL:',
           `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         ),
+        ...discountLines,
         ...tipLines,
         solidDivider,
         '',
@@ -215,21 +407,33 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 </style></head><body>${lines}</body></html>`
     }
 
-    // Customer copy — monospace with QR code image at bottom
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/receipt/${order.id}`)}&color=000000&bgcolor=ffffff`
+    const settingsAddr = receiptSettings.address ? receiptSettings.address.split('\n').join(', ') : ''
+    const customerHeader = [
+      centre(shopName),
+      ...(settingsAddr ? [centre(settingsAddr)] : []),
+      ...(receiptSettings.phone ? [centre(receiptSettings.phone)] : []),
+      divider,
+    ].join('\n')
 
     const customerLines = [
       '',
-      centre('C.Biz African Food'),
-      divider,
+      ...(receiptSettings.logoUrl ? ['[LOGO]'] : []),
+      customerHeader,
       fmtRow('Ref:', orderRef),
-      fmtRow('Table:', table?.name ?? 'N/A'),
       fmtRow('Date:', formatDate(order.created_at)),
       fmtRow('Time:', formatTime(order.created_at)),
-      fmtRow('Served by:', staffName || 'Staff'),
+      fmtRow('Staff:', staffName || 'Staff'),
       fmtRow('Payment:', pmLabel),
-      divider,
-      fmtRow('ITEM', 'AMOUNT'),
+        ...(splitPayments ? splitPayments.map(s => fmtRow(`  ${({
+          cash: 'Cash',
+          card: 'Bank POS',
+          transfer: 'Transfer',
+          mtn_momo: 'MTN MoMo',
+          zain_cash: 'Zain Cash',
+          airtel_money: 'Airtel Money',
+        } as Record<string, string>)[s.method] || s.method}:`, `N${s.amount.toLocaleString()}`)) : []),
+        divider,
+        fmtRow('ITEM', 'AMOUNT'),
       divider,
       itemLines,
       solidDivider,
@@ -237,11 +441,18 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
         'TOTAL:',
         `N${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       ),
+      ...discountLines,
       ...tipLines,
       solidDivider,
       '',
       centre('** PAYMENT CONFIRMED **'),
       '',
+      ...(receiptSettings.footerMessage
+        ? ['', centre(receiptSettings.footerMessage), '']
+        : ['', centre('Thank you for visiting!'), '']),
+      ...(receiptSettings.terms
+        ? ['', centre('--- T & C ---'), receiptSettings.terms, '']
+        : []),
     ].join('\n')
 
     return `<!DOCTYPE html>
@@ -262,90 +473,81 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
 <body>
   <div class="receipt-text">${customerLines}</div>
   <div class="qr-section">
-    <img src="${qrUrl}" width="90" height="90" alt="QR" style="display:block;margin:0 auto;" onload="window._qrLoaded=true" />
-    <div class="qr-label">Scan to view your order online</div>
+    <img src="${qrUrl}" width="90" height="90" alt="QR" style="display:block;margin:0 auto;" />
+                    <div class="qr-label">Scan to view your sale online</div>
   </div>
-  <div class="footer">Thank you for visiting C.Biz African Food!</div>
+  <div class="footer">Thank you for visiting Cbiz!</div>
 </body>
 </html>`
-  }
-
-  const handlePrint = (type: 'customer' | 'waiter') => {
-    const html = buildMonoReceipt(type)
-    const win = window.open(
-      '',
-      '_blank',
-      'width=500,height=700,toolbar=no,menubar=no,scrollbars=no'
-    )
-    if (!win) return
-    win.document.open('text/html', 'replace')
-    win.document.write(html)
-    win.document.close()
-
-    // Close ONLY after the user finishes or cancels the print dialog
-    win.onafterprint = () => win.close()
-
-    win.onload = () => {
-      // Wait longer for customer copy to allow QR image to load
-      const delay = type === 'customer' ? 800 : 200
-      setTimeout(() => {
-        try {
-          win.print()
-        } catch {
-          /* already closed */
-        }
-      }, delay)
-    }
-
-    // Safety: close after 5 minutes if onafterprint never fires
-    setTimeout(() => {
-      try {
-        if (!win.closed) win.close()
-      } catch {
-        /* already closed */
-      }
-    }, 300000)
-  }
-
-  const handleDownload = (type: 'customer' | 'waiter') => {
-    const html = buildMonoReceipt(type)
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${type === 'customer' ? 'receipt' : 'waiter-copy'}-${orderRef}.html`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50 shrink-0">
-          <h3 className="font-bold text-gray-900 text-lg">Receipt — {orderRef}</h3>
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg">Receipt — {orderRef}</h3>
+            {printServiceStatus === 'offline' && (
+              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                <AlertCircle size={10} /> Print service offline — install cbiz-print-service
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
             <X size={20} />
           </button>
         </div>
 
-        {/* Print choice — shown when opened from My Orders (not auto-print) */}
+        {/* ESC/POS Print Status */}
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-4">
+              <PrintStatusBadge status={printStatus.customer} label="Customer" />
+              <PrintStatusBadge status={printStatus.internal} label="Internal Copy" />
+            </div>
+            <div className="flex items-center gap-2">
+              {printing === 'done' &&
+                (printStatus.customer === 'failed' || printStatus.internal === 'failed') && (
+                  <button
+                    onClick={() => handleReprint('customer')}
+                    disabled={retrying}
+                    className="flex items-center gap-1 text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-400 disabled:opacity-50"
+                  >
+                    <Printer size={12} /> Retry Failed
+                  </button>
+                )}
+              {printServiceStatus === 'online' && printing === 'idle' && (
+                <button
+                  onClick={handleThermalPrint}
+                  className="flex items-center gap-1 text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800"
+                >
+                  <Printer size={12} /> Print (ESC/POS)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Reprint buttons (shows when opened from My Orders) */}
         {!autoPrint && (
           <div className="px-6 py-4 bg-amber-50 border-b border-amber-200 shrink-0">
-            <p className="text-amber-800 text-sm font-semibold mb-3">Select which copy to print:</p>
+            <p className="text-amber-800 text-sm font-semibold mb-3">
+              Reprint from network printer:
+            </p>
             <div className="flex gap-3">
               <button
-                onClick={() => handlePrint('customer')}
-                disabled={printing}
+                onClick={() => handleReprint('customer')}
+                disabled={retrying}
                 className="flex-1 flex items-center justify-center gap-2 bg-black text-white font-semibold py-3 rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-colors text-sm"
               >
-                <Printer size={15} /> {printing ? 'Printing...' : 'Customer Copy'}
+                <Printer size={15} /> {retrying ? 'Printing...' : 'Reprint Customer Copy'}
               </button>
               <button
-                onClick={() => handlePrint('waiter')}
-                disabled={printing}
+                onClick={() => handleReprint('internal')}
+                disabled={retrying}
                 className="flex-1 flex items-center justify-center gap-2 bg-amber-500 text-black font-semibold py-3 rounded-xl hover:bg-amber-400 disabled:opacity-50 transition-colors text-sm"
               >
-                <Printer size={15} /> Waiter Copy
+                <Printer size={15} /> Reprint Internal Copy
               </button>
             </div>
           </div>
@@ -359,10 +561,10 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             Customer Copy
           </button>
           <button
-            onClick={() => setActiveTab('waiter')}
-            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'waiter' ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`}
+            onClick={() => setActiveTab('internal')}
+            className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'internal' ? 'text-gray-900 border-b-2 border-gray-900' : 'text-gray-400'}`}
           >
-            Waiter Copy
+            Internal Copy
           </button>
         </div>
 
@@ -377,11 +579,11 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => handlePrint('customer')}
-                  disabled={printing}
+                  onClick={() => handleReprint('customer')}
+                  disabled={retrying}
                   className="flex items-center gap-1 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
-                  <Printer size={12} /> {printing ? 'Printing...' : '🖨 Print Receipt'}
+                  <Printer size={12} /> {retrying ? 'Printing...' : 'Reprint'}
                 </button>
                 <button
                   onClick={() => handleDownload('customer')}
@@ -393,7 +595,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             </div>
             <div className="flex-1 overflow-y-auto p-4 bg-white flex justify-center">
               <div
-                ref={customerRef}
                 style={{
                   fontFamily: "'Courier New', monospace",
                   fontSize: '12px',
@@ -403,9 +604,29 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 }}
               >
                 <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                  {receiptSettings.logoUrl && (
+                    <div style={{ marginBottom: '4px' }}>
+                      <img
+                        src={receiptSettings.logoUrl}
+                        alt="Logo"
+                        style={{ maxWidth: '100px', maxHeight: '50px', display: 'block', margin: '0 auto' }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </div>
+                  )}
                   <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '2px' }}>
-                    C.Biz African Food
+                    {shopName}
                   </div>
+                  {receiptSettings.address && (
+                    <div style={{ fontSize: '10px', color: '#555', marginTop: '2px', whiteSpace: 'pre-wrap' }}>
+                      {receiptSettings.address}
+                    </div>
+                  )}
+                  {receiptSettings.phone && (
+                    <div style={{ fontSize: '10px', color: '#555', marginTop: '1px' }}>
+                      {receiptSettings.phone}
+                    </div>
+                  )}
                   <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
                     — — — — — — — — — — — —
                   </div>
@@ -416,14 +637,15 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     ['Date', formatDate(order.created_at)],
                     ['Time', formatTime(order.created_at)],
                     [
-                      'Table',
-                      table?.name ||
-                        (order.order_type === 'takeaway'
-                          ? `Takeaway${(order as unknown as { customer_name?: string }).customer_name ? ` — ${(order as unknown as { customer_name: string }).customer_name}` : ''}`
-                          : 'Counter'),
+                      'Type',
+                      order.order_type === 'return'
+                        ? 'Return'
+                        : (order as unknown as { customer_name?: string }).customer_name
+                          ? `Walk-in — ${(order as unknown as { customer_name: string }).customer_name}`
+                          : 'Counter',
                     ],
-                    ['Served by', staffName],
-                    ['Payment', paymentLabel[order.payment_method!] || order.payment_method],
+                    ['Staff', staffName],
+                    ['Payment', getPaymentDisplay(order.payment_method!)],
                   ].map(([label, value]) => (
                     <div
                       key={label as string}
@@ -439,6 +661,25 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 </div>
+                {splitPayments && (
+                  <div style={{ marginBottom: '6px' }}>
+                    {splitPayments.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '10px',
+                          margin: '2px 0',
+                          color: '#555',
+                        }}
+                      >
+                        <span style={{ paddingLeft: '12px' }}>{paymentLabel[s.method] || s.method}</span>
+                        <span>{formatPrice(s.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
                 <div
                   style={{
@@ -467,15 +708,16 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     }}
                   >
                     <span style={{ flex: 1, paddingRight: '4px', wordBreak: 'break-word' }}>
-                      {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                      {(item as unknown as { items?: { name: string } }).items?.name ||
+                        (item as unknown as { name?: string }).name ||
                         item.id}
                     </span>
                     <span style={{ width: '24px', textAlign: 'center' }}>{item.quantity}</span>
-                    <span style={{ width: '60px', textAlign: 'right', fontSize: '9px' }}>
-                      {formatSSP(item.unit_price || 0)}
+                    <span style={{ width: '48px', textAlign: 'right' }}>
+                      {formatPrice(item.unit_price || 0)}
                     </span>
-                    <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
-                      {formatSSP((item as unknown as { total_price?: number }).total_price || 0)}
+                    <span style={{ width: '64px', textAlign: 'right' }}>
+                      {formatPrice((item as unknown as { total_price?: number }).total_price || 0)}
                     </span>
                   </div>
                 ))}
@@ -493,17 +735,25 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span style={{ flex: 1 }}>
-                        {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                        {(item as unknown as { item?: { name: string } }).item?.name ||
                           item.id}{' '}
                         [RETURNED]
                       </span>
-                      <span style={{ width: '76px', textAlign: 'right', fontSize: '9px' }}>
-                        {formatSSP(0)}
-                      </span>
+                      <span style={{ width: '64px', textAlign: 'right' }}>{formatPrice(0)}</span>
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatSSP(subtotal)]].map(([l, v]) => (
+                {[
+                  ['Subtotal', formatPrice(rawTotal)],
+                  ...(receiptDiscount > 0 && discountName
+                    ? [
+                        [
+                          `Discount (${discountName}${discountType === 'percentage' && discountValue ? `, ${discountValue}%` : ''})`,
+                          `-${formatPrice(receiptDiscount)}`,
+                        ] as [string, string],
+                      ]
+                    : []),
+                ].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -511,10 +761,11 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       justifyContent: 'space-between',
                       fontSize: '11px',
                       margin: '3px 0',
+                      ...(l.startsWith('Discount') ? { color: '#16a34a' } : {}),
                     }}
                   >
                     <span>{l}</span>
-                    <span style={{ fontSize: '9px', textAlign: 'right' }}>{v}</span>
+                    <span>{v}</span>
                   </div>
                 ))}
                 <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
@@ -528,7 +779,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   }}
                 >
                   <span>TOTAL</span>
-                  <span style={{ fontSize: '10px', textAlign: 'right' }}>{formatSSP(total)}</span>
+                  <span>{formatPrice(total)}</span>
                 </div>
                 {tipAmount > 0 && (
                   <>
@@ -542,8 +793,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>Amount Received</span>
-                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(amountReceived > 0 ? amountReceived : total + tipAmount)}
+                      <span>
+                        {formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
                       </span>
                     </div>
                     <div
@@ -556,14 +807,12 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                         fontWeight: 'bold',
                       }}
                     >
-                      <span>💚 Tip (Thank you!)</span>
-                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(tipAmount)}
-                      </span>
+                      <span>Tip (Thank you!)</span>
+                      <span>{formatPrice(tipAmount)}</span>
                     </div>
                   </>
                 )}
-                {(order as unknown as { notes?: string }).notes && (
+                {(order as unknown as { notes?: string }).notes && !splitPayments && (
                   <div style={{ fontSize: '10px', marginTop: '6px', color: '#444' }}>
                     Note: {(order as unknown as { notes: string }).notes}
                   </div>
@@ -576,37 +825,42 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     style={{ width: '80px', height: '80px', display: 'block', margin: '0 auto' }}
                   />
                   <div style={{ fontSize: '9px', marginTop: '4px', color: '#666' }}>
-                    Scan to review your order
+                    Scan to review your sale
                   </div>
                 </div>
                 <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
-                <div style={{ textAlign: 'center', fontSize: '10px', lineHeight: '1.6' }}>
-                  <div>Thank you for visiting!</div>
-                  <div style={{ color: '#666' }}>Please come again 🙏</div>
-                  <div style={{ marginTop: '4px', fontSize: '9px', color: '#888' }}>
-                    Powered by C.BizOS
-                  </div>
+                <div style={{ textAlign: 'center', fontSize: '10px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                  {receiptSettings.footerMessage || 'Thank you for visiting!'}
                 </div>
+                {receiptSettings.terms && (
+                  <>
+                    <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
+                    <div style={{ fontSize: '9px', color: '#666', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
+                      {receiptSettings.terms}
+                    </div>
+                  </>
+                )}
                 <div style={{ marginTop: '16px' }} />
               </div>
             </div>
           </div>
 
-          {/* Waiter Copy */}
-          <div className={`${activeTab === 'waiter' ? 'flex' : 'hidden'} md:flex flex-1 flex-col`}>
+          {/* Internal Copy */}
+          <div className={`${activeTab === 'internal' ? 'flex' : 'hidden'} md:flex flex-1 flex-col`}>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
               <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Waiter Copy
+                Internal Copy
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => handlePrint('waiter')}
-                  className="flex items-center gap-1 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+                  onClick={() => handleReprint('internal')}
+                  disabled={retrying}
+                  className="flex items-center gap-1 text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
-                  <Printer size={12} /> Print
+                  <Printer size={12} /> Reprint
                 </button>
                 <button
-                  onClick={() => handleDownload('waiter')}
+                  onClick={() => handleDownload('internal')}
                   className="flex items-center gap-1 text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   <Download size={12} /> Save
@@ -615,7 +869,6 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
             </div>
             <div className="flex-1 overflow-y-auto p-4 bg-white flex justify-center">
               <div
-                ref={waiterRef}
                 style={{
                   fontFamily: "'Courier New', monospace",
                   fontSize: '12px',
@@ -625,7 +878,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                 }}
               >
                 <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>ORDER SUMMARY</div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>SALE SUMMARY</div>
                   <div style={{ fontSize: '10px', color: '#444' }}>INTERNAL USE ONLY</div>
                   <div style={{ fontSize: '10px', color: '#444', marginTop: '2px' }}>
                     — — — — — — — —
@@ -637,14 +890,15 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     ['Date', formatDate(order.created_at)],
                     ['Time', formatTime(order.created_at)],
                     [
-                      'Table',
-                      table?.name ||
-                        (order.order_type === 'takeaway'
-                          ? `Takeaway${(order as unknown as { customer_name?: string }).customer_name ? ` — ${(order as unknown as { customer_name: string }).customer_name}` : ''}`
-                          : 'Counter'),
+                      'Type',
+                      order.order_type === 'return'
+                        ? 'Return'
+                        : (order as unknown as { customer_name?: string }).customer_name
+                          ? `Walk-in — ${(order as unknown as { customer_name: string }).customer_name}`
+                          : 'Counter',
                     ],
                     ['Staff', staffName],
-                    ['Payment', paymentLabel[order.payment_method!] || order.payment_method],
+                    ['Payment', getPaymentDisplay(order.payment_method!)],
                   ].map(([label, value]) => (
                     <div
                       key={label as string}
@@ -660,9 +914,28 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 </div>
+                {splitPayments && (
+                  <div style={{ marginBottom: '6px' }}>
+                    {splitPayments.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: '10px',
+                          margin: '2px 0',
+                          color: '#555',
+                        }}
+                      >
+                        <span style={{ paddingLeft: '12px' }}>{paymentLabel[s.method] || s.method}</span>
+                        <span>{formatPrice(s.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
                 <div style={{ fontWeight: 'bold', fontSize: '10px', marginBottom: '4px' }}>
-                  ITEMS ORDERED
+                  ITEMS SOLD
                 </div>
                 {billableItems.map((item, i) => (
                   <div
@@ -675,7 +948,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     }}
                   >
                     <span style={{ flex: 1 }}>
-                      {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                      {(item as unknown as { items?: { name: string } }).items?.name ||
+                        (item as unknown as { name?: string }).name ||
                         item.id}
                     </span>
                     <span style={{ fontWeight: 'bold' }}>x{item.quantity}</span>
@@ -695,7 +969,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span style={{ flex: 1 }}>
-                        {(item as unknown as { menu_items?: { name: string } }).menu_items?.name ||
+                        {(item as unknown as { item?: { name: string } }).item?.name ||
                           item.id}{' '}
                         [RETURNED]
                       </span>
@@ -703,7 +977,17 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                     </div>
                   ))}
                 <div style={{ borderTop: '2px solid #000', margin: '6px 0' }} />
-                {[['Subtotal', formatSSP(subtotal)]].map(([l, v]) => (
+                {[
+                  ['Subtotal', formatPrice(rawTotal)],
+                  ...(receiptDiscount > 0 && discountName
+                    ? [
+                        [
+                          `Discount (${discountName})`,
+                          `-${formatPrice(receiptDiscount)}`,
+                        ] as [string, string],
+                      ]
+                    : []),
+                ].map(([l, v]) => (
                   <div
                     key={l}
                     style={{
@@ -711,10 +995,11 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       justifyContent: 'space-between',
                       fontSize: '11px',
                       margin: '2px 0',
+                      ...(l.startsWith('Discount') ? { color: '#16a34a' } : {}),
                     }}
                   >
                     <span>{l}</span>
-                    <span style={{ fontSize: '9px', textAlign: 'right' }}>{v}</span>
+                    <span>{v}</span>
                   </div>
                 ))}
                 <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
@@ -727,7 +1012,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                   }}
                 >
                   <span>TOTAL CHARGED</span>
-                  <span style={{ fontSize: '9px', textAlign: 'right' }}>{formatSSP(total)}</span>
+                  <span>{formatPrice(total)}</span>
                 </div>
                 {tipAmount > 0 && (
                   <>
@@ -741,8 +1026,8 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>Amount Received</span>
-                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(amountReceived > 0 ? amountReceived : total + tipAmount)}
+                      <span>
+                        {formatPrice(amountReceived > 0 ? amountReceived : total + tipAmount)}
                       </span>
                     </div>
                     <div
@@ -755,13 +1040,11 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                       }}
                     >
                       <span>TIP RECEIVED</span>
-                      <span style={{ fontSize: '9px', textAlign: 'right' }}>
-                        {formatSSP(tipAmount)}
-                      </span>
+                      <span>{formatPrice(tipAmount)}</span>
                     </div>
                   </>
                 )}
-                {(order as unknown as { notes?: string }).notes && (
+                {(order as unknown as { notes?: string }).notes && !splitPayments && (
                   <div
                     style={{
                       fontSize: '10px',
@@ -787,7 +1070,7 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
                         fontSize: '9px',
                       }}
                     >
-                      Waitron
+                      Staff
                     </div>
                     <div
                       style={{
@@ -808,15 +1091,24 @@ body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #
           </div>
         </div>
 
-        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
+        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0 gap-2">
+          {printing === 'done' && (
+            <button
+              onClick={() => handleReprint('customer')}
+              disabled={retrying}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-4 py-2 rounded-xl text-sm transition-colors"
+            >
+              <Printer size={14} className="inline mr-1" /> Reprint
+            </button>
+          )}
           <button
             onClick={() => {
-              handlePrint('customer')
-              setTimeout(onClose, 1500)
+              if (printing === 'idle') void handleThermalPrint()
+              setTimeout(onClose, 500)
             }}
             className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-6 py-2 rounded-xl text-sm transition-colors"
           >
-            Print & Done
+            {printing === 'idle' ? 'Print & Done' : 'Done'}
           </button>
         </div>
       </div>

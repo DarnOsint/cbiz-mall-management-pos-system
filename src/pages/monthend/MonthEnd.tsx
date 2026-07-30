@@ -103,7 +103,7 @@ const MONTHS = [
 
 export default function MonthEnd() {
   const { profile } = useAuth()
-  const isReadOnly = profile?.role === 'auditor'
+  const isReadOnly = profile?.role === 'cashier'
   const toast = useToast()
   const [periods, setPeriods] = useState<PeriodClose[]>([])
   const [loading, setLoading] = useState(true)
@@ -201,7 +201,7 @@ export default function MonthEnd() {
 
     // Payments received against debtors in this period
     const debtorPayments = await supabase
-      .from('debtor_payments')
+      .from('debt_payments')
       .select('amount')
       .gte('created_at', startISO)
       .lte('created_at', endISO)
@@ -236,7 +236,7 @@ export default function MonthEnd() {
   const loadSystemStock = async (periodId: string, startDate: string, endDate: string) => {
     // Get the most recent closing stock entry per item up to period end
     const { data } = await supabase
-      .from('kitchen_stock_entries')
+      .from('stock_room_entries')
       .select('item_name, unit, closing_qty, date')
       .lte('date', endDate)
       .order('date', { ascending: false })
@@ -470,7 +470,7 @@ export default function MonthEnd() {
               className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-sm transition-colors"
             >
               <RefreshCw size={14} className={previewLoading ? 'animate-spin' : ''} />
-              {previewLoading ? 'Loading...' : 'Load Figures'}
+              {previewLoading ? <><div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin inline-block mr-2" />Loading...</> : 'Load Figures'}
             </button>
           </div>
 

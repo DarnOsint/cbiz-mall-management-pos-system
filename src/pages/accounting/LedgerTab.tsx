@@ -4,28 +4,27 @@ import { supabase } from '../../lib/supabase'
 import { createPDF, addTable, savePDF } from '../../lib/pdfExport'
 import ReceiptModal from '../pos/ReceiptModal'
 import type { LedgerEntry, PayoutRow } from './types'
-import type { Order, OrderItem, Table } from '../../types'
-import { getNetOrderAmount, getValidOrderItemCount, getValidOrderItems } from './orderAmounts'
+import type { Sale, SaleItem } from '../../types'
+import { getNetSaleAmount, getValidSaleItemCount, getValidSaleItems } from './orderAmounts'
 import { formatPrice } from '../../lib/currency'
 
 type LedgerFilterMode = 'prev-day' | 'single' | 'range'
 
-type LedgerOrder = Order & {
+type LedgerSale = Sale & {
   profiles?: { full_name: string } | null
-  tables?: Table | { id?: string; name: string } | null
-  order_items?: OrderItem[]
+  order_items?: SaleItem[]
 }
 
-type LedgerOrderEntry = LedgerEntry & {
+type LedgerSaleEntry = LedgerEntry & {
   source: 'order'
-  order: LedgerOrder
+  sale: LedgerSale
 }
 
 type LedgerPayoutEntry = LedgerEntry & {
   source: 'payout'
 }
 
-type LedgerRecord = LedgerOrderEntry | LedgerPayoutEntry
+type LedgerRecord = LedgerSaleEntry | LedgerPayoutEntry
 
 const formatMoney = (amount: number) => formatPrice(amount)
 const toDateInput = (value: Date) => value.toISOString().slice(0, 10)
@@ -53,9 +52,9 @@ function buildReceiptLikeRef(orderId: string) {
   return `BSP-${String(orderId).slice(0, 8).toUpperCase()}`
 }
 
-function buildEntryDescription(order: LedgerOrder) {
-  const base = order.tables?.name || order.order_type || 'Sale'
-  return (order.payment_method === 'credit' ? '[Pay Later] ' : '') + base
+function buildEntryDescription(sale: LedgerSale) {
+  const base = sale.customer_name || sale.order_type || 'Sale'
+  return (sale.payment_method === 'credit' ? '[Pay Later] ' : '') + base
 }
 
 export default function LedgerTab({ dateRange }: Props) {
@@ -67,7 +66,7 @@ export default function LedgerTab({ dateRange }: Props) {
   const [search, setSearch] = useState('')
   const [records, setRecords] = useState<LedgerRecord[]>([])
   const [selectedEntry, setSelectedEntry] = useState<LedgerRecord | null>(null)
-  const [receiptOrder, setReceiptOrder] = useState<LedgerOrder | null>(null)
+  const [receiptSale, setReceiptSale] = useState<LedgerSale | null>(null)
 
   const activePeriod = useMemo(() => {
     if (filterMode === 'single') {
@@ -96,11 +95,11 @@ export default function LedgerTab({ dateRange }: Props) {
 
   const fetchLedger = useCallback(async () => {
     setLoading(true)
-    const [ordersRes, payoutsRes] = await Promise.all([
+    const [salesRes, payoutsRes] = await Promise.all([
       supabase
         .from('orders')
         .select(
-          'id, created_at, closed_at, status, payment_method, order_type, total_amount, staff_id, profiles(full_name), tables(id, name), order_items(id, quantity, total_price, extra_charge, status, destination, modifier_notes, return_requested, return_accepted, menu_items(name, price))'
+          'id, created_at, closed_at, status, payment_method, order_type, total_amount, staff_id, customer_name, profiles(full_name), order_items(id, quantity, total_price, status, modifier_notes, return_requested, return_accepted, items(name, price))'
         )
         .eq('status', 'paid')
         .gte('created_at', activePeriod.start)
@@ -116,20 +115,20 @@ export default function LedgerTab({ dateRange }: Props) {
 
     const ledger: LedgerRecord[] = []
 
-    for (const order of (ordersRes.data || []) as unknown as LedgerOrder[]) {
+    for (const sale of (salesRes.data || []) as unknown as LedgerSale[]) {
       ledger.push({
-        id: order.id,
-        date: order.created_at,
+        id: sale.id,
+        date: sale.created_at,
         type: 'credit',
-        description: buildEntryDescription(order),
-        ref: buildReceiptLikeRef(order.id),
+        description: buildEntryDescription(sale),
+        ref: buildReceiptLikeRef(sale.id),
         debit: 0,
-        credit: getNetOrderAmount(order),
+        credit: getNetSaleAmount(sale),
         balance: 0,
-        method: order.payment_method ?? null,
-        staff: order.profiles?.full_name ?? null,
+        method: sale.payment_method ?? null,
+        staff: sale.profiles?.full_name ?? null,
         source: 'order',
-        order,
+        sale,
       })
     }
 
@@ -171,10 +170,10 @@ export default function LedgerTab({ dateRange }: Props) {
       records.filter((entry) => {
         if (!search) return true
         const query = search.toLowerCase()
-        const orderItems =
+        const saleItems =
           entry.source === 'order'
-            ? (entry.order.order_items || [])
-                .map((item) => item.menu_items?.name || item.modifier_notes || '')
+            ? (entry.sale.order_items || [])
+                .map((item) => item.items?.name || item.modifier_notes || '')
                 .join(' ')
                 .toLowerCase()
             : ''
@@ -183,14 +182,14 @@ export default function LedgerTab({ dateRange }: Props) {
           (entry.ref || '').toLowerCase().includes(query) ||
           (entry.staff || '').toLowerCase().includes(query) ||
           (entry.method || '').toLowerCase().includes(query) ||
-          orderItems.includes(query)
+          saleItems.includes(query)
         )
       }),
     [records, search]
   )
 
   const closingBalance = filteredRecords[0]?.balance ?? 0
-  const orderCount = filteredRecords.filter((entry) => entry.source === 'order').length
+  const saleCount = filteredRecords.filter((entry) => entry.source === 'order').length
 
   const exportPDF = () => {
     const doc = createPDF('General Ledger', activePeriod.label)
@@ -202,7 +201,7 @@ export default function LedgerTab({ dateRange }: Props) {
       }),
       entry.ref ?? '',
       entry.description ?? '',
-      entry.source === 'order' ? 'Order' : 'Payout',
+      entry.source === 'order' ? 'Sale' : 'Payout',
       entry.staff ?? '',
       entry.method ?? '',
       entry.credit ? formatMoney(entry.credit) : '',
@@ -228,9 +227,9 @@ export default function LedgerTab({ dateRange }: Props) {
     savePDF(doc, `ledger-${activePeriod.label}-${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
-  const printSelectedOrder = () => {
+  const printSelectedSale = () => {
     if (selectedEntry?.source !== 'order') return
-    setReceiptOrder(selectedEntry.order)
+    setReceiptSale(selectedEntry.sale)
   }
 
   return (
@@ -241,7 +240,7 @@ export default function LedgerTab({ dateRange }: Props) {
             <p className="text-gray-400 text-xs">Ledger period</p>
             <p className="text-white font-bold text-lg">{activePeriod.label}</p>
             <p className="text-gray-500 text-xs mt-1">
-              {filteredRecords.length} entries · {orderCount} orders
+              {filteredRecords.length} entries · {saleCount} sales
             </p>
             <p className="text-gray-600 text-[11px] mt-1">Session window: 8:00am to 8:00am</p>
           </div>
@@ -318,7 +317,7 @@ export default function LedgerTab({ dateRange }: Props) {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by ref, table, waiter, item, method..."
+              placeholder="Search by ref, area, staff, item, method..."
               className="w-full bg-transparent text-white text-sm focus:outline-none"
             />
           </div>
@@ -345,7 +344,7 @@ export default function LedgerTab({ dateRange }: Props) {
                   'Ref',
                   'Source',
                   'Description',
-                  'Orders / Recipient',
+                  'Sales / Recipient',
                   'Method',
                   'Credit',
                   'Debit',
@@ -377,7 +376,7 @@ export default function LedgerTab({ dateRange }: Props) {
               ) : (
                 filteredRecords.map((entry, index) => {
                   const itemCount =
-                    entry.source === 'order' ? getValidOrderItemCount(entry.order) : 0
+                    entry.source === 'order' ? getValidSaleItemCount(entry.sale) : 0
 
                   return (
                     <tr
@@ -401,7 +400,7 @@ export default function LedgerTab({ dateRange }: Props) {
                         <span
                           className={`text-xs px-2 py-0.5 rounded-lg ${entry.source === 'order' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
                         >
-                          {entry.source === 'order' ? 'Order' : 'Payout'}
+                          {entry.source === 'order' ? 'Sale' : 'Payout'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-white text-sm">{entry.description}</td>
@@ -428,7 +427,7 @@ export default function LedgerTab({ dateRange }: Props) {
                             onClick={() => setSelectedEntry(entry)}
                             className="text-xs bg-gray-800 border border-gray-700 hover:border-amber-500 text-white px-3 py-1.5 rounded-lg transition-colors"
                           >
-                            Inspect Order
+                            Inspect Sale
                           </button>
                         ) : (
                           <button
@@ -455,7 +454,7 @@ export default function LedgerTab({ dateRange }: Props) {
               <div>
                 <h3 className="text-white font-bold">
                   {selectedEntry.source === 'order'
-                    ? 'Ledger Order Details'
+                    ? 'Ledger Sale Details'
                     : 'Ledger Entry Details'}
                 </h3>
                 <p className="text-gray-500 text-xs mt-1">{selectedEntry.ref}</p>
@@ -503,9 +502,9 @@ export default function LedgerTab({ dateRange }: Props) {
                   <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 space-y-2">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div>
-                        <p className="text-gray-500 text-xs">Order Taken</p>
+                        <p className="text-gray-500 text-xs">Sale Taken</p>
                         <p className="text-white text-sm font-medium">
-                          {selectedEntry.order.tables?.name || selectedEntry.order.order_type}
+                          {selectedEntry.sale.customer_name || selectedEntry.sale.order_type}
                         </p>
                       </div>
                       <div>
@@ -516,16 +515,16 @@ export default function LedgerTab({ dateRange }: Props) {
                       </div>
                     </div>
                     <p className="text-gray-400 text-xs">
-                      Order ID: {selectedEntry.order.id} · Status: {selectedEntry.order.status}
+                      Sale ID: {selectedEntry.sale.id} · Status: {selectedEntry.sale.status}
                     </p>
                   </div>
 
                   <div className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-800">
-                      <p className="text-white font-semibold text-sm">Items Ordered</p>
+                      <p className="text-white font-semibold text-sm">Items Sold</p>
                     </div>
                     <div className="divide-y divide-gray-800">
-                      {getValidOrderItems(selectedEntry.order).map((item) => (
+                      {getValidSaleItems(selectedEntry.sale).map((item) => (
                         <div
                           key={item.id}
                           className="px-4 py-3 flex items-start justify-between gap-3"
@@ -533,7 +532,7 @@ export default function LedgerTab({ dateRange }: Props) {
                           <div>
                             <p className="text-white text-sm font-medium">
                               {item.quantity}x{' '}
-                              {item.menu_items?.name || item.modifier_notes || 'Item'}
+                              {item.item?.name || item.modifier_notes || 'Item'}
                             </p>
                             <p className="text-gray-500 text-xs mt-1">
                               {item.destination || 'station not set'}
@@ -560,7 +559,7 @@ export default function LedgerTab({ dateRange }: Props) {
             <div className="p-4 border-t border-gray-800 flex items-center justify-end gap-2">
               {selectedEntry.source === 'order' && (
                 <button
-                  onClick={printSelectedOrder}
+                  onClick={printSelectedSale}
                   className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-xl transition-colors"
                 >
                   <Printer size={14} /> Print Receipt
@@ -577,14 +576,13 @@ export default function LedgerTab({ dateRange }: Props) {
         </div>
       )}
 
-      {receiptOrder && (
+      {receiptSale && (
         <ReceiptModal
-          order={receiptOrder}
-          table={(receiptOrder.tables as Table | null) ?? null}
-          items={receiptOrder.order_items || []}
-          staffName={receiptOrder.profiles?.full_name || 'Staff'}
+          order={receiptSale}
+          items={receiptSale.order_items || []}
+          staffName={receiptSale.profiles?.full_name || 'Staff'}
           autoPrint={false}
-          onClose={() => setReceiptOrder(null)}
+          onClose={() => setReceiptSale(null)}
         />
       )}
     </div>

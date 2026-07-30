@@ -6,13 +6,13 @@ import type { PaymentMethod } from '../../types'
 export interface AccountingSummary {
   total: number
   byMethod: Record<string, number>
-  orders: number
-  avgOrder: number
+  sales: number
+  avgSale: number
 }
 
-export interface WaitronStat {
+export interface StaffStat {
   name: string
-  orders: number
+  sales: number
   revenue: number
   cashExpected?: number
   transferExpected?: number
@@ -21,7 +21,7 @@ export interface WaitronStat {
 export interface TrendPoint {
   day: string
   revenue: number
-  orders: number
+  sales: number
 }
 
 export interface LedgerEntry {
@@ -84,17 +84,4 @@ export interface PayoutForm {
   reason: string
   category: string
   paid_to: string
-}
-
-export interface Order {
-  id: string
-  status: string
-  total_amount: number
-  payment_method: string
-  order_type: string
-  created_at: string
-  closed_at?: string | null
-  staff_id?: string
-  profiles?: { full_name: string } | null
-  tables?: { name: string } | null
 }

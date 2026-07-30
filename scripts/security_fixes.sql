@@ -71,7 +71,8 @@ BEGIN
       INTO real_total
       FROM order_items
      WHERE order_id = NEW.id
-       AND (void_qty IS NULL OR void_qty = 0);
+       AND return_requested IS NOT TRUE
+       AND return_accepted IS NOT TRUE;
 
     -- Only override if client total differs by more than 1 currency unit (floating point tolerance)
     IF ABS(real_total - NEW.total_amount) > 1 THEN

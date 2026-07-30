@@ -18,7 +18,7 @@ import {
   Clock,
   Trash2,
 } from 'lucide-react'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import { audit } from '../../lib/audit'
 
 const UNITS = ['bottles', 'crates', 'litres', 'kg', 'packs', 'cartons', 'pieces'] as const
@@ -54,10 +54,10 @@ interface RestockEntry {
   restocked_by_name?: string
   restocked_at: string
 }
-interface MenuItem {
+interface Item {
   id: string
   name: string
-  menu_categories?: { name?: string; destination?: string } | null
+  item_categories?: { name?: string } | null
 }
 interface ItemForm {
   item_name: string
@@ -121,7 +121,7 @@ export default function Inventory({ onBack }: Props) {
   const [showRestock, setShowRestock] = useState(false)
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [saving, setSaving] = useState(false)
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [menuItems, setMenuItems] = useState<Item[]>([])
   const [itemForm, setItemForm] = useState<ItemForm>(blankItemForm)
   const [restockForm, setRestockForm] = useState<RestockForm>(blankRestockForm)
   const fi = (v: Partial<ItemForm>) => setItemForm((p) => ({ ...p, ...v }))
@@ -144,17 +144,15 @@ export default function Inventory({ onBack }: Props) {
         return q.limit(200)
       })(),
       supabase
-        .from('menu_items')
-        .select('id, name, menu_categories(name, destination)')
+        .from('item')
+        .select('id, name, item_categories(name)')
         .eq('is_available', true)
         .order('name'),
     ])
     if (invRes.data) setItems(invRes.data as InventoryItem[])
     if (logRes.data) setRestockLog(logRes.data as RestockEntry[])
     if (menuRes.data)
-      setMenuItems(
-        (menuRes.data as MenuItem[]).filter((i) => i.menu_categories?.destination === 'bar')
-      )
+      setMenuItems(menuRes.data as Item[])
     setLoading(false)
   }
 
@@ -329,10 +327,9 @@ export default function Inventory({ onBack }: Props) {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-white font-bold">Drink Inventory & Restocking</h1>
+            <h1 className="text-white font-bold">Product Inventory & Restocking</h1>
             <p className="text-gray-400 text-xs">
-              {items.length} items · {lowStockCount} low stock · Stock value: {getCurrencySymbol()}
-              {formatPrice(totalStockValue)}
+              {items.length} items · {lowStockCount} low stock · Stock value: SSP{formatPrice(totalStockValue)}
             </p>
           </div>
         </div>
@@ -370,7 +367,7 @@ export default function Inventory({ onBack }: Props) {
 
       <div className="p-6">
         {loading ? (
-          <div className="text-amber-500 text-center py-12">Loading...</div>
+          <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : view === 'stock' ? (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -538,8 +535,7 @@ export default function Inventory({ onBack }: Props) {
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-400 text-sm">{restockLog.length} restock entries</p>
               <p className="text-gray-500 text-xs">
-                Total spent: {getCurrencySymbol()}
-                {formatPrice(restockLog.reduce((s, r) => s + (r.total_cost || 0), 0))}
+                Total spent: SSP{formatPrice(restockLog.reduce((s, r) => s + (r.total_cost || 0), 0))}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -695,7 +691,7 @@ export default function Inventory({ onBack }: Props) {
                     value={itemForm.category}
                     onChange={(e) => fi({ category: e.target.value })}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 text-sm"
-                    placeholder="e.g. Beer, Spirits"
+                    placeholder="e.g. Beverages, Electronics"
                   />
                 </div>
                 <div>

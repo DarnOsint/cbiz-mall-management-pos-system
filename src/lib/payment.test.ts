@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_VAT_RATE,
-  calcVat,
   calcTotal,
   calcChange,
   canProcess,
@@ -17,7 +15,7 @@ import type { OrderItem } from '../types'
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
-function makeItem(id: string, total_price: number, extra_charge = 0): OrderItem {
+function makeItem(id: string, total_price: number): OrderItem {
   return {
     id,
     order_id: 'order-1',
@@ -26,37 +24,17 @@ function makeItem(id: string, total_price: number, extra_charge = 0): OrderItem 
     quantity: 1,
     unit_price: total_price,
     total_price,
-    extra_charge,
     status: 'pending',
-    destination: 'bar',
     created_at: new Date().toISOString(),
   }
 }
 
-// ─── VAT & totals ─────────────────────────────────────────────────────────
-
-describe('calcVat', () => {
-  it('calculates 7.5% of subtotal', () => {
-    expect(calcVat(1000)).toBeCloseTo(75)
-    expect(calcVat(0)).toBe(0)
-    expect(calcVat(200)).toBeCloseTo(15)
-  })
-
-  it('uses DEFAULT_VAT_RATE constant', () => {
-    expect(DEFAULT_VAT_RATE).toBe(0.075)
-    expect(calcVat(100)).toBe(100 * DEFAULT_VAT_RATE)
-  })
-})
+// ─── Basic totals ─────────────────────────────────────────────────────────
 
 describe('calcTotal', () => {
-  it('adds VAT to subtotal', () => {
-    expect(calcTotal(1000)).toBeCloseTo(1075)
+  it('returns subtotal unchanged', () => {
+    expect(calcTotal(1000)).toBe(1000)
     expect(calcTotal(0)).toBe(0)
-  })
-
-  it('is always greater than subtotal for positive amounts', () => {
-    const sub = 5000
-    expect(calcTotal(sub)).toBeGreaterThan(sub)
   })
 })
 
@@ -115,7 +93,7 @@ describe('split bill helpers', () => {
   const items = [
     makeItem('item-1', 500),
     makeItem('item-2', 1000),
-    makeItem('item-3', 750, 100),
+    makeItem('item-3', 750),
     makeItem('item-4', 300),
   ]
 
@@ -136,10 +114,9 @@ describe('split bill helpers', () => {
     expect(person1[0].id).toBe('item-3')
   })
 
-  it('getPersonTotal sums total_price + extra_charge', () => {
+  it('getPersonTotal sums total_price', () => {
     expect(getPersonTotal(items, assignments, 0)).toBe(1500)
-    // item-3: 750 + 100 = 850
-    expect(getPersonTotal(items, assignments, 1)).toBe(850)
+    expect(getPersonTotal(items, assignments, 1)).toBe(750)
   })
 
   it('getPersonTotal returns 0 for empty person', () => {

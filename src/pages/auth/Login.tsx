@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { verifyPinServer, verifyPbkdf2 } from '../../lib/pinHash'
-import { cacheCredential, verifyOfflinePassword, verifyOfflinePin } from '../../lib/offlineAuth'
-import { Eye, EyeOff, Delete, UtensilsCrossed } from 'lucide-react'
+
+import { Eye, EyeOff, Delete, ShoppingBag } from 'lucide-react'
 import type { Profile, Role } from '../../types'
 
 const EMAIL_MAX = 5
@@ -150,30 +150,15 @@ export default function Login() {
     }
     setLoading(true)
     setError(null)
-    const tryOffline = async () => {
-      const offline = await verifyOfflinePassword(email, password)
-      if (!offline) return false
-      setOfflineSession(offline.profile, 'password')
-      resetAttempts('rl_email')
-      setLoading(false)
-      window.location.replace('/dashboard')
-      return true
-    }
 
     if (!navigator.onLine) {
-      const ok = await tryOffline()
-      if (!ok) setError('No offline password cached for this account.')
+      setError('No network connection. Please connect and try again.')
       setLoading(false)
       return
     }
 
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err || !data?.session) {
-      // Network or credential failure — if network-related, attempt offline cache
-      if (err?.message?.toLowerCase().includes('network') || !navigator.onLine) {
-        const ok = await tryOffline()
-        if (ok) return
-      }
       const ns = recordAttempt('rl_email', EMAIL_MAX)
       if (ns.attempts >= EMAIL_MAX) {
         const rem = getRemaining(ns, EMAIL_LOCK_MS)
@@ -189,20 +174,7 @@ export default function Login() {
       return
     }
 
-    // Online success — cache credential for offline reuse
     resetAttempts('rl_email')
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id
-    if (userId) {
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single()
-      if (prof) {
-        try {
-          await cacheCredential(prof as unknown as Profile, 'password', password)
-        } catch (e) {
-          console.warn('cacheCredential(password) failed', e)
-        }
-      }
-    }
 
     void fetch('https://api.ipify.org?format=json')
       .then((r) => r.json())
@@ -235,23 +207,10 @@ export default function Login() {
     setLoading(true)
     setError(null)
 
-    const offlineFallback = async () => {
-      const offline = await verifyOfflinePin(entered)
-      if (!offline) return null
-      setOfflineSession(offline.profile, 'pin')
-      resetAttempts('rl_pin')
-      setLoading(false)
-      window.location.replace('/dashboard')
-      return offline.profile
-    }
-
-    // Offline-first: if no network, try cached credentials immediately
     if (!navigator.onLine) {
-      const offlineProfile = await offlineFallback()
-      if (!offlineProfile) {
-        setError('Offline login needs a prior online login on this POS (PIN not cached yet).')
-        setLoading(false)
-      }
+      setError('No network connection. Please connect and try again.')
+      setPin('')
+      setLoading(false)
       return
     }
 
@@ -295,11 +254,6 @@ export default function Login() {
       | null
 
     if (!profile) {
-      // If server failed due to network, attempt offline cached login
-      if (!navigator.onLine) {
-        const offlineProfile = await offlineFallback()
-        if (offlineProfile) return
-      }
       const ns = recordAttempt('rl_pin', PIN_MAX)
       if (ns.attempts >= PIN_MAX) {
         const rem = getRemaining(ns, PIN_LOCK_MS)
@@ -314,23 +268,6 @@ export default function Login() {
       return
     }
     resetAttempts('rl_pin')
-
-    // Operational roles must be clocked in before they can log in
-    const clockInRequired = ['waitron', 'kitchen', 'bar']
-    if (clockInRequired.includes(profile.role)) {
-      const { data: activeShift } = await supabase
-        .from('attendance')
-        .select('id')
-        .eq('staff_id', profile.id)
-        .or('clock_out.is.null')
-        .limit(1)
-      if (!activeShift || activeShift.length === 0) {
-        setError('You must be clocked in by a manager before logging in.')
-        setPin('')
-        setLoading(false)
-        return
-      }
-    }
 
     // Normalize PIN storage: if stored as PBKDF2 hash, call server-side RPC
     // to re-hash using pgcrypto so the RPC can verify it directly next time
@@ -356,20 +293,6 @@ export default function Login() {
           })
           .select()
       )
-    try {
-      const cacheProfile: Profile = {
-        id: profile.id,
-        full_name: profile.full_name,
-        role: profile.role as Role,
-        email: profile.email,
-        pin: profile.pin,
-        is_active: true,
-        created_at: profile.created_at || new Date().toISOString(),
-      }
-      await cacheCredential(cacheProfile, 'pin', entered)
-    } catch (e) {
-      console.warn('cacheCredential(pin) failed', e)
-    }
     setOfflineSession({ id: profile.id }, 'pin')
     setLoading(false)
     window.location.replace('/dashboard')
@@ -402,10 +325,9 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 mb-4">
-            <UtensilsCrossed size={40} className="text-gray-950" />
+            <ShoppingBag size={40} className="text-gray-950" />
           </div>
-          <h1 className="text-3xl font-bold text-amber-400">C.Biz</h1>
-          <p className="text-gray-300 mt-1">Restaurant Operating System</p>
+          <h1 className="text-3xl font-bold text-amber-400">C.Biz POS</h1>
         </div>
 
         {sessionExpired && (
@@ -458,7 +380,7 @@ export default function Login() {
           {mode === 'email' && (
             <>
               <h2 className="text-xl font-semibold text-white mb-2">Sign in</h2>
-              <p className="text-gray-500 text-sm mb-6">For managers, owners and accountants</p>
+              <p className="text-gray-500 text-sm mb-6">For managers and owners</p>
               {emailLocked ? (
                 <LockedOut mode="email" time={emailRem} />
               ) : (
@@ -510,7 +432,7 @@ export default function Login() {
             <>
               <h2 className="text-xl font-semibold text-white mb-2">Enter PIN</h2>
               <p className="text-gray-500 text-sm mb-6">
-                For waitrons, kitchen, bar and grill staff
+                For staff members
               </p>
               {pinLocked ? (
                 <LockedOut mode="pin" time={pinRem} />
@@ -571,7 +493,7 @@ export default function Login() {
             </>
           )}
         </div>
-        <p className="text-center text-gray-600 text-sm mt-6">C.BizOS v1.0 — C.Biz Lounge</p>
+        <p className="text-center text-gray-600 text-sm mt-6">C.Biz POS v1.0</p>
       </div>
     </div>
   )

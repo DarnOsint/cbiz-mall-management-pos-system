@@ -1,0 +1,16 @@
+{
+  "name": "cbiz-print-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local ESC/POS print service for C.Biz POS network thermal printers",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "iconv-lite": "^0.6.3"
+  }
+}

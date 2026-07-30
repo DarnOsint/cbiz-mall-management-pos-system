@@ -1,24 +1,17 @@
-import { useState, useEffect } from 'react'
 import {
   ShoppingBag,
-  LayoutDashboard,
   Users,
   TrendingUp,
-  Clock,
   Settings,
   BookOpen,
   ChevronRight,
-  UtensilsCrossed,
+  Package,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../../lib/supabase'
-import UnassignedCustomerOrders from '../../../components/UnassignedCustomerOrders'
 import { formatPrice } from '../../../lib/currency'
 
 interface Stats {
-  openOrders: number
-  occupiedTables: number
-  staffOnShift: number
+  openSales: number
   todayRevenue: number
 }
 
@@ -29,35 +22,18 @@ interface Props {
 
 export default function OverviewTab({ stats, onTabChange }: Props) {
   const navigate = useNavigate()
-  const [totalTables, setTotalTables] = useState(0)
-
-  useEffect(() => {
-    supabase
-      .from('tables')
-      .select('id', { count: 'exact', head: true })
-      .then((t) => {
-        setTotalTables(t.count || 0)
-      })
-  }, [])
 
   const kpis = [
     {
-      label: 'Open Orders',
-      value: stats.openOrders,
+      label: 'Open Sales',
+      value: stats.openSales,
       icon: ShoppingBag,
       color: 'text-amber-400',
       bg: 'bg-amber-400/10',
     },
     {
-      label: 'Occupied Tables',
-      value: `${stats.occupiedTables}/${totalTables || '—'}`,
-      icon: LayoutDashboard,
-      color: 'text-blue-400',
-      bg: 'bg-blue-400/10',
-    },
-    {
-      label: 'Staff On Shift',
-      value: stats.staffOnShift,
+      label: 'Staff',
+      value: '-',
       icon: Users,
       color: 'text-green-400',
       bg: 'bg-green-400/10',
@@ -73,28 +49,16 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
 
   const actions = [
     {
-      label: 'Manage Staff Shifts',
-      sub: 'Clock in/out staff members',
-      action: () => onTabChange('shifts'),
-      icon: Clock,
-    },
-    {
-      label: 'Assign Tables',
-      sub: 'Assign tables to waitrons',
-      action: () => onTabChange('tables'),
-      icon: Users,
-    },
-    {
-      label: 'View Open Orders',
-      sub: 'Monitor active orders',
-      action: () => onTabChange('orders'),
+      label: 'View Open Sales',
+      sub: 'Monitor active sales',
+      action: () => onTabChange('sales'),
       icon: ShoppingBag,
     },
     {
-      label: 'Kitchen Stock',
-      sub: 'Reconcile food input, yield & benchmarks',
-      action: () => onTabChange('kitchen'),
-      icon: UtensilsCrossed,
+      label: 'Inventory',
+      sub: 'Stock levels and restocking',
+      action: () => navigate('/backoffice'),
+      icon: Package,
     },
     {
       label: 'Accounting',
@@ -104,7 +68,7 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
     },
     {
       label: 'Back Office',
-      sub: 'Menu, staff and table config',
+      sub: 'Items, staff and store config',
       action: () => navigate('/backoffice'),
       icon: Settings,
     },
@@ -112,7 +76,6 @@ export default function OverviewTab({ stats, onTabChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <UnassignedCustomerOrders />
       <div className="grid grid-cols-2 gap-4">
         {kpis.map((k) => (
           <div key={k.label} className="bg-gray-900 rounded-2xl p-4 border border-gray-800">

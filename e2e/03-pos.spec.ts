@@ -22,7 +22,7 @@ test.describe('POS — Waitron Flow', () => {
   test('My Shift tab shows shift stats', async ({ page }) => {
     await page.getByRole('button', { name: /My Shift/i }).click()
     // Should show revenue and order count
-    await expect(page.getByText(/SSP|\$|Revenue|Orders|Sales/i)).toBeVisible({ timeout: 6_000 })
+    await expect(page.getByText(/SSP|Revenue|Orders|Sales/i)).toBeVisible({ timeout: 6_000 })
   })
 
   test('My Orders tab shows today order history', async ({ page }) => {

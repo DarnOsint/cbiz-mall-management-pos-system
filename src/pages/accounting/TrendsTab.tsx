@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { TrendPoint } from './types'
-import { formatPrice, getCurrencySymbol } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 
 interface Props {
   trendData: TrendPoint[]
@@ -33,7 +33,7 @@ export default function TrendsTab({ trendData }: Props) {
               <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis
                 tick={{ fill: '#6b7280', fontSize: 10 }}
-                tickFormatter={(v) => `${getCurrencySymbol()}${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `SSP ${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={tooltipStyle}
@@ -52,7 +52,7 @@ export default function TrendsTab({ trendData }: Props) {
         )}
       </div>
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="text-white font-semibold mb-4">Orders per Day — Last 30 Days</h3>
+        <h3 className="text-white font-semibold mb-4">Sales per Day — Last 30 Days</h3>
         {trendData.length === 0 ? (
           empty
         ) : (
@@ -61,8 +61,8 @@ export default function TrendsTab({ trendData }: Props) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 10 }} />
               <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, 'Orders']} />
-              <Bar dataKey="orders" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, 'Sales']} />
+              <Bar dataKey="sales" fill="#6366f1" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

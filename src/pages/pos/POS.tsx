@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { formatDualPrice } from '../../lib/currency'
+import { formatPrice } from '../../lib/currency'
 import PriceDisplay from '../../components/PriceDisplay'
 import { audit } from '../../lib/audit'
 import { useAuth } from '../../context/AuthContext'
@@ -400,18 +400,54 @@ export default function POS() {
           menu_items(name))`
       )
       .eq('status', 'paid')
-      .eq('staff_id', profile?.id)
-      .gte('closed_at', windowStart.toISOString())
-      .order('closed_at', { ascending: false })
-      .limit(60)
-    setOrderHistory(
-      (data || []).map((o: any) => ({
-        ...o,
-        total_amount: o.total_amount ?? 0,
-        created_at: o.created_at ?? '',
-      })) as HistoryOrder[]
-    )
-    setHistoryLoading(false)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (data) setRecentSales(data as Sale[])
+  }, [])
+
+  const handleBarcodeScan = async (code: string) => {
+    const trimmed = code.trim()
+    if (!trimmed) return
+    setScanning(true)
+    try {
+      let found: Item | null = null
+      const { data: directMatch } = await supabase
+        .from('item')
+        .select('*, item_categories(name, id, sort_order, is_active)')
+        .eq('barcode', trimmed)
+        .eq('is_active', true)
+        .single()
+      if (directMatch) {
+        found = directMatch as Item
+      } else {
+        const { data: barcodeMatch } = await supabase
+          .from('item_barcodes')
+          .select('item_id')
+          .eq('barcode', trimmed)
+          .single()
+        if (barcodeMatch) {
+          const { data: itemData } = await supabase
+            .from('item')
+            .select('*, item_categories(name, id, sort_order, is_active)')
+            .eq('id', barcodeMatch.item_id)
+            .eq('is_active', true)
+            .single()
+          if (itemData) found = itemData as Item
+        }
+      }
+      if (found) {
+        addToCart(found)
+        toast.success('Added', `${found.name} added to cart`)
+      } else {
+        toast.error('Not found', `No item with barcode: ${trimmed}`)
+      }
+    } catch {
+      toast.error('Scan error', 'Failed to look up barcode')
+    } finally {
+      setBarcodeValue('')
+      setScanning(false)
+      setTimeout(() => barcodeInputRef.current?.focus(), 0)
+    }
   }
 
   const fetchShiftStats = async () => {
@@ -494,10 +530,10 @@ export default function POS() {
               <ShoppingBag size={15} className="text-black" />
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-white font-bold text-sm">C.Biz</h1>
+              <h1 className="text-white font-bold text-sm">C.Biz POS</h1>
               <p className="text-gray-400 text-xs">Point of Sale</p>
             </div>
-            <span className="sm:hidden text-white font-bold text-sm">POS</span>
+            <span className="sm:hidden text-white font-bold text-sm">C.Biz POS</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -584,9 +620,10 @@ export default function POS() {
                   <RefreshCw size={14} />
                 </button>
               </div>
-              {historyLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <RefreshCw size={20} className="animate-spin text-amber-500" />
+              <div className="shrink-0 border-t border-gray-800">
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-900">
+                  <h3 className="text-white text-xs font-bold uppercase tracking-wider">Recent Sales</h3>
+                  <span className="text-gray-500 text-[10px]">{recentSales.length}</span>
                 </div>
               ) : orderHistory.length === 0 ? (
                 <div className="text-center py-16">
@@ -674,13 +711,74 @@ export default function POS() {
                           </div>
                         )}
                       </div>
-                    )
-                  })}
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {filteredItems.map((item) => {
+                          const cartEntry = cart.find((e) => e.item.id === item.id)
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => addToCart(item)}
+                              className="rounded-xl overflow-hidden text-left transition-all border active:scale-[0.97] bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-amber-500/50 relative"
+                            >
+                              <div className="p-3">
+                                <p className="text-white text-sm font-medium leading-tight truncate">
+                                  {item.name}
+                                </p>
+                                <p className="text-amber-400 text-sm font-bold mt-1">
+                                  {formatPrice(item.price)}
+                                </p>
+                              </div>
+                              {cartEntry && (
+                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
+                                  {cartEntry.quantity}
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {cart.length > 0 && (
+                    <div className="shrink-0 border-t border-gray-800 bg-gray-900 p-3">
+                      <button
+                        onClick={() => setMobileView('cart')}
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <ShoppingCart size={16} />
+                        View Cart ({cartItemCount}) — {formatPrice(cartTotal)}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800 shrink-0">
+                    <button
+                      onClick={() => setMobileView('items')}
+                      className="text-amber-500 text-sm font-medium"
+                    >
+                      ← Items
+                    </button>
+                    <span className="text-white font-bold text-sm">Cart ({cartItemCount})</span>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <SalePanel
+                      cart={cart}
+                      onUpdateQuantity={updateQuantity}
+                      onRemoveItem={removeItem}
+                      notes={notes}
+                      onNotesChange={setNotes}
+                      onPlaceOrder={handlePlaceOrder}
+                      profile={profile}
+                    />
+                  </div>
                 </div>
               )}
             </div>
           </div>
-        )}
+        </>
 
         {posTab === 'shift' && (
           <div className="flex-1 overflow-y-auto">

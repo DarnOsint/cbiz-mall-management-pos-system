@@ -24,7 +24,7 @@ export default defineConfig({
       manifest: {
         name: "C.Biz",
         short_name: 'C.BizOS',
-        description: 'Restaurant management system for C.Biz Lounge',
+        description: 'Mall POS system for C.Biz',
         theme_color: '#0F172A',
         background_color: '#0F172A',
         display: 'standalone',

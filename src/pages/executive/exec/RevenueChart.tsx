@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { formatPrice, convertToUSD } from '../../../lib/currency'
+import { formatPrice } from '../../../lib/currency'
 
 interface TrendDay {
   day: string
@@ -13,8 +13,8 @@ interface Props {
 
 export default function RevenueChart({ trendData }: Props) {
   const navigate = useNavigate()
-  const usdValues = trendData.map((d) => convertToUSD(d.revenue))
-  const maxRevenue = Math.max(...usdValues, 1)
+  const sspValues = trendData.map((d) => d.revenue)
+  const maxRevenue = Math.max(...sspValues, 1)
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 mb-8">
       <div className="flex items-center justify-between mb-4">
@@ -31,11 +31,11 @@ export default function RevenueChart({ trendData }: Props) {
       ) : (
         <div className="flex items-end gap-2 md:gap-3 h-32">
           {trendData.map((d, i) => {
-            const usdRev = convertToUSD(d.revenue)
-            const height = Math.max((usdRev / maxRevenue) * 100, 2)
+            const rev = d.revenue
+            const height = Math.max((rev / maxRevenue) * 100, 2)
             return (
               <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <p className="text-gray-500 text-[10px]">${(usdRev / 1000).toFixed(0)}k</p>
+                <p className="text-gray-500 text-[10px]">SSP {(rev / 1000).toFixed(0)}k</p>
                 <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
                   <div
                     className="w-full bg-amber-500 rounded-t-md transition-all"
