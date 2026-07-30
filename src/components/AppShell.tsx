@@ -17,7 +17,6 @@ import {
   Menu,
   X,
 } from 'lucide-react'
-import StockAlertBell from './StockAlertBell'
 import type { LucideIcon } from 'lucide-react'
 
 interface NavItem {
@@ -141,7 +140,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <p className="text-amber-500 text-xs capitalize">{profile.role}</p>
               </div>
               <div className="flex items-center gap-1">
-                <StockAlertBell />
                 {notifPermission === 'granted' && (
                   <Bell size={12} className="text-green-400" aria-label="Notifications enabled" />
                 )}
@@ -192,7 +190,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="text-white font-bold text-sm">C.Biz POS</span>
             </div>
             <div className="flex items-center gap-2">
-              <StockAlertBell />
               {navItems.length > 1 && (
                 <button
                   onClick={() => setDrawerOpen(true)}

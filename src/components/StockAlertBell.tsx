@@ -19,48 +19,52 @@ export default function StockAlertBell() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const fetchAlerts = async () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const { data: dbAlerts } = await supabase
-      .from('stock_alerts')
-      .select('*')
-      .eq('is_read', false)
-      .gte('created_at', today.toISOString())
-      .order('created_at', { ascending: false })
+    try {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const { data: dbAlerts } = await supabase
+        .from('stock_alerts')
+        .select('*')
+        .eq('is_read', false)
+        .gte('created_at', today.toISOString())
+        .order('created_at', { ascending: false })
 
-    const { data: items } = await supabase
-      .from('item')
-      .select('id, name, stock_quantity, min_stock_level')
-      .gt('min_stock_level', 0)
+      const { data: items } = await supabase
+        .from('item')
+        .select('id, name, stock_quantity, min_stock_level')
+        .gt('min_stock_level', 0)
 
-    const computed: Alert[] = []
-    if (items) {
-      for (const item of items) {
-        if (item.stock_quantity <= item.min_stock_level) {
-          computed.push({
-            id: `item-${item.id}`,
-            item_id: item.id,
-            item_name: item.name,
-            current_stock: item.stock_quantity,
-            threshold: item.min_stock_level,
-            type: item.stock_quantity === 0 ? 'out_of_stock' : 'low_stock',
-            is_read: false,
-            created_at: new Date().toISOString(),
-          })
+      const computed: Alert[] = []
+      if (items) {
+        for (const item of items) {
+          if (item.stock_quantity <= item.min_stock_level) {
+            computed.push({
+              id: `item-${item.id}`,
+              item_id: item.id,
+              item_name: item.name,
+              current_stock: item.stock_quantity,
+              threshold: item.min_stock_level,
+              type: item.stock_quantity === 0 ? 'out_of_stock' : 'low_stock',
+              is_read: false,
+              created_at: new Date().toISOString(),
+            })
+          }
         }
       }
-    }
 
-    const seen = new Set<string>()
-    const merged: Alert[] = []
-    for (const a of [...(dbAlerts || []), ...computed]) {
-      const key = a.item_id || a.item_name
-      if (!seen.has(key)) {
-        seen.add(key)
-        merged.push(a)
+      const seen = new Set<string>()
+      const merged: Alert[] = []
+      for (const a of [...(dbAlerts || []), ...computed]) {
+        const key = a.item_id || a.item_name
+        if (!seen.has(key)) {
+          seen.add(key)
+          merged.push(a)
+        }
       }
+      setAlerts(merged)
+    } catch {
+      /* tables may not exist */
     }
-    setAlerts(merged)
   }
 
   useEffect(() => {
@@ -116,9 +120,7 @@ export default function StockAlertBell() {
         <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50 max-h-96 overflow-y-auto">
           <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
             <span className="text-white font-semibold text-sm">Stock Alerts</span>
-            {unreadCount > 0 && (
-              <span className="text-xs text-gray-400">{unreadCount} unread</span>
-            )}
+            {unreadCount > 0 && <span className="text-xs text-gray-400">{unreadCount} unread</span>}
           </div>
 
           {alerts.length === 0 ? (
@@ -131,25 +133,38 @@ export default function StockAlertBell() {
               {alerts.map((alert) => (
                 <div key={alert.id} className="px-4 py-3 hover:bg-gray-800/50 transition-colors">
                   <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                      alert.type === 'out_of_stock' ? 'bg-red-500/10' : 'bg-amber-500/10'
-                    }`}>
-                      <AlertTriangle size={14} className={
-                        alert.type === 'out_of_stock' ? 'text-red-400' : 'text-amber-400'
-                      } />
+                    <div
+                      className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                        alert.type === 'out_of_stock' ? 'bg-red-500/10' : 'bg-amber-500/10'
+                      }`}
+                    >
+                      <AlertTriangle
+                        size={14}
+                        className={
+                          alert.type === 'out_of_stock' ? 'text-red-400' : 'text-amber-400'
+                        }
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm font-medium truncate">{alert.item_name}</p>
                       <p className="text-gray-400 text-xs mt-0.5">
-                        Stock: <span className={
-                          alert.type === 'out_of_stock' ? 'text-red-400' : 'text-amber-400'
-                        }>{alert.current_stock}</span> / {alert.threshold}
+                        Stock:{' '}
+                        <span
+                          className={
+                            alert.type === 'out_of_stock' ? 'text-red-400' : 'text-amber-400'
+                          }
+                        >
+                          {alert.current_stock}
+                        </span>{' '}
+                        / {alert.threshold}
                       </p>
-                      <span className={`inline-block mt-1 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${
-                        alert.type === 'out_of_stock'
-                          ? 'text-red-400 bg-red-500/10'
-                          : 'text-amber-400 bg-amber-500/10'
-                      }`}>
+                      <span
+                        className={`inline-block mt-1 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${
+                          alert.type === 'out_of_stock'
+                            ? 'text-red-400 bg-red-500/10'
+                            : 'text-amber-400 bg-amber-500/10'
+                        }`}
+                      >
                         {alert.type === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'}
                       </span>
                     </div>
