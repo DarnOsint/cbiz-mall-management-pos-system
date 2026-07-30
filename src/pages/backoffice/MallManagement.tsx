@@ -281,7 +281,7 @@ export default function MallManagement({ onBack }: Props) {
   const openNewShop = () => {
     setEditingShop(null)
     setShopForm({
-      shop_number: '', shop_name: '', pos_x: 0, pos_y: 0, width: 2, height: 2,
+    shop_number: '', shop_name: '', pos_x: 0, pos_y: 0, width: 50, height: 50,
       tenant_name: '', tenant_phone: '', monthly_rent: '', is_occupied: false,
       lease_start_date: '', lease_end_date: '', deposit_amount: '',
       shop_category: '', email: '', notes: ''
@@ -1000,7 +1000,7 @@ export default function MallManagement({ onBack }: Props) {
                 <div
                   ref={planRef}
                   className="relative select-none"
-                  style={{ minHeight: 400 }}
+                  style={{ minHeight: 800, minWidth: 1200 }}
                 >
                   {currentFloorsShops.map((shop) => {
                     const payments = rentPayments[shop.id] || []
