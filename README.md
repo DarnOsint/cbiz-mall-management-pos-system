@@ -1,16 +1,42 @@
-# React + Vite
+# Celebiz — Mall Management & POS System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Full-featured mall management and point-of-sale system built for a 3-floor,
+150-shop L-shaped shopping centre.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19 + TypeScript
+- Vite 7
+- Tailwind CSS 4
+- Supabase (auth, database, RLS)
+- Three.js / react-three-fiber (3D floor plan)
+- Recharts (analytics)
+- jsPDF (receipts/invoices)
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Copy `.env.example` to `.env` and fill in your Supabase credentials.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cp .env.example .env
+```
+
+## Available Scripts
+
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Start dev server + print service |
+| `npm run build` | Production build |
+| `npm run typecheck` | TypeScript check |
+| `npm run lint` | ESLint |
+| `npm run test` | Vitest unit tests |
+| `npm run test:e2e` | Playwright E2E tests |
+
+## Deployment
+
+Deployed on Vercel at [celebiz.vercel.app](https://celebiz.vercel.app).

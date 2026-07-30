@@ -1,7 +1,7 @@
 {
-  "name": "c-biz-pos",
+  "name": "cbiz-mall-pos",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently --names app,print --prefix-colors cyan,yellow \"vite\" \"node print-service/index.js\"",
