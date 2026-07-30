@@ -13,6 +13,7 @@ import {
   BarChart3, Percent, Home, KeyRound, Wrench, Receipt, Box
 } from 'lucide-react'
 import Mall3DView from '../mall/Mall3DView'
+import ErrorBoundary from '../../components/ErrorBoundary'
 import type { MallFloor, MallShop, MallRentPayment, MallMaintenanceRequest, MallRentInvoice, Profile } from '../../types'
 
 interface Props {
@@ -811,7 +812,11 @@ export default function MallManagement({ onBack }: Props) {
 
         {/* ─── 3D VIEW TAB ─── */}
         {activeTab === '3d-view' && (
-          <Mall3DView />
+          <div className="h-[600px] rounded-2xl overflow-hidden">
+            <ErrorBoundary>
+              <Mall3DView />
+            </ErrorBoundary>
+          </div>
         )}
 
         {/* ─── OVERVIEW TAB ─── */}
