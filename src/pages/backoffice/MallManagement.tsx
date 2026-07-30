@@ -1000,7 +1000,7 @@ export default function MallManagement({ onBack }: Props) {
                 <div
                   ref={planRef}
                   className="relative select-none"
-                  style={{ minHeight: 800, minWidth: 1200 }}
+                  style={{ minHeight: 1600, minWidth: 2400 }}
                 >
                   {currentFloorsShops.map((shop) => {
                     const payments = rentPayments[shop.id] || []
