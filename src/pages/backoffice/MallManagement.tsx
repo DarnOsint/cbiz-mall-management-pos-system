@@ -431,7 +431,11 @@ export default function MallManagement({ onBack }: Props) {
   }
 
   const handleShopPlanClick = (shop: MallShop) => {
-    openEditShop(shop)
+    if (selectedShop === shop.id) {
+      setSelectedShop(null)
+    } else {
+      setSelectedShop(shop.id)
+    }
   }
 
   const handleShopInfoClick = (e: React.MouseEvent, shop: MallShop) => {
@@ -1033,6 +1037,24 @@ export default function MallManagement({ onBack }: Props) {
                         >
                           <Info size={10} />
                         </button>
+                        {selectedShop === shop.id && (
+                          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openEditShop(shop) }}
+                              className="bg-gray-900/80 hover:bg-gray-800 text-amber-400 p-0.5 rounded"
+                              title="Edit shop"
+                            >
+                              <Edit3 size={10} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteShop(shop) }}
+                              className="bg-gray-900/80 hover:bg-gray-800 text-red-400 p-0.5 rounded"
+                              title="Delete shop"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                        )}
 
                         <div className="resize-handle absolute -top-1 -left-1 w-3 h-3 cursor-nwse-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'nw')} />
                         <div className="resize-handle absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 cursor-ns-resize bg-white/20 hover:bg-white/40 rounded-sm z-20" onMouseDown={(e) => handleResizeStart(e, shop.id, 'n')} />
@@ -1061,12 +1083,10 @@ export default function MallManagement({ onBack }: Props) {
                         isSelected ? 'border-amber-500' : 'border-gray-800 hover:border-gray-700'
                       }`}
                       onClick={() => {
-                        if (selectedShop === shop.id && showDetailPanel) {
-                          setShowDetailPanel(false)
+                        if (selectedShop === shop.id) {
                           setSelectedShop(null)
                         } else {
                           setSelectedShop(shop.id)
-                          setShowDetailPanel(true)
                         }
                       }}
                     >
@@ -1172,6 +1192,12 @@ export default function MallManagement({ onBack }: Props) {
                         className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-xl text-sm transition-colors"
                       >
                         <Edit3 size={14} /> Edit
+                      </button>
+                      <button
+                        onClick={() => { setShowDetailPanel(false); deleteShop(shop) }}
+                        className="flex items-center gap-1.5 bg-red-900/50 hover:bg-red-800/60 text-red-400 px-3 py-1.5 rounded-xl text-sm transition-colors"
+                      >
+                        <Trash2 size={14} /> Delete
                       </button>
                       <button
                         onClick={() => { setShowDetailPanel(false); setSelectedShop(null) }}
