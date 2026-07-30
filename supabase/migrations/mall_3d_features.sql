@@ -13,10 +13,12 @@ CREATE TABLE IF NOT EXISTS mall_shop_features (
 
 ALTER TABLE mall_shop_features ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "mall_features_read_all"
+DROP POLICY IF EXISTS "mall_features_read_all" ON mall_shop_features;
+CREATE POLICY "mall_features_read_all"
   ON mall_shop_features FOR SELECT USING (auth.role() = 'authenticated');
 
-CREATE POLICY IF NOT EXISTS "mall_features_write_admin"
+DROP POLICY IF EXISTS "mall_features_write_admin" ON mall_shop_features;
+CREATE POLICY "mall_features_write_admin"
   ON mall_shop_features FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('owner','manager'))
   );
