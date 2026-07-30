@@ -1021,7 +1021,9 @@ export default function MallManagement({ onBack }: Props) {
                           height: shop.height,
                         }}
                       >
-                        <span className="text-white font-bold text-xs leading-tight text-center px-1">
+                        {/* Occupancy stripe */}
+                        <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-lg ${shop.is_occupied ? 'bg-green-500' : 'bg-gray-600'}`} />
+                        <span className="text-white font-bold text-xs leading-tight text-center px-1 mt-1">
                           {shop.shop_number}
                         </span>
                         <span className="text-white/80 text-[10px] leading-tight text-center px-1 truncate max-w-full">
